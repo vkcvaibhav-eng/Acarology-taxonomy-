@@ -130,3 +130,35 @@
     }
   }
 }
+"Key_to_Orders_of_Subclass_Acari": {
+    "1": {
+      "option_a": {
+        "morphology": "Superorder Parasitiformes: Stigmata present lateral to coxae II-IV and usually associated with elongated peritremes; coxae of legs free, distinct, and movable; subcapitulum with a pairs of corniculi.",
+        "advances_to": "Node 2"
+      },
+      "option_b": {
+        "morphology": "Superorder Acariformes: Stigmata absent posterior to coxae II; if stigmata are present, they open at the base of the chelicerae or on the prodorsum; coxae integrated with the venter of the podosoma, forming rigid coxisterna; corniculi absent.",
+        "advances_to": "Node 3"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Order Mesostigmata: Hypostome not modified into a piercing organ with recurved teeth; macrostigmata lateral to coxae II-IV with distinct tube-like peritremes; tarsus I usually without a large sensory pit.",
+        "advances_to": "Order: Mesostigmata"
+      },
+      "option_b": {
+        "morphology": "Order Ixodida (Ticks): Hypostome modified into a specialized, prominent piercing organ armed with backward-projecting recurved teeth; peritremes located on plate-like spiracular shields posterior to coxae IV; tarsus I always with a distinct dorsal sensory pit (Haller's organ).",
+        "advances_to": "Order: Ixodida"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Order Trombidiformes: Chelicerae typically modified into piercing stylets or fused with the gnathosoma, rarely chelate; palpi often modified into a distinct thumb-claw complex or raptorial organ; peritremes or respiratory stigmata, when present, open at the base of chelicerae or on the prodorsum (Prostigmata).",
+        "advances_to": "Order: Trombidiformes"
+      },
+      "option_b": {
+        "morphology": "Order Sarcoptiformes: Chelicerae typically robust, adapted for pinching and chewing (chelate-dentate), not modified into piercing stylets; palpi simple and filiform; specialized respiratory peritremes absent; true stigmata absent, respiration primarily cutaneous or via specialized apodemes/tracheae.",
+        "advances_to": "Order: Sarcoptiformes"
+      }
+    }
+  }
