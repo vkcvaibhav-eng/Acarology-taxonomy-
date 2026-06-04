@@ -1,0 +1,132 @@
+{
+  "Key_to_Superfamilies_of_Phytophagous_Mites": {
+    "1": {
+      "option_a": {
+        "morphology": "Minute, elongate and worm-like (vermiform); body annulated; only 2 pairs of legs present in all life stages; no visible segmentation.",
+        "advances_to": "Superfamily: Eriophyoidea"
+      },
+      "option_b": {
+        "morphology": "Body is globus or oval with dorsal setae; larva with three pairs of legs and nymphs and adults with four pairs of legs; one pair of closely placed stigmata at the base of chelicerae or at the anterior idiosomal shoulders.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Peritreme well developed; pedipalp with thumb-claw process; body not with transverse dorsal plates; empodium and claw on pretarsus.",
+        "advances_to": "Superfamily: Tetranychoidea"
+      },
+      "option_b": {
+        "morphology": "Peritreme absent; pedipalp without thumb-claw process; body with transverse dorsal plate; prodorsum of adult females with bothridial setae.",
+        "advances_to": "Superfamily: Tarsonemoidea"
+      }
+    }
+  },
+  "Key_to_Subfamilies_of_Tetranychidae": {
+    "1": {
+      "option_a": {
+        "morphology": "Empodium with tenent hairs; female with 3 pairs of anal setae (ps1-3) and male with 5 pairs of genito-anal setae.",
+        "advances_to": "Subfamily: Bryobiinae"
+      },
+      "option_b": {
+        "morphology": "Empodium (rarely absent) without tenent hairs; female with 1 or 2 pairs of anal setae and male with 3 or 4 pairs of genito-anal setae.",
+        "advances_to": "Subfamily: Tetranychinae"
+      }
+    }
+  },
+  "Key_to_Tribes_of_Tetranychinae": {
+    "1": {
+      "option_a": {
+        "morphology": "Empodium claw-like when present, tarsus 1 with loosely associated setae or with 1 pair of duplex setae; when 2 pairs of duplex setae on tarsus 1 then no pairs on tarsus 2.",
+        "advances_to": "Tribe: Eurytetranychini"
+      },
+      "option_b": {
+        "morphology": "Empodium claw-like or split distally, tarsus 1 with 2 pairs of duplex setae and tarsus 2 with 1 pair.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Opisthosoma with f1 in marginal position or absent.",
+        "advances_to": "Tribe: Tenuipalpoidini"
+      },
+      "option_b": {
+        "morphology": "Opisthosoma f1 in normal dorsal position.",
+        "advances_to": "Tribe: Tetranychini"
+      }
+    }
+  },
+  "Key_to_Families_of_Eriophyoidea": {
+    "1": {
+      "option_a": {
+        "morphology": "Prodorsal shield with one to five setae, always with anterior setae present (paired or unpaired vi or paired ve); legs with all setae and apicolateral or apicoventral solenidion on tibiae of legs. Opisthosoma with subdorsal setae (c1); accessory setae often long (h1); female genital coverflap without ridges.",
+        "advances_to": "Family: Phytoptidae"
+      },
+      "option_b": {
+        "morphology": "Prodorsal shield without anterior setae (vi and ve); no tibial solenidion; opisthosoma without subdorsal setae (c1); accessory setae often small or minute (h1); female genital coverflap with ridges.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Gnathosoma large compared with body; cheliceral stylets comparatively long and suddenly bent downward near base; pedipalps attenuate and enfold long-form oral stylets; empodium divided or entire; female genital coverflap without ridges.",
+        "advances_to": "Family: Diptilomiopidae"
+      },
+      "option_b": {
+        "morphology": "Gnathosoma small compared with body; cheliceral stylets comparatively long, straight or slightly curved; pedipalps terminally truncate and enfold short-form oral stylets; accessory setae often minute or absent (h1); female genital coverflap with ridges.",
+        "advances_to": "Family: Eriophyidae"
+      }
+    }
+  },
+  "Key_to_Subfamilies_of_Eriophyidae": {
+    "1": {
+      "option_a": {
+        "morphology": "Tibiae reduced or completely fused with tarsi; tibial setae absent.",
+        "advances_to": "Node 2"
+      },
+      "option_b": {
+        "morphology": "Tibiae distinct from tarsi; tibial setae present.",
+        "advances_to": "Node 3"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Tarsi with spatulate or shovel-shaped projections; legs very short with combined segments; empodia large with many rays.",
+        "advances_to": "Subfamily: Aberoptinae"
+      },
+      "option_b": {
+        "morphology": "Tarsi without spatulate or shovel-shaped projections; coxae of leg I fused across the central line; coxal setae 1b absent; empodia comparatively small.",
+        "advances_to": "Subfamily: Nothopodinae"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Prodorsal shield small and lacking tubercles; scapular setae (sc) small on lateral margins and directed laterally; coxae widely separated; ventral setae d and e absent; female genitalia at the base of coxa II; coverflaps lack ridges.",
+        "advances_to": "Subfamily: Ashieldopinae"
+      },
+      "option_b": {
+        "morphology": "Prodorsal shield and opisthosomal setation not as above.",
+        "advances_to": "Node 4"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "Female genital apodeme bent upward, shortened, and with a heavy transverse ventral line; female genital coverflap with two uneven ranks of ridges; female genitalia close between coxa II; scapular setae (sc) absent.",
+        "advances_to": "Subfamily: Cecidophyinae"
+      },
+      "option_b": {
+        "morphology": "Female genital apodeme extends normally forward and lacks heavy transverse marks; female coverflap with variable ridges; female genitalia not close between coxa II.",
+        "advances_to": "Node 5"
+      }
+    },
+    "5": {
+      "option_a": {
+        "morphology": "Vermiform body; annuli subequal dorsoventrally up to half or two-thirds of the opisthosoma; prodorsal shield lacks frontal lobe or has only a slight projection over the gnathosomal base; frontal lobe, if present, short and flexible with narrow annuli.",
+        "advances_to": "Subfamily: Eriophyinae"
+      },
+      "option_b": {
+        "morphology": "Fusiform body; broad prodorsal shield with a strong frontal lobe over the gnathosomal base; opisthosomal annuli broad and stout.",
+        "advances_to": "Subfamily: Phyllocoptinae"
+      }
+    }
+  }
+}
