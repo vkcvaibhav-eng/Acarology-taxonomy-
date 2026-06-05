@@ -9,7 +9,7 @@ import streamlit as st
 
 KEYS_PATH = Path("keys.json")
 OBSERVATION_DIR = Path("outputs/observations")
-IMAGE_DIR = Path("outputs/images") # New directory for uploaded morphology photos
+IMAGE_DIR = Path("outputs/images") # Directory for uploaded morphology photos
 DEFAULT_KEY = "Key_to_Superfamilies_of_Phytophagous_Mites"
 NEXT_TIER_MAP = {
     "Superfamily": "Families",
@@ -38,7 +38,7 @@ def save_keys(keys_db: dict) -> None:
     """Saves the updated keys database back to the JSON file."""
     with KEYS_PATH.open("w", encoding="utf-8") as file:
         json.dump(keys_db, file, indent=4)
-    load_keys.clear() # Clear the cache so the app recognizes the new image
+    st.cache_data.clear() # Clear the cache so the app recognizes the new image
 
 
 def format_key_name(key_name: str) -> str:
@@ -170,10 +170,10 @@ def handle_image_upload(uploaded_file, keys_db, option_key: str) -> None:
     filename = f"{safe_key_name}_node{node_id}_{option_key}{file_ext}"
     filepath = IMAGE_DIR / filename
     
-    # Save the file
+    # Save the file to the images directory
     filepath.write_bytes(uploaded_file.getvalue())
     
-    # Update the keys database
+    # Update the keys database with the file path
     keys_db[key_name][node_id][option_key]["image"] = str(filepath)
     save_keys(keys_db)
     st.toast(f"Photo successfully saved to Option {option_key[-1].upper()}!")
