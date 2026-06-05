@@ -128,9 +128,8 @@
         "advances_to": "Subfamily: Phyllocoptinae"
       }
     }
-  }
-}
-"Key_to_Orders_of_Subclass_Acari": {
+  },
+  "Key_to_Orders_of_Subclass_Acari": {
     "1": {
       "option_a": {
         "morphology": "Superorder Parasitiformes: Stigmata present lateral to coxae II-IV and usually associated with elongated peritremes; coxae of legs free, distinct, and movable; subcapitulum with a pairs of corniculi.",
@@ -162,3 +161,4 @@
       }
     }
   }
+}
