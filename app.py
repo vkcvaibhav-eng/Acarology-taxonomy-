@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import base64
 import json
+import mimetypes
 from datetime import datetime
 from pathlib import Path
+from urllib import error, request
+from uuid import uuid4
 
 import streamlit as st
 
 
 KEYS_PATH = Path("keys.json")
 OBSERVATION_DIR = Path("outputs/observations")
-IMAGE_DIR = Path("outputs/images") # Directory for uploaded morphology photos
+IMAGE_DIR = Path("static/morphology_images")
 DEFAULT_KEY = "Key_to_Superfamilies_of_Phytophagous_Mites"
+IMAGE_TYPES = ["png", "jpg", "jpeg", "webp"]
 NEXT_TIER_MAP = {
     "Superfamily": "Families",
     "Family": "Subfamilies",
@@ -35,10 +40,8 @@ def load_keys() -> dict:
 
 
 def save_keys(keys_db: dict) -> None:
-    """Saves the updated keys database back to the JSON file."""
-    with KEYS_PATH.open("w", encoding="utf-8") as file:
-        json.dump(keys_db, file, indent=4)
-    st.cache_data.clear() # Clear the cache so the app recognizes the new image
+    KEYS_PATH.write_text(json.dumps(keys_db, indent=2), encoding="utf-8")
+    load_keys.clear()
 
 
 def format_key_name(key_name: str) -> str:
@@ -59,6 +62,138 @@ def get_next_key_name(result: str) -> str | None:
     return f"Key_to_{NEXT_TIER_MAP[rank]}_of_{name}"
 
 
+def secret_value(name: str, default: str = "") -> str:
+    try:
+        value = st.secrets.get(name, default)
+    except Exception:
+        return default
+    return str(value) if value is not None else default
+
+
+def github_config() -> dict:
+    return {
+        "token": secret_value("github_token"),
+        "repo": secret_value("github_repo"),
+        "branch": secret_value("github_branch", "main"),
+    }
+
+
+def github_enabled() -> bool:
+    config = github_config()
+    return bool(config["token"] and config["repo"])
+
+
+def github_api(path: str, method: str = "GET", payload: dict | None = None) -> dict:
+    config = github_config()
+    url = f"https://api.github.com/repos/{config['repo']}/contents/{path}"
+    if method == "GET":
+        url = f"{url}?ref={config['branch']}"
+    data = json.dumps(payload).encode("utf-8") if payload else None
+    api_request = request.Request(
+        url,
+        data=data,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {config['token']}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Content-Type": "application/json",
+        },
+    )
+    with request.urlopen(api_request, timeout=20) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def github_file_sha(repo_path: str) -> str | None:
+    try:
+        return github_api(repo_path).get("sha")
+    except error.HTTPError as api_error:
+        if api_error.code == 404:
+            return None
+        raise
+
+
+def commit_file_to_github(repo_path: str, content: bytes, message: str) -> None:
+    config = github_config()
+    payload = {
+        "message": message,
+        "content": base64.b64encode(content).decode("ascii"),
+        "branch": config["branch"],
+    }
+    sha = github_file_sha(repo_path)
+    if sha:
+        payload["sha"] = sha
+    github_api(repo_path, method="PUT", payload=payload)
+
+
+def persist_keys_to_github(message: str) -> None:
+    commit_file_to_github(KEYS_PATH.as_posix(), KEYS_PATH.read_bytes(), message)
+
+
+def slugify(value: str) -> str:
+    slug = "".join(char.lower() if char.isalnum() else "-" for char in value)
+    return "-".join(part for part in slug.split("-") if part) or "item"
+
+
+def safe_uploaded_filename(uploaded_file, key_name: str, node_id: str, option_name: str) -> str:
+    extension = Path(uploaded_file.name).suffix.lower()
+    if extension.lstrip(".") not in IMAGE_TYPES:
+        extension = ".png"
+    return (
+        f"{slugify(key_name)}-node-{slugify(node_id)}-"
+        f"{option_name}-{uuid4().hex[:8]}{extension}"
+    )
+
+
+def save_uploaded_image(uploaded_file, key_name: str, node_id: str, option_name: str, caption: str) -> dict:
+    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    filename = safe_uploaded_filename(uploaded_file, key_name, node_id, option_name)
+    path = IMAGE_DIR / filename
+    content = uploaded_file.getvalue()
+    path.write_bytes(content)
+
+    image_record = {
+        "path": path.as_posix(),
+        "caption": caption.strip(),
+        "uploaded_at": datetime.now().isoformat(timespec="seconds"),
+        "original_name": uploaded_file.name,
+        "mime_type": uploaded_file.type or mimetypes.guess_type(filename)[0] or "image/png",
+    }
+
+    if github_enabled():
+        commit_file_to_github(
+            path.as_posix(),
+            content,
+            f"Add morphology image for {format_key_name(key_name)} node {node_id} {option_name}",
+        )
+        image_record["persisted_to_github"] = True
+
+    return image_record
+
+
+def option_images(option: dict) -> list[dict]:
+    images = option.get("images", [])
+    return images if isinstance(images, list) else []
+
+
+def render_option_images(option: dict) -> None:
+    images = option_images(option)
+    if not images:
+        st.caption("No morphology reference photo is attached yet.")
+        return
+
+    for image in images:
+        caption = image.get("caption") or None
+        url = image.get("url", "").strip()
+        path = image.get("path", "").strip()
+        if url:
+            st.image(url, caption=caption, use_column_width=True)
+        elif path and Path(path).exists():
+            st.image(path, caption=caption, use_column_width=True)
+        elif path:
+            st.warning(f"Image is listed but missing from app files: {path}")
+
+
 def validate_keys(keys_db: dict) -> list[str]:
     warnings = []
     for key_name, couplets in keys_db.items():
@@ -74,7 +209,7 @@ def validate_keys(keys_db: dict) -> list[str]:
                     continue
 
                 target = option.get("advances_to", "")
-                if target.startswith("Node "):
+                if isinstance(target, str) and target.startswith("Node "):
                     next_node = target.replace("Node ", "").strip()
                     if next_node not in couplets:
                         warnings.append(
@@ -92,6 +227,10 @@ def initialize_state(keys_db: dict) -> None:
     st.session_state.setdefault("final_result", "")
     st.session_state.setdefault("specimen_code", "")
     st.session_state.setdefault("observer_notes", "")
+    st.session_state.setdefault("app_mode", "Identify")
+
+    if st.session_state.current_key not in keys_db:
+        restart(default_key)
 
 
 def restart(key_name: str, clear_notes: bool = False) -> None:
@@ -105,7 +244,7 @@ def restart(key_name: str, clear_notes: bool = False) -> None:
         st.session_state.observer_notes = ""
 
 
-def advance(option_label: str, morphology: str, target: str) -> None:
+def advance(option_label: str, morphology: str, target: str, images: list[dict] | None = None) -> None:
     st.session_state.history.append(
         {
             "key": st.session_state.current_key,
@@ -113,10 +252,11 @@ def advance(option_label: str, morphology: str, target: str) -> None:
             "option": option_label,
             "morphology": morphology,
             "advanced_to": target,
+            "images": images or [],
         }
     )
 
-    if target.startswith("Node "):
+    if isinstance(target, str) and target.startswith("Node "):
         st.session_state.current_node = target.replace("Node ", "").strip()
     else:
         st.session_state.diagnosis_complete = True
@@ -157,28 +297,6 @@ def save_record(record: dict) -> Path:
     return path
 
 
-def handle_image_upload(uploaded_file, keys_db, option_key: str) -> None:
-    """Saves the uploaded image and updates the JSON database."""
-    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-    
-    key_name = st.session_state.current_key
-    node_id = st.session_state.current_node
-    
-    # Create a safe, unique filename
-    safe_key_name = "".join(c for c in key_name if c.isalnum() or c in ("-", "_"))
-    file_ext = Path(uploaded_file.name).suffix
-    filename = f"{safe_key_name}_node{node_id}_{option_key}{file_ext}"
-    filepath = IMAGE_DIR / filename
-    
-    # Save the file to the images directory
-    filepath.write_bytes(uploaded_file.getvalue())
-    
-    # Update the keys database with the file path
-    keys_db[key_name][node_id][option_key]["image"] = str(filepath)
-    save_keys(keys_db)
-    st.toast(f"Photo successfully saved to Option {option_key[-1].upper()}!")
-
-
 def render_path() -> None:
     st.subheader("Diagnostic Path")
     if not st.session_state.history:
@@ -192,10 +310,130 @@ def render_path() -> None:
         )
 
 
+def admin_is_allowed() -> bool:
+    password = secret_value("admin_password")
+    if not password:
+        st.warning("Admin password is not configured. Add admin_password in Streamlit secrets before public use.")
+        return True
+
+    entered = st.text_input("Admin password", type="password")
+    if entered != password:
+        st.info("Enter the admin password to manage morphology photos.")
+        return False
+    return True
+
+
+def save_admin_changes(keys_db: dict, message: str) -> None:
+    save_keys(keys_db)
+    if github_enabled():
+        persist_keys_to_github(message)
+
+
+def render_admin(keys_db: dict) -> None:
+    st.subheader("Admin Morphology Photos")
+    st.caption("Attach photos to each key, couplet, and A/B morphology choice.")
+
+    if github_enabled():
+        config = github_config()
+        st.success(f"GitHub persistence is enabled for {config['repo']} on branch {config['branch']}.")
+    else:
+        st.warning(
+            "GitHub persistence is not configured. Uploads work locally, but Streamlit Cloud can lose them after sleep or restart."
+        )
+
+    if not admin_is_allowed():
+        return
+
+    key_names = list(keys_db.keys())
+    selected_key = st.selectbox("Step 1: select key", key_names, format_func=format_key_name)
+    couplets = keys_db.get(selected_key, {})
+    if not couplets:
+        st.warning("This key has no couplet nodes.")
+        return
+
+    node_ids = sorted(
+        couplets.keys(),
+        key=lambda value: (0, int(value)) if str(value).isdigit() else (1, str(value)),
+    )
+    selected_node = st.selectbox("Step 2: select couplet", node_ids)
+    selected_option = st.radio(
+        "Step 3: select morphology option",
+        ["option_a", "option_b"],
+        format_func=lambda value: "A" if value == "option_a" else "B",
+        horizontal=True,
+    )
+
+    option = couplets[selected_node].setdefault(selected_option, {})
+    st.markdown(f"**Morphology shown to users**  \n{option.get('morphology', '')}")
+    st.caption(f"Advances to: {option.get('advances_to', '')}")
+
+    st.markdown("#### Step 4: attach photo")
+    caption = st.text_input("Photo caption", placeholder="Example: Pedipalp thumb-claw process")
+    uploaded_files = st.file_uploader(
+        "Upload image from computer",
+        type=IMAGE_TYPES,
+        accept_multiple_files=True,
+    )
+    external_url = st.text_input("Or paste an external image URL")
+
+    if st.button("Save photo reference", type="primary"):
+        images = option.setdefault("images", [])
+        saved_count = 0
+        for uploaded_file in uploaded_files or []:
+            images.append(save_uploaded_image(uploaded_file, selected_key, selected_node, selected_option, caption))
+            saved_count += 1
+
+        if external_url.strip():
+            images.append(
+                {
+                    "url": external_url.strip(),
+                    "caption": caption.strip(),
+                    "uploaded_at": datetime.now().isoformat(timespec="seconds"),
+                }
+            )
+            saved_count += 1
+
+        if saved_count:
+            save_admin_changes(
+                keys_db,
+                f"Update morphology photos for {format_key_name(selected_key)} node {selected_node} {selected_option}",
+            )
+            st.success("Photo reference saved.")
+            st.rerun()
+        else:
+            st.error("Upload a photo or paste an image URL first.")
+
+    images = option_images(option)
+    st.markdown("#### Existing photos")
+    if not images:
+        st.info("No photos attached to this morphology option yet.")
+        return
+
+    for index, image in enumerate(images):
+        with st.container(border=True):
+            render_option_images({"images": [image]})
+            new_caption = st.text_input(
+                "Caption",
+                value=image.get("caption", ""),
+                key=f"caption-{selected_key}-{selected_node}-{selected_option}-{index}",
+            )
+            col_save, col_remove = st.columns(2)
+            if col_save.button("Update caption", key=f"caption-save-{index}", use_container_width=True):
+                image["caption"] = new_caption
+                save_admin_changes(keys_db, "Update morphology image caption")
+                st.success("Caption updated.")
+                st.rerun()
+            if col_remove.button("Remove from key", key=f"image-remove-{index}", use_container_width=True):
+                images.pop(index)
+                save_admin_changes(keys_db, "Remove morphology image reference")
+                st.warning("Photo reference removed from keys.json.")
+                st.rerun()
+
+
 def main() -> None:
     st.set_page_config(
         page_title="Acarology Taxonomy Key",
-        page_icon="microscope",
+        page_icon=":microscope:",
         layout="wide",
     )
 
@@ -210,47 +448,54 @@ def main() -> None:
     st.caption("Interactive dichotomous key for mite identification from morphology.")
 
     with st.sidebar:
-        st.header("Admin Controls")
-        # Toggle for Admin mode to show uploaders
-        admin_mode = st.toggle("🛠️ Enable Admin Edit Mode", value=False, help="Turn this on to upload morphology photos to the current couplet.")
-        
-        st.divider()
-        
-        st.header("Specimen")
-        st.text_input("Specimen code", key="specimen_code", placeholder="Slide, vial, or field number")
-        st.text_area(
-            "Morphology notes",
-            key="observer_notes",
-            placeholder="Record visible characters, host plant, mount quality, and uncertainty.",
-            height=140,
-        )
+        st.radio("Mode", ["Identify", "Admin"], key="app_mode")
 
-        st.header("Key")
-        selected_key = st.selectbox(
-            "Start or jump to key",
-            options=list(keys_db.keys()),
-            format_func=format_key_name,
-            index=list(keys_db.keys()).index(st.session_state.current_key)
-            if st.session_state.current_key in keys_db
-            else 0,
-        )
+        if st.session_state.app_mode == "Admin":
+            st.info("Admin photos are saved to keys.json. GitHub secrets make them permanent on Streamlit Cloud.")
+            if warnings:
+                with st.expander("Data checks"):
+                    for warning in warnings:
+                        st.warning(warning)
+        else:
+            st.header("Specimen")
+            st.text_input("Specimen code", key="specimen_code", placeholder="Slide, vial, or field number")
+            st.text_area(
+                "Morphology notes",
+                key="observer_notes",
+                placeholder="Record visible characters, host plant, mount quality, and uncertainty.",
+                height=140,
+            )
 
-        if selected_key != st.session_state.current_key:
-            restart(selected_key)
-            st.rerun()
+            st.header("Key")
+            selected_key = st.selectbox(
+                "Start or jump to key",
+                options=list(keys_db.keys()),
+                format_func=format_key_name,
+                index=list(keys_db.keys()).index(st.session_state.current_key)
+                if st.session_state.current_key in keys_db
+                else 0,
+            )
 
-        col_restart, col_undo = st.columns(2)
-        if col_restart.button("Restart", use_container_width=True):
-            restart(st.session_state.current_key)
-            st.rerun()
-        if col_undo.button("Undo", use_container_width=True, disabled=not st.session_state.history):
-            undo()
-            st.rerun()
+            if selected_key != st.session_state.current_key:
+                restart(selected_key)
+                st.rerun()
 
-        if warnings:
-            with st.expander("Data checks"):
-                for warning in warnings:
-                    st.warning(warning)
+            col_restart, col_undo = st.columns(2)
+            if col_restart.button("Restart", use_container_width=True):
+                restart(st.session_state.current_key)
+                st.rerun()
+            if col_undo.button("Undo", use_container_width=True, disabled=not st.session_state.history):
+                undo()
+                st.rerun()
+
+            if warnings:
+                with st.expander("Data checks"):
+                    for warning in warnings:
+                        st.warning(warning)
+
+    if st.session_state.app_mode == "Admin":
+        render_admin(keys_db)
+        return
 
     left, right = st.columns([1.7, 1])
 
@@ -297,56 +542,34 @@ def main() -> None:
             f"**Couplet {st.session_state.current_node}:** Examine the specimen and choose the matching character state."
         )
 
-        option_a = couplet["option_a"]
-        option_b = couplet["option_b"]
+        option_a = couplet.get("option_a", {})
+        option_b = couplet.get("option_b", {})
         col_a, col_b = st.columns(2)
 
         with col_a:
             st.markdown("#### A")
-            
-            # Display image if it exists in keys.json
-            if "image" in option_a and Path(option_a["image"]).exists():
-                st.image(option_a["image"], use_container_width=True)
-                
-            st.info(option_a["morphology"])
-            
-            # Admin photo uploader for Option A
-            if admin_mode:
-                uploaded_a = st.file_uploader(
-                    "Upload photo for A", 
-                    type=["png", "jpg", "jpeg"], 
-                    key=f"upload_a_{st.session_state.current_key}_{st.session_state.current_node}"
-                )
-                if uploaded_a:
-                    handle_image_upload(uploaded_a, keys_db, "option_a")
-                    st.rerun()
-
+            st.info(option_a.get("morphology", "Missing morphology text."))
+            render_option_images(option_a)
             if st.button("Select A", key=f"a-{st.session_state.current_key}-{st.session_state.current_node}", use_container_width=True):
-                advance("A", option_a["morphology"], option_a["advances_to"])
+                advance(
+                    "A",
+                    option_a.get("morphology", ""),
+                    option_a.get("advances_to", ""),
+                    option_images(option_a),
+                )
                 st.rerun()
 
         with col_b:
             st.markdown("#### B")
-            
-            # Display image if it exists in keys.json
-            if "image" in option_b and Path(option_b["image"]).exists():
-                st.image(option_b["image"], use_container_width=True)
-                
-            st.info(option_b["morphology"])
-            
-            # Admin photo uploader for Option B
-            if admin_mode:
-                uploaded_b = st.file_uploader(
-                    "Upload photo for B", 
-                    type=["png", "jpg", "jpeg"], 
-                    key=f"upload_b_{st.session_state.current_key}_{st.session_state.current_node}"
-                )
-                if uploaded_b:
-                    handle_image_upload(uploaded_b, keys_db, "option_b")
-                    st.rerun()
-
+            st.info(option_b.get("morphology", "Missing morphology text."))
+            render_option_images(option_b)
             if st.button("Select B", key=f"b-{st.session_state.current_key}-{st.session_state.current_node}", use_container_width=True):
-                advance("B", option_b["morphology"], option_b["advances_to"])
+                advance(
+                    "B",
+                    option_b.get("morphology", ""),
+                    option_b.get("advances_to", ""),
+                    option_images(option_b),
+                )
                 st.rerun()
 
 
