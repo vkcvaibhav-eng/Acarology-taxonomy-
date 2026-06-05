@@ -9,6 +9,7 @@ import streamlit as st
 
 KEYS_PATH = Path("keys.json")
 OBSERVATION_DIR = Path("outputs/observations")
+IMAGE_DIR = Path("outputs/images") # New directory for uploaded morphology photos
 DEFAULT_KEY = "Key_to_Superfamilies_of_Phytophagous_Mites"
 NEXT_TIER_MAP = {
     "Superfamily": "Families",
@@ -31,6 +32,13 @@ def load_keys() -> dict:
     except json.JSONDecodeError as error:
         st.error(f"keys.json has invalid JSON near line {error.lineno}: {error.msg}")
         return {}
+
+
+def save_keys(keys_db: dict) -> None:
+    """Saves the updated keys database back to the JSON file."""
+    with KEYS_PATH.open("w", encoding="utf-8") as file:
+        json.dump(keys_db, file, indent=4)
+    load_keys.clear() # Clear the cache so the app recognizes the new image
 
 
 def format_key_name(key_name: str) -> str:
@@ -149,6 +157,28 @@ def save_record(record: dict) -> Path:
     return path
 
 
+def handle_image_upload(uploaded_file, keys_db, option_key: str) -> None:
+    """Saves the uploaded image and updates the JSON database."""
+    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    
+    key_name = st.session_state.current_key
+    node_id = st.session_state.current_node
+    
+    # Create a safe, unique filename
+    safe_key_name = "".join(c for c in key_name if c.isalnum() or c in ("-", "_"))
+    file_ext = Path(uploaded_file.name).suffix
+    filename = f"{safe_key_name}_node{node_id}_{option_key}{file_ext}"
+    filepath = IMAGE_DIR / filename
+    
+    # Save the file
+    filepath.write_bytes(uploaded_file.getvalue())
+    
+    # Update the keys database
+    keys_db[key_name][node_id][option_key]["image"] = str(filepath)
+    save_keys(keys_db)
+    st.toast(f"Photo successfully saved to Option {option_key[-1].upper()}!")
+
+
 def render_path() -> None:
     st.subheader("Diagnostic Path")
     if not st.session_state.history:
@@ -180,6 +210,12 @@ def main() -> None:
     st.caption("Interactive dichotomous key for mite identification from morphology.")
 
     with st.sidebar:
+        st.header("Admin Controls")
+        # Toggle for Admin mode to show uploaders
+        admin_mode = st.toggle("🛠️ Enable Admin Edit Mode", value=False, help="Turn this on to upload morphology photos to the current couplet.")
+        
+        st.divider()
+        
         st.header("Specimen")
         st.text_input("Specimen code", key="specimen_code", placeholder="Slide, vial, or field number")
         st.text_area(
@@ -267,14 +303,48 @@ def main() -> None:
 
         with col_a:
             st.markdown("#### A")
+            
+            # Display image if it exists in keys.json
+            if "image" in option_a and Path(option_a["image"]).exists():
+                st.image(option_a["image"], use_container_width=True)
+                
             st.info(option_a["morphology"])
+            
+            # Admin photo uploader for Option A
+            if admin_mode:
+                uploaded_a = st.file_uploader(
+                    "Upload photo for A", 
+                    type=["png", "jpg", "jpeg"], 
+                    key=f"upload_a_{st.session_state.current_key}_{st.session_state.current_node}"
+                )
+                if uploaded_a:
+                    handle_image_upload(uploaded_a, keys_db, "option_a")
+                    st.rerun()
+
             if st.button("Select A", key=f"a-{st.session_state.current_key}-{st.session_state.current_node}", use_container_width=True):
                 advance("A", option_a["morphology"], option_a["advances_to"])
                 st.rerun()
 
         with col_b:
             st.markdown("#### B")
+            
+            # Display image if it exists in keys.json
+            if "image" in option_b and Path(option_b["image"]).exists():
+                st.image(option_b["image"], use_container_width=True)
+                
             st.info(option_b["morphology"])
+            
+            # Admin photo uploader for Option B
+            if admin_mode:
+                uploaded_b = st.file_uploader(
+                    "Upload photo for B", 
+                    type=["png", "jpg", "jpeg"], 
+                    key=f"upload_b_{st.session_state.current_key}_{st.session_state.current_node}"
+                )
+                if uploaded_b:
+                    handle_image_upload(uploaded_b, keys_db, "option_b")
+                    st.rerun()
+
             if st.button("Select B", key=f"b-{st.session_state.current_key}-{st.session_state.current_node}", use_container_width=True):
                 advance("B", option_b["morphology"], option_b["advances_to"])
                 st.rerun()
