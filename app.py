@@ -6,6 +6,7 @@ import base64
 import json
 import mimetypes
 from datetime import datetime
+from html import escape
 from pathlib import Path
 from urllib import error, request
 from uuid import uuid4
@@ -94,12 +95,35 @@ TAXONOMIC_LEVELS = [
     "Superorder",
     "Order",
     "Suborder",
+    "Cohort",
+    "Superfamily",
     "Family",
     "Subfamily",
     "Tribe",
     "Genus",
     "Species",
 ]
+PATH_LEVELS = [rank for rank in TAXONOMIC_LEVELS if rank != "Kingdom"]
+BLANK_OPTION = "— (leave blank)"
+ALL_LEVELS_OPTION = "All available levels"
+ALL_GROUPS_OPTION = "All parent groups"
+KEY_NAME_RE = re.compile(r"^Key_to_(?P<target>.+?)_of_(?P<parent>.+)$")
+RANK_ORDER = {rank: index for index, rank in enumerate(TAXONOMIC_LEVELS)}
+PLURAL_TO_RANK = {
+    "Phyla": "Phylum",
+    "Classes": "Class",
+    "Subclasses": "Subclass",
+    "Superorders": "Superorder",
+    "Orders": "Order",
+    "Suborders": "Suborder",
+    "Cohorts": "Cohort",
+    "Superfamilies": "Superfamily",
+    "Families": "Family",
+    "Subfamilies": "Subfamily",
+    "Tribes": "Tribe",
+    "Genera": "Genus",
+    "Species": "Species",
+}
 
 
 def parse_taxonomic_result(text):
@@ -282,11 +306,292 @@ def collect_taxa_by_rank(keys_db: dict) -> dict[str, list[str]]:
     return {rank: sorted(names) for rank, names in by_rank.items()}
 
 
+def rank_sort_key(rank: str) -> int:
+    return RANK_ORDER.get(rank, len(TAXONOMIC_LEVELS) + 1)
+
+
+def clean_taxon_name(name: str) -> str:
+    if not isinstance(name, str):
+        return ""
+    return re.sub(r"\s+", " ", name.split("(")[0]).strip()
+
+
+def normalize_taxon_name(name: str) -> str:
+    return clean_taxon_name(name).casefold()
+
+
+def key_fragment_label(fragment: str, strip_context: bool = False) -> tuple[str, str | None]:
+    label = fragment.replace("_", " ").strip()
+    explicit_rank = None
+    for rank in TAXONOMIC_LEVELS:
+        prefix = f"{rank} "
+        if label.startswith(prefix):
+            explicit_rank = rank
+            label = label[len(prefix):].strip()
+            break
+
+    if strip_context:
+        label = re.sub(r"\s+excluding\s+.*$", "", label, flags=re.IGNORECASE).strip()
+        label = re.sub(r"\s+(Adults|Larvae)$", "", label, flags=re.IGNORECASE).strip()
+
+    return clean_taxon_name(label), explicit_rank
+
+
+def parse_key_name(key_name: str) -> dict:
+    match = KEY_NAME_RE.match(key_name)
+    if not match:
+        return {
+            "target_part": "",
+            "parent_fragment": "",
+            "parent_label": "",
+            "parent_taxon": "",
+            "explicit_parent_rank": None,
+        }
+
+    parent_fragment = match.group("parent")
+    parent_label, explicit_rank = key_fragment_label(parent_fragment)
+    parent_taxon, stripped_rank = key_fragment_label(parent_fragment, strip_context=True)
+    return {
+        "target_part": match.group("target"),
+        "parent_fragment": parent_fragment,
+        "parent_label": parent_label,
+        "parent_taxon": parent_taxon,
+        "explicit_parent_rank": explicit_rank or stripped_rank,
+    }
+
+
+def implied_child_ranks_from_target_part(target_part: str) -> list[str]:
+    matches = []
+    for plural, rank in PLURAL_TO_RANK.items():
+        match = re.search(rf"(^|_){re.escape(plural)}($|_)", target_part)
+        if match:
+            matches.append((match.start(), rank))
+    return [rank for _, rank in sorted(matches)]
+
+
+def implied_parent_rank_from_target_part(target_part: str) -> str | None:
+    implied_child_ranks = implied_child_ranks_from_target_part(target_part)
+    if not implied_child_ranks:
+        return None
+    first_child_index = rank_sort_key(implied_child_ranks[0])
+    if first_child_index > 0:
+        return TAXONOMIC_LEVELS[first_child_index - 1]
+    return None
+
+
+def collect_key_targets(couplets: dict) -> tuple[list[str], dict[str, list[str]]]:
+    targets_by_rank: dict[str, set[str]] = {rank: set() for rank in TAXONOMIC_LEVELS}
+    if not isinstance(couplets, dict):
+        return [], {rank: [] for rank in TAXONOMIC_LEVELS}
+
+    for couplet in couplets.values():
+        if not isinstance(couplet, dict):
+            continue
+        for option_name in ("option_a", "option_b"):
+            target = couplet.get(option_name, {}).get("advances_to", "")
+            rank, name = parse_taxonomic_result(target)
+            name = clean_taxon_name(name)
+            if rank in targets_by_rank and name:
+                targets_by_rank[rank].add(name)
+
+    ranks = [rank for rank in TAXONOMIC_LEVELS if targets_by_rank[rank]]
+    return ranks, {rank: sorted(names) for rank, names in targets_by_rank.items()}
+
+
+def collect_known_taxon_ranks(keys_db: dict) -> dict[str, set[str]]:
+    lookup: dict[str, set[str]] = {}
+
+    def add(rank: str | None, name: str) -> None:
+        if not rank or rank not in TAXONOMIC_LEVELS or not name:
+            return
+        lookup.setdefault(normalize_taxon_name(name), set()).add(rank)
+
+    for rank, names in collect_taxa_by_rank(keys_db).items():
+        for name in names:
+            add(rank, name)
+
+    for key_name, couplets in keys_db.items():
+        parts = parse_key_name(key_name)
+        child_ranks, _ = collect_key_targets(couplets)
+        parent_rank = parts["explicit_parent_rank"] or implied_parent_rank_from_target_part(parts["target_part"])
+        if not parent_rank and child_ranks:
+            first_child_rank = min(child_ranks, key=rank_sort_key)
+            child_index = rank_sort_key(first_child_rank)
+            if child_index > 0:
+                parent_rank = TAXONOMIC_LEVELS[child_index - 1]
+        add(parent_rank, parts["parent_taxon"])
+
+    return lookup
+
+
+def infer_parent_rank(
+    parent_name: str,
+    explicit_rank: str | None,
+    implied_rank: str | None,
+    child_ranks: list[str],
+    rank_lookup: dict[str, set[str]],
+) -> str | None:
+    if explicit_rank:
+        return explicit_rank
+
+    known_ranks = rank_lookup.get(normalize_taxon_name(parent_name), set())
+    if implied_rank and (not known_ranks or implied_rank in known_ranks or len(known_ranks) > 1):
+        return implied_rank
+
+    if known_ranks:
+        return max(known_ranks, key=rank_sort_key)
+
+    if implied_rank:
+        return implied_rank
+
+    if child_ranks:
+        first_child_rank = min(child_ranks, key=rank_sort_key)
+        child_index = rank_sort_key(first_child_rank)
+        if child_index > 0:
+            return TAXONOMIC_LEVELS[child_index - 1]
+
+    return None
+
+
+def collect_key_metadata(keys_db: dict) -> list[dict]:
+    rank_lookup = collect_known_taxon_ranks(keys_db)
+    metadata = []
+    for key_name, couplets in keys_db.items():
+        parts = parse_key_name(key_name)
+        child_ranks, targets_by_rank = collect_key_targets(couplets)
+
+        if not child_ranks and parts["target_part"] in PLURAL_TO_RANK:
+            child_ranks = [PLURAL_TO_RANK[parts["target_part"]]]
+
+        parent_rank = infer_parent_rank(
+            parts["parent_taxon"],
+            parts["explicit_parent_rank"],
+            implied_parent_rank_from_target_part(parts["target_part"]),
+            child_ranks,
+            rank_lookup,
+        )
+        primary_rank = max(child_ranks, key=rank_sort_key) if child_ranks else ""
+        metadata.append(
+            {
+                "key": key_name,
+                "label": format_key_name(key_name),
+                "target_part": parts["target_part"],
+                "output_ranks": child_ranks,
+                "primary_rank": primary_rank,
+                "parent_rank": parent_rank,
+                "parent_label": parts["parent_label"],
+                "parent_taxon": parts["parent_taxon"],
+                "targets_by_rank": targets_by_rank,
+            }
+        )
+
+    return metadata
+
+
+def key_level_label(rank: str) -> str:
+    return f"{rank} level" if rank else "Unknown level"
+
+
+def metadata_for_key(metadata: list[dict], key_name: str) -> dict | None:
+    for item in metadata:
+        if item["key"] == key_name:
+            return item
+    return None
+
+
+def build_taxonomy_relationships(keys_db: dict) -> dict[tuple[str, str], dict[str, set[str]]]:
+    relationships: dict[tuple[str, str], dict[str, set[str]]] = {}
+    for meta in collect_key_metadata(keys_db):
+        parent_rank = meta.get("parent_rank")
+        parent_name = meta.get("parent_taxon")
+        if not parent_rank or not parent_name:
+            continue
+
+        parent = (parent_rank, parent_name)
+        child_map = relationships.setdefault(parent, {})
+        for child_rank, names in meta["targets_by_rank"].items():
+            for name in names:
+                if name:
+                    child_map.setdefault(child_rank, set()).add(name)
+
+    return relationships
+
+
+def collect_descendants_for_rank(
+    relationships: dict[tuple[str, str], dict[str, set[str]]],
+    start_rank: str,
+    start_name: str,
+    target_rank: str,
+) -> list[str]:
+    queue = [(start_rank, start_name)]
+    seen: set[tuple[str, str]] = set()
+    descendants: set[str] = set()
+
+    while queue:
+        current = queue.pop(0)
+        if current in seen:
+            continue
+        seen.add(current)
+
+        for child_rank, names in relationships.get(current, {}).items():
+            for name in names:
+                if child_rank == target_rank:
+                    descendants.add(name)
+                if rank_sort_key(child_rank) < rank_sort_key(target_rank):
+                    queue.append((child_rank, name))
+
+    return sorted(descendants)
+
+
+def infer_species_for_genus(genus: str, all_species: list[str]) -> list[str]:
+    genus = clean_taxon_name(genus)
+    if not genus:
+        return []
+    abbreviation = f"{genus[0]}." if genus else ""
+    return sorted(
+        species
+        for species in all_species
+        if species.startswith(f"{genus} ") or species.startswith(f"{abbreviation} ")
+    )
+
+
+def mind_map_options_for_rank(
+    rank: str,
+    selected_taxonomy: dict[str, str],
+    taxa_by_rank: dict[str, list[str]],
+    relationships: dict[tuple[str, str], dict[str, set[str]]],
+) -> list[str]:
+    prior_selected = [
+        (prior_rank, selected_taxonomy[prior_rank])
+        for prior_rank in TAXONOMIC_LEVELS
+        if rank_sort_key(prior_rank) < rank_sort_key(rank) and selected_taxonomy.get(prior_rank)
+    ]
+
+    for prior_rank, prior_name in reversed(prior_selected):
+        options = collect_descendants_for_rank(relationships, prior_rank, prior_name, rank)
+        if options:
+            return options
+
+    if rank == "Species" and selected_taxonomy.get("Genus"):
+        return infer_species_for_genus(selected_taxonomy["Genus"], taxa_by_rank.get("Species", []))
+
+    if prior_selected:
+        return []
+
+    return taxa_by_rank.get(rank, [])
+
+
+def key_counts_by_rank(metadata: list[dict]) -> dict[str, int]:
+    counts = {rank: 0 for rank in TAXONOMIC_LEVELS}
+    for item in metadata:
+        for rank in item["output_ranks"]:
+            if rank in counts:
+                counts[rank] += 1
+    return counts
+
+
 def parse_result(result: str) -> tuple[str | None, str | None]:
-    if ": " not in result:
-        return None, None
-    rank, name = result.split(": ", 1)
-    return rank.strip(), name.strip()
+    return parse_taxonomic_result(result)
 
 
 def key_fragment(value: str) -> str:
@@ -445,9 +750,9 @@ def render_option_images(option: dict) -> None:
         url = image.get("url", "").strip()
         path = image.get("path", "").strip()
         if url:
-            st.image(url, caption=caption, use_container_width=True)
+            st.image(url, caption=caption, width="stretch")
         elif path and Path(path).exists():
-            st.image(path, caption=caption, use_column_width=True)
+            st.image(path, caption=caption, width="stretch")
         elif path:
             st.warning(f"Image is listed but missing from app files: {path}")
 
@@ -476,11 +781,77 @@ def validate_keys(keys_db: dict) -> list[str]:
     return warnings
 
 
+def taxonomy_from_stack(stack: list[dict]) -> dict[str, str]:
+    taxonomy: dict[str, str] = {}
+    for item in stack:
+        rank = item.get("rank")
+        name = item.get("name")
+        if rank in TAXONOMIC_LEVELS and name:
+            taxonomy[rank] = name
+    return taxonomy
+
+
+def sync_taxonomy_path() -> None:
+    st.session_state.taxonomy_path = taxonomy_from_stack(st.session_state.get("taxonomy_stack", []))
+
+
+def remember_taxonomic_checkpoint(result: str) -> None:
+    rank, name = parse_taxonomic_result(result)
+    name = clean_taxon_name(name)
+    if rank in TAXONOMIC_LEVELS and name:
+        st.session_state.taxonomy_stack.append({"rank": rank, "name": name, "result": result})
+        sync_taxonomy_path()
+
+
+def forget_taxonomic_checkpoint(result: str) -> None:
+    stack = st.session_state.get("taxonomy_stack", [])
+    for index in range(len(stack) - 1, -1, -1):
+        if stack[index].get("result") == result:
+            stack.pop(index)
+            break
+    sync_taxonomy_path()
+
+
+def render_taxonomy_ribbon(taxonomy: dict[str, str], title: str = "Taxonomy path") -> None:
+    st.markdown(f"**{title}**")
+    chips = []
+    for rank in PATH_LEVELS:
+        value = taxonomy.get(rank, "")
+        rank_html = escape(rank)
+        if value:
+            chips.append(
+                "<div style='min-width:116px;flex:1 1 116px;"
+                "border:1px solid #b7d7bd;background:#edf8ef;border-radius:8px;"
+                "padding:8px 10px;'>"
+                f"<div style='font-size:11px;color:#4b5563;'>{rank_html}</div>"
+                f"<div style='font-weight:650;color:#111827;'>{escape(value)}</div>"
+                "</div>"
+            )
+        else:
+            chips.append(
+                "<div style='min-width:116px;flex:1 1 116px;"
+                "border:1px solid #d7dbe2;background:#f6f7f9;border-radius:8px;"
+                "padding:8px 10px;'>"
+                f"<div style='font-size:11px;color:#6b7280;'>{rank_html}</div>"
+                "<div style='color:#9ca3af;'>Not reached</div>"
+                "</div>"
+            )
+
+    st.markdown(
+        "<div style='display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px 0;'>"
+        + "".join(chips)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def initialize_state(keys_db: dict) -> None:
     default_key = DEFAULT_KEY if DEFAULT_KEY in keys_db else next(iter(keys_db), "")
     st.session_state.setdefault("current_key", default_key)
     st.session_state.setdefault("current_node", "1")
     st.session_state.setdefault("history", [])
+    st.session_state.setdefault("taxonomy_stack", [])
+    st.session_state.setdefault("taxonomy_path", taxonomy_from_stack(st.session_state.taxonomy_stack))
     st.session_state.setdefault("diagnosis_complete", False)
     st.session_state.setdefault("final_result", "")
     st.session_state.setdefault("specimen_code", "")
@@ -491,12 +862,15 @@ def initialize_state(keys_db: dict) -> None:
         restart(default_key)
 
 
-def restart(key_name: str, clear_notes: bool = False) -> None:
+def restart(key_name: str, clear_notes: bool = False, reset_taxonomy: bool = True) -> None:
     st.session_state.current_key = key_name
     st.session_state.current_node = "1"
     st.session_state.history = []
     st.session_state.diagnosis_complete = False
     st.session_state.final_result = ""
+    if reset_taxonomy:
+        st.session_state.taxonomy_stack = []
+        st.session_state.taxonomy_path = {}
     if clear_notes:
         st.session_state.specimen_code = ""
         st.session_state.observer_notes = ""
@@ -519,6 +893,7 @@ def advance(option_label: str, morphology: str, target: str, images: list[dict] 
     else:
         st.session_state.diagnosis_complete = True
         st.session_state.final_result = target
+        remember_taxonomic_checkpoint(target)
 
 
 def undo() -> None:
@@ -526,6 +901,7 @@ def undo() -> None:
         return
 
     previous = st.session_state.history.pop()
+    forget_taxonomic_checkpoint(previous.get("advanced_to", ""))
     st.session_state.current_key = previous["key"]
     st.session_state.current_node = previous["node"]
     st.session_state.diagnosis_complete = False
@@ -538,6 +914,7 @@ def observation_record() -> dict:
         "observer_notes": st.session_state.observer_notes,
         "current_key": st.session_state.current_key,
         "final_result": st.session_state.final_result,
+        "taxonomy": st.session_state.get("taxonomy_path", {}),
         "path": st.session_state.history,
         "saved_at": datetime.now().isoformat(timespec="seconds"),
     }
@@ -557,10 +934,15 @@ def save_record(record: dict) -> Path:
 
 def render_path() -> None:
     st.subheader("Diagnostic Path")
+    taxonomy = st.session_state.get("taxonomy_path", {})
+    if taxonomy:
+        render_taxonomy_ribbon(taxonomy, "Phylum to species path")
+
     if not st.session_state.history:
         st.caption("No choices selected yet.")
         return
 
+    st.markdown("**Current key choices**")
     for index, step in enumerate(st.session_state.history, start=1):
         st.markdown(
             f"**{index}. {format_key_name(step['key'])}, couplet {step['node']}**  \n"
@@ -676,16 +1058,63 @@ def render_admin(keys_db: dict) -> None:
                 key=f"caption-{selected_key}-{selected_node}-{selected_option}-{index}",
             )
             col_save, col_remove = st.columns(2)
-            if col_save.button("Update caption", key=f"caption-save-{index}", use_container_width=True):
+            if col_save.button("Update caption", key=f"caption-save-{index}", width="stretch"):
                 image["caption"] = new_caption
                 save_admin_changes(keys_db, "Update morphology image caption")
                 st.success("Caption updated.")
                 st.rerun()
-            if col_remove.button("Remove from key", key=f"image-remove-{index}", use_container_width=True):
+            if col_remove.button("Remove from key", key=f"image-remove-{index}", width="stretch"):
                 images.pop(index)
                 save_admin_changes(keys_db, "Remove morphology image reference")
                 st.warning("Photo reference removed from keys.json.")
                 st.rerun()
+
+
+def render_home(keys_db: dict, metadata: list[dict], warnings: list[str]) -> None:
+    taxa_by_rank = collect_taxa_by_rank(keys_db)
+    key_counts = key_counts_by_rank(metadata)
+
+    st.header("Key Coverage")
+    focus_ranks = ["Order", "Family", "Genus", "Species"]
+    metric_cols = st.columns(len(focus_ranks))
+    for col, rank in zip(metric_cols, focus_ranks):
+        col.metric(f"{rank} keys", key_counts.get(rank, 0))
+        col.caption(f"{len(taxa_by_rank.get(rank, []))} {rank.lower()} names")
+
+    st.subheader("Available levels")
+    rows = []
+    for rank in PATH_LEVELS:
+        keys_at_rank = [item["label"] for item in metadata if rank in item["output_ranks"]]
+        taxa_count = len(taxa_by_rank.get(rank, []))
+        if not keys_at_rank and not taxa_count:
+            continue
+        rows.append(
+            {
+                "Level": rank,
+                "Keys available": len(keys_at_rank),
+                "Taxa reachable": taxa_count,
+                "Example key": keys_at_rank[0] if keys_at_rank else "",
+            }
+        )
+    st.dataframe(rows, width="stretch", hide_index=True)
+
+    st.subheader("Start points")
+    start_rows = []
+    for item in metadata:
+        ranks = ", ".join(item["output_ranks"]) or "Unknown"
+        start_rows.append(
+            {
+                "Key": item["label"],
+                "Identifies": ranks,
+                "Parent group": item["parent_label"],
+            }
+        )
+    st.dataframe(start_rows, width="stretch", hide_index=True)
+
+    if warnings:
+        with st.expander("Data checks"):
+            for warning in warnings:
+                st.warning(warning)
 
 
 def main() -> None:
@@ -702,14 +1131,16 @@ def main() -> None:
 
     initialize_state(keys_db)
     warnings = validate_keys(keys_db)
+    metadata = collect_key_metadata(keys_db)
 
     st.title("Acarology Taxonomy Key")
     st.caption("Interactive dichotomous key for mite identification from morphology.")
 
-    tab1, tab2, tab3 = st.tabs([
+    tab_home, tab_identify, tab_mind_map, tab_admin = st.tabs([
+        "Home",
         "Identify",
-        "Admin",
         "Mind Map",
+        "Admin",
     ])
     with st.sidebar:
         st.header("Specimen")
@@ -722,24 +1153,68 @@ def main() -> None:
         )
 
         st.header("Key")
-        selected_key = st.selectbox(
-            "Start or jump to key",
-            options=list(keys_db.keys()),
-            format_func=format_key_name,
-            index=list(keys_db.keys()).index(st.session_state.current_key)
-            if st.session_state.current_key in keys_db
-            else 0,
+        level_options = [ALL_LEVELS_OPTION] + [
+            rank
+            for rank in PATH_LEVELS
+            if any(rank in item["output_ranks"] for item in metadata)
+        ]
+        if st.session_state.get("key_level_filter") not in level_options:
+            st.session_state.key_level_filter = ALL_LEVELS_OPTION
+
+        level_filter = st.selectbox(
+            "Key level",
+            options=level_options,
+            key="key_level_filter",
+            format_func=lambda value: value if value == ALL_LEVELS_OPTION else key_level_label(value),
         )
 
-        if selected_key != st.session_state.current_key:
-            restart(selected_key)
-            st.rerun()
+        filtered_by_level = [
+            item for item in metadata
+            if level_filter == ALL_LEVELS_OPTION or level_filter in item["output_ranks"]
+        ]
+        parent_options = [ALL_GROUPS_OPTION] + sorted(
+            {
+                item["parent_label"]
+                for item in filtered_by_level
+                if item.get("parent_label")
+            }
+        )
+        if st.session_state.get("key_parent_filter") not in parent_options:
+            st.session_state.key_parent_filter = ALL_GROUPS_OPTION
+
+        parent_filter = st.selectbox(
+            "Parent group",
+            options=parent_options,
+            key="key_parent_filter",
+        )
+
+        filtered_metadata = [
+            item for item in filtered_by_level
+            if parent_filter == ALL_GROUPS_OPTION or item.get("parent_label") == parent_filter
+        ]
+        if not filtered_metadata:
+            st.warning("No key is available for this level and parent group.")
+        else:
+            key_options = [item["key"] for item in filtered_metadata]
+            label_by_key = {item["key"]: item["label"] for item in filtered_metadata}
+            selected_key = st.selectbox(
+                "Start or jump to key",
+                options=key_options,
+                format_func=lambda key_name: label_by_key.get(key_name, format_key_name(key_name)),
+                index=key_options.index(st.session_state.current_key)
+                if st.session_state.current_key in key_options
+                else 0,
+            )
+
+            if selected_key != st.session_state.current_key:
+                restart(selected_key)
+                st.rerun()
 
         col_restart, col_undo = st.columns(2)
-        if col_restart.button("Restart", use_container_width=True):
+        if col_restart.button("Restart", width="stretch"):
             restart(st.session_state.current_key)
             st.rerun()
-        if col_undo.button("Undo", use_container_width=True, disabled=not st.session_state.history):
+        if col_undo.button("Undo", width="stretch", disabled=not st.session_state.history):
             undo()
             st.rerun()
 
@@ -748,7 +1223,10 @@ def main() -> None:
                 for warning in warnings:
                     st.warning(warning)
 
-    with tab1:
+    with tab_home:
+        render_home(keys_db, metadata, warnings)
+
+    with tab_identify:
         left, right = st.columns([1.7, 1])
 
         with right:
@@ -769,7 +1247,7 @@ def main() -> None:
                             type="primary" if index == 0 else "secondary",
                             key=f"continue-{next_key_name}",
                         ):
-                            restart(next_key_name)
+                            restart(next_key_name, reset_taxonomy=False)
                             st.rerun()
                 elif parse_result(st.session_state.final_result)[0] in NEXT_TIER_MAP:
                     st.info("A deeper key for this taxon is not loaded yet.")
@@ -777,7 +1255,7 @@ def main() -> None:
                 record = observation_record()
                 record_json = json.dumps(record, indent=2)
                 col_save, col_download = st.columns(2)
-                if col_save.button("Save record", use_container_width=True):
+                if col_save.button("Save record", width="stretch"):
                     saved_path = save_record(record)
                     st.toast(f"Saved {saved_path.name}")
                 col_download.download_button(
@@ -785,7 +1263,7 @@ def main() -> None:
                     data=record_json,
                     file_name="mite-identification-record.json",
                     mime="application/json",
-                    use_container_width=True,
+                    width="stretch",
                 )
 
             else:
@@ -806,7 +1284,7 @@ def main() -> None:
                         st.markdown("#### A")
                         st.info(option_a.get("morphology", "Missing morphology text."))
                         render_option_images(option_a)
-                        if st.button("Select A", key=f"a-{st.session_state.current_key}-{st.session_state.current_node}", use_container_width=True):
+                        if st.button("Select A", key=f"a-{st.session_state.current_key}-{st.session_state.current_node}", width="stretch"):
                             advance(
                                 "A",
                                 option_a.get("morphology", ""),
@@ -819,7 +1297,7 @@ def main() -> None:
                         st.markdown("#### B")
                         st.info(option_b.get("morphology", "Missing morphology text."))
                         render_option_images(option_b)
-                        if st.button("Select B", key=f"b-{st.session_state.current_key}-{st.session_state.current_node}", use_container_width=True):
+                        if st.button("Select B", key=f"b-{st.session_state.current_key}-{st.session_state.current_node}", width="stretch"):
                             advance(
                                 "B",
                                 option_b.get("morphology", ""),
@@ -828,78 +1306,61 @@ def main() -> None:
                             )
                             st.rerun()
 
-    with tab2:
-        render_admin(keys_db)
-
-    with tab3:
+    with tab_mind_map:
         st.header("Taxonomic Mind Map")
         st.caption(
             "Choose values for any ranks you want to highlight, then click **Generate Mind Map**. "
             "Leave a rank blank to show it as an empty node."
         )
 
-        # Gather all known taxa from keys.json for dropdown options
         taxa_by_rank = collect_taxa_by_rank(keys_db)
+        relationships = build_taxonomy_relationships(keys_db)
 
-        # ── Parameter selectors ───────────────────────────────────────────
         st.subheader("Select parameters")
+        selector_cols = st.columns(3)
+        selected_taxonomy: dict[str, str] = {}
+        for index, rank in enumerate(TAXONOMIC_LEVELS):
+            key = f"mm_{rank}"
+            options = [BLANK_OPTION] + mind_map_options_for_rank(
+                rank,
+                selected_taxonomy,
+                taxa_by_rank,
+                relationships,
+            )
+            if st.session_state.get(key, BLANK_OPTION) not in options:
+                st.session_state[key] = BLANK_OPTION
 
-        col1, col2, col3 = st.columns(3)
-        col4, col5, col6 = st.columns(3)
-        col7, col8, col9 = st.columns(3)
-        col10, col11, col12 = st.columns(3)
-
-        def rank_selector(col, rank: str, key: str):
-            options = ["— (leave blank)"] + taxa_by_rank.get(rank, [])
-            col.selectbox(rank, options, key=key)
-
-        rank_selector(col1,  "Kingdom",    "mm_Kingdom")
-        rank_selector(col2,  "Phylum",     "mm_Phylum")
-        rank_selector(col3,  "Class",      "mm_Class")
-        rank_selector(col4,  "Subclass",   "mm_Subclass")
-        rank_selector(col5,  "Superorder", "mm_Superorder")
-        rank_selector(col6,  "Order",      "mm_Order")
-        rank_selector(col7,  "Suborder",   "mm_Suborder")
-        rank_selector(col8,  "Family",     "mm_Family")
-        rank_selector(col9,  "Subfamily",  "mm_Subfamily")
-        rank_selector(col10, "Tribe",      "mm_Tribe")
-        rank_selector(col11, "Genus",      "mm_Genus")
-        rank_selector(col12, "Species",    "mm_Species")
+            selected_value = selector_cols[index % 3].selectbox(rank, options, key=key)
+            if selected_value != BLANK_OPTION:
+                selected_taxonomy[rank] = selected_value
 
         st.divider()
 
         col_gen, col_clr = st.columns([1, 1])
-        generate = col_gen.button("🗺️ Generate Mind Map", type="primary", use_container_width=True)
-        clear    = col_clr.button("🔄 Clear all",         use_container_width=True)
+        generate = col_gen.button("Generate Mind Map", type="primary", width="stretch")
+        clear = col_clr.button("Clear all", width="stretch")
 
         if clear:
             for rank in TAXONOMIC_LEVELS:
-                st.session_state[f"mm_{rank}"] = "— (leave blank)"
+                st.session_state[f"mm_{rank}"] = BLANK_OPTION
             st.rerun()
 
         if generate:
             st.session_state["mm_show_map"] = True
 
         if st.session_state.get("mm_show_map"):
-            # Build taxonomy dict from user selections
-            custom_taxonomy: dict[str, str] = {}
-            for rank in TAXONOMIC_LEVELS:
-                val = st.session_state.get(f"mm_{rank}", "— (leave blank)")
-                if val and val != "— (leave blank)":
-                    custom_taxonomy[rank] = val
+            custom_taxonomy = selected_taxonomy.copy()
 
             st.subheader("Mind Map")
 
-            # Colour legend
             lcol1, lcol2, lcol3 = st.columns(3)
-            lcol1.success("🟢  Selected — key exists")
-            lcol2.warning("🟡  Selected — no key loaded")
-            lcol3.info("⬜  Not selected (blank)")
+            lcol1.success("Selected - key exists")
+            lcol2.warning("Selected - no key loaded")
+            lcol3.info("Not selected")
 
             graph = create_mind_map(custom_taxonomy, keys_db)
-            st.graphviz_chart(graph, use_container_width=True)
+            st.graphviz_chart(graph, width="stretch")
 
-            # Hierarchy table
             st.subheader("Hierarchy table")
             rows = []
             for rank in TAXONOMIC_LEVELS:
@@ -910,11 +1371,14 @@ def main() -> None:
                         k.endswith(f"_{taxon_frag}") or k.endswith(f"of_{taxon_frag}")
                         for k in keys_db
                     )
-                    status = "✅ Key available" if has_key else "🟡 No deeper key"
+                    status = "Key available" if has_key else "No deeper key"
                 else:
-                    status = "⬜ Not selected"
-                rows.append({"Rank": rank, "Taxon": value or "—", "Status": status})
-            st.dataframe(rows, use_container_width=True)
+                    status = "Not selected"
+                rows.append({"Rank": rank, "Taxon": value or BLANK_OPTION, "Status": status})
+            st.dataframe(rows, width="stretch", hide_index=True)
+
+    with tab_admin:
+        render_admin(keys_db)
 
 
 if __name__ == "__main__":
