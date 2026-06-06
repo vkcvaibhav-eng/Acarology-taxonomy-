@@ -141,46 +141,125 @@ def build_taxonomic_path(history, final_result):
     return taxonomy
 
 
-def create_mind_map(taxonomy):
+def create_mind_map(taxonomy, keys_db=None):
     """
     Create Graphviz hierarchy.
+    Green  = identified in session AND a deeper key exists.
+    Yellow = identified in session but no deeper key loaded.
+    Grey   = not yet reached / blank.
     """
     dot = Digraph()
-
     dot.attr(rankdir="TB")
+    dot.attr("graph", bgcolor="white", pad="0.4", ranksep="0.5")
+    dot.attr("node", fontname="Helvetica", fontsize="11")
 
     previous_node = None
+    keys_db = keys_db or {}
 
     for rank in TAXONOMIC_LEVELS:
-
         value = taxonomy.get(rank, "")
-
         node_id = rank
 
         if value:
+            # Check whether a deeper key exists for this taxon
+            taxon_frag = key_fragment(value)
+            has_key = any(
+                k.endswith(f"_{taxon_frag}") or k.endswith(f"of_{taxon_frag}")
+                for k in keys_db
+            )
+            if has_key:
+                fillcolor, color, fontcolor = "#74c476", "#238b45", "black"   # green
+            else:
+                fillcolor, color, fontcolor = "#fdd835", "#f57f17", "black"   # yellow
 
             dot.node(
                 node_id,
                 f"{rank}\n{value}",
-                style="filled",
-                fillcolor="lightgreen",
-                color="darkgreen",
+                style="filled,rounded",
+                fillcolor=fillcolor,
+                color=color,
+                fontcolor=fontcolor,
+                shape="box",
             )
-
         else:
-
             dot.node(
                 node_id,
-                f"{rank}\n_____",
-                style="filled",
-                fillcolor="lightcoral",
-                color="red",
+                f"{rank}\n—",
+                style="filled,rounded",
+                fillcolor="#eeeeee",
+                color="#bdbdbd",
+                fontcolor="#9e9e9e",
+                shape="box",
             )
 
         if previous_node:
-            dot.edge(previous_node, node_id)
+            dot.edge(previous_node, node_id, color="#aaaaaa")
 
         previous_node = node_id
+
+    return dot
+
+
+def build_full_key_tree(keys_db: dict) -> Digraph:
+    """
+    Build a mind-map of ALL keys loaded in keys.json.
+    Each key becomes a node.  Edges follow the NEXT_KEY_ALIASES links
+    and the tier-fallback naming convention.
+    Nodes with a key file are green; nodes that are referenced but have
+    no key file are shown in orange.
+    """
+    dot = Digraph()
+    dot.attr(rankdir="TB")
+    dot.attr("graph", bgcolor="white", pad="0.5", ranksep="0.6", nodesep="0.4")
+    dot.attr("node", fontname="Helvetica", fontsize="10", shape="box", style="filled,rounded")
+
+    all_key_names = set(keys_db.keys())
+
+    # Collect every key name referenced anywhere (alias targets + tier matches)
+    referenced: set[str] = set()
+    for targets in NEXT_KEY_ALIASES.values():
+        referenced.update(targets)
+
+    # Add keys derived from tier-fallback naming
+    for key_name in list(all_key_names):
+        for targets in NEXT_KEY_ALIASES.values():
+            referenced.update(targets)
+
+    all_nodes = all_key_names | (referenced & all_key_names)
+
+    # Draw nodes
+    for key_name in sorted(all_nodes):
+        label = format_key_name(key_name).replace(" ", "\n", 2)  # wrap long names
+        if key_name in all_key_names:
+            dot.node(key_name, label, fillcolor="#74c476", color="#238b45", fontcolor="black")
+        else:
+            dot.node(key_name, label, fillcolor="#ffb74d", color="#e65100", fontcolor="black")
+
+    # Draw edges: for each key, find what keys it can lead to
+    for result_label, target_keys in NEXT_KEY_ALIASES.items():
+        # Find which source key(s) produce this result
+        for source_key in all_key_names:
+            for target_key in target_keys:
+                if target_key in all_key_names:
+                    dot.edge(source_key, target_key, label=result_label.split(": ")[-1],
+                             fontsize="8", color="#555555")
+
+    # Also link keys via tier fallback: Key_to_X → Key_to_Y_of_Z
+    for key_name in sorted(all_key_names):
+        suffix_match = re.search(r"of_(.+)$", key_name)
+        if not suffix_match:
+            continue
+        taxon = suffix_match.group(1)
+        for other_key in sorted(all_key_names):
+            if other_key == key_name:
+                continue
+            if other_key.endswith(f"_of_{taxon}") or other_key.endswith(f"_{taxon}"):
+                continue
+            # link if the other key covers a parent tier
+            for tier, children in TIER_FALLBACKS.items():
+                expected = [f"Key_to_{child}_of_{taxon}" for child in children]
+                if key_name in expected and other_key.endswith(f"_{taxon}"):
+                    dot.edge(other_key, key_name, color="#aaaaaa")
 
     return dot
 
@@ -734,28 +813,62 @@ def main() -> None:
     with tab3:
         st.header("Taxonomic Mind Map")
 
-        if st.session_state.history:
-            taxonomy = build_taxonomic_path(
-                st.session_state.history,
-                st.session_state.final_result,
+        # ── Sub-tabs: full key tree  vs  current session path ──────────────
+        mt1, mt2 = st.tabs(["All Keys Tree", "Current Session Path"])
+
+        with mt1:
+            st.markdown(
+                "Each node is a **key loaded in keys.json**. "
+                "Arrows show how identification flows between keys."
+            )
+            # Colour legend
+            col_leg1, col_leg2, col_leg3 = st.columns(3)
+            col_leg1.success("🟢  Key loaded")
+            col_leg2.warning("🟡  Referenced but missing")
+            col_leg3.info("ℹ️  Arrows = identification path")
+
+            full_tree = build_full_key_tree(keys_db)
+            st.graphviz_chart(full_tree, use_container_width=True)
+
+            # Table of all loaded keys
+            with st.expander("All loaded keys"):
+                for k in sorted(keys_db.keys()):
+                    st.markdown(f"- **{format_key_name(k)}**  `{k}`")
+
+        with mt2:
+            st.markdown(
+                "Taxonomy resolved so far in this identification session. "
+                "🟢 = identified + deeper key exists · 🟡 = identified, no deeper key · ⬜ = not yet reached"
             )
 
-            graph = create_mind_map(taxonomy)
-            st.graphviz_chart(graph)
+            # Always build the full rank chain, even if history is empty
+            taxonomy = {}
+            if st.session_state.history:
+                taxonomy = build_taxonomic_path(
+                    st.session_state.history,
+                    st.session_state.final_result,
+                )
 
-            st.subheader("Hierarchy")
+            graph = create_mind_map(taxonomy, keys_db)
+            st.graphviz_chart(graph, use_container_width=True)
+
+            # Hierarchy table
+            st.subheader("Hierarchy table")
             rows = []
             for rank in TAXONOMIC_LEVELS:
                 value = taxonomy.get(rank, "")
                 if value:
-                    rows.append({"Rank": rank, "Taxon": value, "Status": "Available"})
+                    taxon_frag = key_fragment(value)
+                    has_key = any(
+                        k.endswith(f"_{taxon_frag}") or k.endswith(f"of_{taxon_frag}")
+                        for k in keys_db
+                    )
+                    status = "✅ Key available" if has_key else "🟡 No deeper key"
                 else:
-                    rows.append({"Rank": rank, "Taxon": "", "Status": "Missing"})
+                    status = "⬜ Not reached"
+                rows.append({"Rank": rank, "Taxon": value or "—", "Status": status})
 
             st.dataframe(rows, use_container_width=True)
-
-        else:
-            st.info("Complete an identification first to generate the mind map.")
 
 
 if __name__ == "__main__":
