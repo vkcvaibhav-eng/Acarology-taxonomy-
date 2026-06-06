@@ -65,7 +65,7 @@ NEXT_KEY_ALIASES = {
 
 
 @st.cache_data
-def load_keys() -> dict:
+def load_keys(file_mtime_ns: int = 0) -> dict:
     if not KEYS_PATH.exists():
         st.error("keys.json was not found. Keep it in the same folder as app.py.")
         return {}
@@ -695,7 +695,8 @@ def main() -> None:
         layout="wide",
     )
 
-    keys_db = load_keys()
+    keys_mtime_ns = KEYS_PATH.stat().st_mtime_ns if KEYS_PATH.exists() else 0
+    keys_db = load_keys(keys_mtime_ns)
     if not keys_db:
         return
 
