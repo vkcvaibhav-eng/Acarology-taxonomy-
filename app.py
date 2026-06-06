@@ -743,5 +743,55 @@ def main() -> None:
                 st.rerun()
 
 
+with tab3:
+
+    st.header("Taxonomic Mind Map")
+
+    if st.session_state.history:
+
+        taxonomy = build_taxonomic_path(
+            st.session_state.history,
+            st.session_state.final_result,
+        )
+
+        graph = create_mind_map(taxonomy)
+
+        st.graphviz_chart(graph)
+
+        st.subheader("Hierarchy")
+
+        rows = []
+
+        for rank in TAXONOMIC_LEVELS:
+
+            value = taxonomy.get(rank, "")
+
+            if value:
+                rows.append(
+                    {
+                        "Rank": rank,
+                        "Taxon": value,
+                        "Status": "Available",
+                    }
+                )
+            else:
+                rows.append(
+                    {
+                        "Rank": rank,
+                        "Taxon": "",
+                        "Status": "Missing",
+                    }
+                )
+
+        st.dataframe(
+            rows,
+            use_container_width=True,
+        )
+
+    else:
+        st.info(
+            "Complete an identification first to generate the mind map."
+        )
+    
 if __name__ == "__main__":
     main()
