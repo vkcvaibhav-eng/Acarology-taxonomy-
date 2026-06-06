@@ -389,6 +389,16 @@ def implied_parent_rank_from_target_part(target_part: str) -> str | None:
     return None
 
 
+def fallback_parent_rank_from_child_ranks(child_ranks: list[str]) -> str | None:
+    if not child_ranks:
+        return None
+    first_child_rank = min(child_ranks, key=rank_sort_key)
+    child_index = rank_sort_key(first_child_rank)
+    if child_index > 0:
+        return TAXONOMIC_LEVELS[child_index - 1]
+    return None
+
+
 def collect_key_targets(couplets: dict) -> tuple[list[str], dict[str, list[str]]]:
     targets_by_rank: dict[str, set[str]] = {rank: set() for rank in TAXONOMIC_LEVELS}
     if not isinstance(couplets, dict):
@@ -423,13 +433,19 @@ def collect_known_taxon_ranks(keys_db: dict) -> dict[str, set[str]]:
     for key_name, couplets in keys_db.items():
         parts = parse_key_name(key_name)
         child_ranks, _ = collect_key_targets(couplets)
-        parent_rank = parts["explicit_parent_rank"] or implied_parent_rank_from_target_part(parts["target_part"])
-        if not parent_rank and child_ranks:
-            first_child_rank = min(child_ranks, key=rank_sort_key)
-            child_index = rank_sort_key(first_child_rank)
-            if child_index > 0:
-                parent_rank = TAXONOMIC_LEVELS[child_index - 1]
-        add(parent_rank, parts["parent_taxon"])
+        parent_taxon = parts["parent_taxon"]
+        parent_key = normalize_taxon_name(parent_taxon)
+        if not parent_taxon:
+            continue
+
+        if parts["explicit_parent_rank"]:
+            add(parts["explicit_parent_rank"], parent_taxon)
+        elif parent_key not in lookup:
+            add(
+                implied_parent_rank_from_target_part(parts["target_part"])
+                or fallback_parent_rank_from_child_ranks(child_ranks),
+                parent_taxon,
+            )
 
     return lookup
 
@@ -445,22 +461,20 @@ def infer_parent_rank(
         return explicit_rank
 
     known_ranks = rank_lookup.get(normalize_taxon_name(parent_name), set())
-    if implied_rank and (not known_ranks or implied_rank in known_ranks or len(known_ranks) > 1):
-        return implied_rank
-
     if known_ranks:
+        if len(known_ranks) == 1:
+            return next(iter(known_ranks))
+        fallback_rank = fallback_parent_rank_from_child_ranks(child_ranks)
+        if fallback_rank in known_ranks:
+            return fallback_rank
+        if implied_rank in known_ranks:
+            return implied_rank
         return max(known_ranks, key=rank_sort_key)
 
     if implied_rank:
         return implied_rank
 
-    if child_ranks:
-        first_child_rank = min(child_ranks, key=rank_sort_key)
-        child_index = rank_sort_key(first_child_rank)
-        if child_index > 0:
-            return TAXONOMIC_LEVELS[child_index - 1]
-
-    return None
+    return fallback_parent_rank_from_child_ranks(child_ranks)
 
 
 def collect_key_metadata(keys_db: dict) -> list[dict]:
