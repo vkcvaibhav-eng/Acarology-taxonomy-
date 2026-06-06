@@ -15,11 +15,12 @@ APP_DIR = Path(__file__).resolve().parent
 KEYS_PATH = APP_DIR / "keys.json"
 OBSERVATION_DIR = APP_DIR / "outputs" / "observations"
 IMAGE_DIR = APP_DIR / "static" / "morphology_images"
-DEFAULT_KEY = "Key_to_Phyla_of_Animalia"
+DEFAULT_KEY = "Key_to_Kingdoms_of_Life"
 IMAGE_TYPES = ["png", "jpg", "jpeg", "webp"]
 NEXT_TIER_MAP = {
+    "Kingdom": "Phyla",
     "Phylum": "Classes",
-    "Class": "Orders",
+    "Class": "Subclasses",
     "Subclass": "Superorders",
     "Superorder": "Orders",
     "Order": "Suborders",
@@ -32,8 +33,9 @@ NEXT_TIER_MAP = {
     "Genus": "Species",
 }
 TIER_FALLBACKS = {
+    "Kingdom": ["Phyla"],
     "Phylum": ["Classes"],
-    "Class": ["Orders"],
+    "Class": ["Subclasses", "Orders"],
     "Subclass": ["Superorders", "Orders"],
     "Superorder": ["Orders"],
     "Order": ["Suborders", "Families"],
@@ -46,10 +48,13 @@ TIER_FALLBACKS = {
     "Genus": ["Species"],
 }
 NEXT_KEY_ALIASES = {
+    "Class: Arachnida": ["Key_to_Subclasses_of_Arachnida", "Key_to_Orders_of_Arachnida"],
+    "Subclass: Acari": ["Key_to_Superorders_of_Acari", "Key_to_Orders_of_Subclass_Acari"],
     "Suborder: Oribatida (Cohort Astigmatina)": ["Key_to_Families_of_Astigmatina"],
     "Suborder: Oribatida (excluding Astigmatina)": [
         "Key_to_Families_of_Oribatida_excluding_Astigmatina"
     ],
+    "Suborder: Prostigmata": ["Key_to_Families_of_Prostigmata_excluding_Parasitengonina"],
     "Cohort: Parasitengonina": [
         "Key_to_Families_of_Parasitengonina_Adults",
         "Key_to_Families_of_Parasitengonina_Larvae",
