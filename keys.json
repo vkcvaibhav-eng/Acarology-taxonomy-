@@ -30,7 +30,7 @@
         "advances_to": "Node 2"
       },
       "option_b": {
-        "morphology": "Somatic segments X and XI with 1–4 pairs of ventral spinnerets.",
+        "morphology": "Somatic segments X and XI with 1\u20134 pairs of ventral spinnerets.",
         "advances_to": "Order: Araneae"
       }
     },
@@ -46,7 +46,7 @@
     },
     "3": {
       "option_a": {
-        "morphology": "With a terminal spine or a compact or whiplike flagellum, posterior 3–5 somatic segments distinctly narrowed.",
+        "morphology": "With a terminal spine or a compact or whiplike flagellum, posterior 3\u20135 somatic segments distinctly narrowed.",
         "advances_to": "Order: Scorpiones, Uropygi, Palpigradi, Schizomida"
       },
       "option_b": {
@@ -68,11 +68,11 @@
   "Key_to_Superorders_of_Acari": {
     "1": {
       "option_a": {
-        "morphology": "Coxae I–IV fused to podosomatic body wall so that the first completely free leg segment is the trochanter; tarsi of legs entire, without fissures.",
+        "morphology": "Coxae I\u2013IV fused to podosomatic body wall so that the first completely free leg segment is the trochanter; tarsi of legs entire, without fissures.",
         "advances_to": "Superorder: Acariformes"
       },
       "option_b": {
-        "morphology": "Coxae of legs partially or completely articulated to body wall; tarsi II–IV each with a peripodomeric fissure separating the proximal basitarsus from a distal telotarsus.",
+        "morphology": "Coxae of legs partially or completely articulated to body wall; tarsi II\u2013IV each with a peripodomeric fissure separating the proximal basitarsus from a distal telotarsus.",
         "advances_to": "Superorder: Parasitiformes"
       }
     }
@@ -1206,11 +1206,11 @@
     },
     "83": {
       "option_a": {
-        "morphology": "Hypostomatic setae h1 short, spiniform; genital shield of female located behind coxae IV. Small mites, with adults under 400 µm in length.",
+        "morphology": "Hypostomatic setae h1 short, spiniform; genital shield of female located behind coxae IV. Small mites, with adults under 400 \u00b5m in length.",
         "advances_to": "Family: Metagynuridae"
       },
       "option_b": {
-        "morphology": "Hypostomatic setae h1 typically long and setiform; female genital shield located between coxae II-IV. Adults generally over 400 µm in length.",
+        "morphology": "Hypostomatic setae h1 typically long and setiform; female genital shield located between coxae II-IV. Adults generally over 400 \u00b5m in length.",
         "advances_to": "Family: Uropodidae"
       }
     },
@@ -2132,11 +2132,11 @@
     },
     "16": {
       "option_a": {
-        "morphology": "Palptarsi with no setae as long as palp; tarsi I-III bearing 13 or 14 (+1ω), 13 or 14 (+1ω), and 12 setae, respectively, lacking Ta15.",
+        "morphology": "Palptarsi with no setae as long as palp; tarsi I-III bearing 13 or 14 (+1\u03c9), 13 or 14 (+1\u03c9), and 12 setae, respectively, lacking Ta15.",
         "advances_to": "Family: Anisitsiellidae (pars)"
       },
       "option_b": {
-        "morphology": "Palptarsi with at least 1 seta as long as palp; tarsi I-III bearing 15 (+1ω), 15 (+1ω), and 13 or 14 setae, respectively, including Ta15.",
+        "morphology": "Palptarsi with at least 1 seta as long as palp; tarsi I-III bearing 15 (+1\u03c9), 15 (+1\u03c9), and 13 or 14 setae, respectively, including Ta15.",
         "advances_to": "Node 17"
       }
     },
@@ -2172,11 +2172,11 @@
     },
     "20": {
       "option_a": {
-        "morphology": "Dorsal plate bearing 4 pairs of setae (verticils and scapulars), with setae c1 on lateral membranous integument; setae c2 and d2 thick and long relative to other hysterosomatic setae; excretory pore setae ps1 and ps2 absent, represented by their alveoli on excretory pore plate; tibia I bearing 8 setae (+2ω), including Ti11; leg tarsi lacking setae Ta14.",
+        "morphology": "Dorsal plate bearing 4 pairs of setae (verticils and scapulars), with setae c1 on lateral membranous integument; setae c2 and d2 thick and long relative to other hysterosomatic setae; excretory pore setae ps1 and ps2 absent, represented by their alveoli on excretory pore plate; tibia I bearing 8 setae (+2\u03c9), including Ti11; leg tarsi lacking setae Ta14.",
         "advances_to": "Family: Momoniidae"
       },
       "option_b": {
-        "morphology": "Dorsal plate bearing 5 pairs of setae, including the verticils, scapulars, and setae c1 laterally; setae c2 and d2 similar to other hysterosomatic setae; excretory pore setae ps1 and ps2 present on plate, tibia I bearing 7 setae (+2ω), lacking Ti11; leg tarsi bearing setae Ta14.",
+        "morphology": "Dorsal plate bearing 5 pairs of setae, including the verticils, scapulars, and setae c1 laterally; setae c2 and d2 similar to other hysterosomatic setae; excretory pore setae ps1 and ps2 present on plate, tibia I bearing 7 setae (+2\u03c9), lacking Ti11; leg tarsi bearing setae Ta14.",
         "advances_to": "Node 21"
       }
     },
@@ -2202,11 +2202,11 @@
     },
     "23": {
       "option_a": {
-        "morphology": "Tibiae II-III bearing 9 setae (+2ω and +1ω, respectively), including both Ti10 and Ti11.",
+        "morphology": "Tibiae II-III bearing 9 setae (+2\u03c9 and +1\u03c9, respectively), including both Ti10 and Ti11.",
         "advances_to": "Node 24"
       },
       "option_b": {
-        "morphology": "Tibiae II-III bearing fewer than 9 setae (+2ω and +1ω, respectively), lacking either Ti10 or Ti11, or both.",
+        "morphology": "Tibiae II-III bearing fewer than 9 setae (+2\u03c9 and +1\u03c9, respectively), lacking either Ti10 or Ti11, or both.",
         "advances_to": "Node 25"
       }
     },
@@ -2222,11 +2222,11 @@
     },
     "25": {
       "option_a": {
-        "morphology": "Tibia II bearing 7 setae (+2ω), lacking Ti10 and Ti11; tibia III bearing 8 setae (+1ω), lacking Ti10.",
+        "morphology": "Tibia II bearing 7 setae (+2\u03c9), lacking Ti10 and Ti11; tibia III bearing 8 setae (+1\u03c9), lacking Ti10.",
         "advances_to": "Family: Laversiidae"
       },
       "option_b": {
-        "morphology": "Tibiae II and III bearing 8 setae (+2ω and +1ω, respectively), including Ti10 but lacking Ti11.",
+        "morphology": "Tibiae II and III bearing 8 setae (+2\u03c9 and +1\u03c9, respectively), including Ti10 but lacking Ti11.",
         "advances_to": "Node 26"
       }
     },
@@ -2252,21 +2252,21 @@
     },
     "28": {
       "option_a": {
-        "morphology": "Coxal plates III truncate posteriorly, bearing 3 pairs of setae, including 3a and both pa and h2 on posterior edges; tibiae of legs I-III bearing 9 setae (+2ω, +2ω, and +1ω, respectively), including both Ti9 and Ti10; tarsi I-II bearing 14 setae (+1ω), including Ta14 and Ta15; cheliceral bases separate.",
+        "morphology": "Coxal plates III truncate posteriorly, bearing 3 pairs of setae, including 3a and both pa and h2 on posterior edges; tibiae of legs I-III bearing 9 setae (+2\u03c9, +2\u03c9, and +1\u03c9, respectively), including both Ti9 and Ti10; tarsi I-II bearing 14 setae (+1\u03c9), including Ta14 and Ta15; cheliceral bases separate.",
         "advances_to": "Family: Lebertiidae"
       },
       "option_b": {
-        "morphology": "Coxal plates III rounded or pointed posteriorly, bearing 2 pairs of setae, including setae 3a and either 3b laterally or pa posteromedially; tibiae I-III bearing 8 setae (+2ω, +2ω, and +1ω, respectively), lacking either Ti9 or Ti10; tarsi I-II bearing 13 setae (+1ω), lacking Ta15, or 12 setae (+1ω), lacking both Ta14 and Ta15; cheliceral bases fused.",
+        "morphology": "Coxal plates III rounded or pointed posteriorly, bearing 2 pairs of setae, including setae 3a and either 3b laterally or pa posteromedially; tibiae I-III bearing 8 setae (+2\u03c9, +2\u03c9, and +1\u03c9, respectively), lacking either Ti9 or Ti10; tarsi I-II bearing 13 setae (+1\u03c9), lacking Ta15, or 12 setae (+1\u03c9), lacking both Ta14 and Ta15; cheliceral bases fused.",
         "advances_to": "Node 29"
       }
     },
     "29": {
       "option_a": {
-        "morphology": "Dorsal plate bearing 5 pairs of setae including verticils, scapulars, and setae c1 laterally; integument beneath posterior edge of dorsal plate intricately folded; coxal plates I elongate, extending posteriorly nearly to level of excretory pore plate; coxal plates III bearing setae 3b laterally; tarsi I-II bearing 12 setae (+1ω), lacking Ta14.",
+        "morphology": "Dorsal plate bearing 5 pairs of setae including verticils, scapulars, and setae c1 laterally; integument beneath posterior edge of dorsal plate intricately folded; coxal plates I elongate, extending posteriorly nearly to level of excretory pore plate; coxal plates III bearing setae 3b laterally; tarsi I-II bearing 12 setae (+1\u03c9), lacking Ta14.",
         "advances_to": "Family: Oxidae"
       },
       "option_b": {
-        "morphology": "Dorsal plate bearing 4 pairs of setae (verticils and scapulars) or 5 pairs including verticils, scapulars, and setae d1 laterally; integument beneath posterior edge of dorsal plate not intricately folded; coxal plates I not elongate, extending posteriorly only to level of insertion of legs III, or fused with plates II; plates III bearing setae pa posteromedially; tarsi I-II bearing 13 setae (+1ω), including Ta14.",
+        "morphology": "Dorsal plate bearing 4 pairs of setae (verticils and scapulars) or 5 pairs including verticils, scapulars, and setae d1 laterally; integument beneath posterior edge of dorsal plate not intricately folded; coxal plates I not elongate, extending posteriorly only to level of insertion of legs III, or fused with plates II; plates III bearing setae pa posteromedially; tarsi I-II bearing 13 setae (+1\u03c9), including Ta14.",
         "advances_to": "Family: Torrenticolidae"
       }
     },
@@ -2282,11 +2282,11 @@
     },
     "31": {
       "option_a": {
-        "morphology": "Two pairs of urstigmata borne distally between coxal plates I-II; tibiae I-II bearing 7-8 setae (+2ω), including only 3 ventral setae, lacking either Ti8 and Ti9 or Ti10 and Ti11.",
+        "morphology": "Two pairs of urstigmata borne distally between coxal plates I-II; tibiae I-II bearing 7-8 setae (+2\u03c9), including only 3 ventral setae, lacking either Ti8 and Ti9 or Ti10 and Ti11.",
         "advances_to": "Family: Limnesiidae"
       },
       "option_b": {
-        "morphology": "One pair of urstigmata borne distally between coxal plates I and II; tibiae of legs I and II usually bearing 9 or more setae (+2ω), including 5 ventral setae (Ti7, Ti8, Ti9, Ti10, and Ti11) (exception: FELTRIIDAE).",
+        "morphology": "One pair of urstigmata borne distally between coxal plates I and II; tibiae of legs I and II usually bearing 9 or more setae (+2\u03c9), including 5 ventral setae (Ti7, Ti8, Ti9, Ti10, and Ti11) (exception: FELTRIIDAE).",
         "advances_to": "Node 32"
       }
     },
@@ -2302,31 +2302,31 @@
     },
     "33": {
       "option_a": {
-        "morphology": "Tarsi I-II bearing 10 setae (+1ω), lacking Ta14 and either Ta12 or Ta9.",
+        "morphology": "Tarsi I-II bearing 10 setae (+1\u03c9), lacking Ta14 and either Ta12 or Ta9.",
         "advances_to": "Node 34"
       },
       "option_b": {
-        "morphology": "Tarsi I-II bearing 11 or more setae (+1ω), including Ta9.",
+        "morphology": "Tarsi I-II bearing 11 or more setae (+1\u03c9), including Ta9.",
         "advances_to": "Node 35"
       }
     },
     "34": {
       "option_a": {
-        "morphology": "Dorsal and coxal plates, and leg sclerites, conspicuously longitudinally striate; coxal plates III rounded posteriorly; tibia I bearing 7 setae (+2ω), lacking Ti10 and Ti11.",
+        "morphology": "Dorsal and coxal plates, and leg sclerites, conspicuously longitudinally striate; coxal plates III rounded posteriorly; tibia I bearing 7 setae (+2\u03c9), lacking Ti10 and Ti11.",
         "advances_to": "Family: Feltriidae"
       },
       "option_b": {
-        "morphology": "Dorsal and coxal plates reticulate; coxal plates III bearing pointed projections posteriorly; tibia I bearing 9 setae (+2ω), including Ti10 and Ti11.",
+        "morphology": "Dorsal and coxal plates reticulate; coxal plates III bearing pointed projections posteriorly; tibia I bearing 9 setae (+2\u03c9), including Ti10 and Ti11.",
         "advances_to": "Family: Unionicolidae"
       }
     },
     "35": {
       "option_a": {
-        "morphology": "Tibiae I-III bearing 7 setae (+2ω, +2ω, and +1ω, respectively), lacking Ti9 and Ti11.",
+        "morphology": "Tibiae I-III bearing 7 setae (+2\u03c9, +2\u03c9, and +1\u03c9, respectively), lacking Ti9 and Ti11.",
         "advances_to": "Family: Aturidae (pars)"
       },
       "option_b": {
-        "morphology": "Tibiae I-III bearing 8 or more setae (+2ω, +2ω, and +1ω, respectively), including Ti9 and Ti11.",
+        "morphology": "Tibiae I-III bearing 8 or more setae (+2\u03c9, +2\u03c9, and +1\u03c9, respectively), including Ti9 and Ti11.",
         "advances_to": "Node 36"
       }
     },
@@ -2352,11 +2352,11 @@
     },
     "38": {
       "option_a": {
-        "morphology": "Tarsi I bearing 13 setae (+1ω), including Ta8; excretory pore plate large and usually triangular or obcordate.",
+        "morphology": "Tarsi I bearing 13 setae (+1\u03c9), including Ta8; excretory pore plate large and usually triangular or obcordate.",
         "advances_to": "Node 39"
       },
       "option_b": {
-        "morphology": "Tarsi I bearing 12 setae (+1ω), lacking Ta8; excretory pore plate small to large, and variously shaped.",
+        "morphology": "Tarsi I bearing 12 setae (+1\u03c9), lacking Ta8; excretory pore plate small to large, and variously shaped.",
         "advances_to": "Node 40"
       }
     },
@@ -2432,21 +2432,21 @@
     },
     "46": {
       "option_a": {
-        "morphology": "Coxal plates with setae 1b, 3b, and usually 2b, thick and bifid; tarsus I with famulus usually distal to solenidia ω; parasitic on Orthoptera.",
+        "morphology": "Coxal plates with setae 1b, 3b, and usually 2b, thick and bifid; tarsus I with famulus usually distal to solenidia \u03c9; parasitic on Orthoptera.",
         "advances_to": "Family: Eutrombidiidae"
       },
       "option_b": {
-        "morphology": "Coxal plates with setae 1b, 2b, and 3b setiform; tarsus I with famulus proximal or distal to solenidia ω; parasitic on Diptera.",
+        "morphology": "Coxal plates with setae 1b, 2b, and 3b setiform; tarsus I with famulus proximal or distal to solenidia \u03c9; parasitic on Diptera.",
         "advances_to": "Family: Microtrombidiidae"
       }
     },
     "47": {
       "option_a": {
-        "morphology": "Femur I bearing 1 or more solenidia ω; parasitic on arthropods.",
+        "morphology": "Femur I bearing 1 or more solenidia \u03c9; parasitic on arthropods.",
         "advances_to": "Node 52"
       },
       "option_b": {
-        "morphology": "Femora I-III usually lacking solenidia ω; parasitic on arthropods or vertebrates.",
+        "morphology": "Femora I-III usually lacking solenidia \u03c9; parasitic on arthropods or vertebrates.",
         "advances_to": "Node 48"
       }
     },
@@ -2492,11 +2492,11 @@
     },
     "52": {
       "option_a": {
-        "morphology": "Femora II-III each bearing 2 or more solenidia θ; pretarsus with empodium.",
+        "morphology": "Femora II-III each bearing 2 or more solenidia \u03b8; pretarsus with empodium.",
         "advances_to": "Node 53"
       },
       "option_b": {
-        "morphology": "Femora II-III each bearing 0-1 solenidia θ; pretarsus lacking empodium.",
+        "morphology": "Femora II-III each bearing 0-1 solenidia \u03b8; pretarsus lacking empodium.",
         "advances_to": "Family: Johnstonianidae"
       }
     },
@@ -2598,7 +2598,7 @@
         "advances_to": "Node 9"
       },
       "option_b": {
-        "morphology": "Body wormlike, > 10x as long as wide; rutella absent; genital and anal openings widely separated; prodorsum without naso and with ≤ 7 setae; eyes absent.",
+        "morphology": "Body wormlike, > 10x as long as wide; rutella absent; genital and anal openings widely separated; prodorsum without naso and with \u2264 7 setae; eyes absent.",
         "advances_to": "Family: Nematalycidae"
       }
     },
@@ -2946,11 +2946,11 @@
     },
     "34": {
       "option_a": {
-        "morphology": "Large mites: total length over 800 µm. Epimeral halves III-IV separated medially by unsclerotized cuticle. Genital plates immediately posterior to epimere IV, located in anterior 1/2 of hysterosoma; with 2 pairs of aggenital setae. Palp with 5 free segments.",
+        "morphology": "Large mites: total length over 800 \u00b5m. Epimeral halves III-IV separated medially by unsclerotized cuticle. Genital plates immediately posterior to epimere IV, located in anterior 1/2 of hysterosoma; with 2 pairs of aggenital setae. Palp with 5 free segments.",
         "advances_to": "Node 35"
       },
       "option_b": {
-        "morphology": "Smaller mites, total length less than 700 µm, usually much less. Epimeral halves III-IV fused medially, demarcated with suture or not. Genital plates well posterior to epimere IV, in posterior half of hysterosoma; with 3 (rarely more) pairs of aggenital setae. Palp with 2-4 free segments.",
+        "morphology": "Smaller mites, total length less than 700 \u00b5m, usually much less. Epimeral halves III-IV fused medially, demarcated with suture or not. Genital plates well posterior to epimere IV, in posterior half of hysterosoma; with 3 (rarely more) pairs of aggenital setae. Palp with 2-4 free segments.",
         "advances_to": "Node 36"
       }
     },
@@ -3056,17 +3056,17 @@
     },
     "45": {
       "option_a": {
-        "morphology": "Gnathosoma modified, chelicerae pelopsiform. Paired opisthonotal glands opening on large anteriorly directed apophyses laterally on notogaster. Rostrum with deep medial incision; lamellar setae small, hardly visible. Trochanters and femora I-II with retrotecta. Adults with or without scalps, scalps when present concentrically arranged and very evident. Length: small to medium, 330-440 µm.",
+        "morphology": "Gnathosoma modified, chelicerae pelopsiform. Paired opisthonotal glands opening on large anteriorly directed apophyses laterally on notogaster. Rostrum with deep medial incision; lamellar setae small, hardly visible. Trochanters and femora I-II with retrotecta. Adults with or without scalps, scalps when present concentrically arranged and very evident. Length: small to medium, 330-440 \u00b5m.",
         "advances_to": "Family: Plasmobatidae"
       },
       "option_b": {
-        "morphology": "Gnathosoma normal, chelicerae chelate-dentate. Paired opisthonotal glands opening on distinct, funnel-shaped tubes laterally on notogaster. Rostrum without incision; lamellar setae well developed. Trochanters and femora I-II without retrotecta. Adults with only inconspicuous tritonymphal scalp adhering closely to notogaster. Length: 550-800 µm.",
+        "morphology": "Gnathosoma normal, chelicerae chelate-dentate. Paired opisthonotal glands opening on distinct, funnel-shaped tubes laterally on notogaster. Rostrum without incision; lamellar setae well developed. Trochanters and femora I-II without retrotecta. Adults with only inconspicuous tritonymphal scalp adhering closely to notogaster. Length: 550-800 \u00b5m.",
         "advances_to": "Family: Hermanniellidae"
       }
     },
     "46": {
       "option_a": {
-        "morphology": "Genital plates with transverse scissure; 7-8 (exceptionally up to 18) pairs of genital setae. Adults with scalps, scalps strongly sclerotized. Femora I-IV and trochanters III-IV with brachytrachea. Length: 800-1,100 µm.",
+        "morphology": "Genital plates with transverse scissure; 7-8 (exceptionally up to 18) pairs of genital setae. Adults with scalps, scalps strongly sclerotized. Femora I-IV and trochanters III-IV with brachytrachea. Length: 800-1,100 \u00b5m.",
         "advances_to": "Family: Neoliodidae"
       },
       "option_b": {
@@ -3086,7 +3086,7 @@
     },
     "48": {
       "option_a": {
-        "morphology": "Bothridium vestigial, bothridial seta absent; with 2 pairs of genital papillae, 7 pairs of genital setae, and 3 or 4 pairs of anal setae. Single species is a myrmecophile in Java. Length: 650-720 µm.",
+        "morphology": "Bothridium vestigial, bothridial seta absent; with 2 pairs of genital papillae, 7 pairs of genital setae, and 3 or 4 pairs of anal setae. Single species is a myrmecophile in Java. Length: 650-720 \u00b5m.",
         "advances_to": "Family: Aribatidae"
       },
       "option_b": {
@@ -3096,7 +3096,7 @@
     },
     "49": {
       "option_a": {
-        "morphology": "Notogaster with large, triangular humeral projections and with concave impressions, anterior notogastral margin concave. Costulae positioned laterally on prodorsum. Setae of epimera I-II spiniform. Length: 340-350 µm.",
+        "morphology": "Notogaster with large, triangular humeral projections and with concave impressions, anterior notogastral margin concave. Costulae positioned laterally on prodorsum. Setae of epimera I-II spiniform. Length: 340-350 \u00b5m.",
         "advances_to": "Family: Pterobatidae"
       },
       "option_b": {
@@ -3126,7 +3126,7 @@
     },
     "52": {
       "option_a": {
-        "morphology": "With 3 pairs of anal setae. Tarsus II with 1 solenidion. Length: approximately 500 µm.",
+        "morphology": "With 3 pairs of anal setae. Tarsus II with 1 solenidion. Length: approximately 500 \u00b5m.",
         "advances_to": "Family: Idiodamaeidae"
       },
       "option_b": {
@@ -3136,17 +3136,17 @@
     },
     "53": {
       "option_a": {
-        "morphology": "Notogaster concave in lateral aspect, caudal notogastral setae long or not but never twisted and corkscrewlike. Length: 480-700 µm.",
+        "morphology": "Notogaster concave in lateral aspect, caudal notogastral setae long or not but never twisted and corkscrewlike. Length: 480-700 \u00b5m.",
         "advances_to": "Family: Gymnodamaeidae"
       },
       "option_b": {
-        "morphology": "Notogaster convex in lateral aspect, caudal notogastral setae long and twisted, corkscrewlike. Length: 430-450 µm.",
+        "morphology": "Notogaster convex in lateral aspect, caudal notogastral setae long and twisted, corkscrewlike. Length: 430-450 \u00b5m.",
         "advances_to": "Family: Aleurodamaeidae"
       }
     },
     "54": {
       "option_a": {
-        "morphology": "Prodorsum with enantiophysis A bordering deep, transverse furrow. Femora with trachea. Length: 300-500 µm.",
+        "morphology": "Prodorsum with enantiophysis A bordering deep, transverse furrow. Femora with trachea. Length: 300-500 \u00b5m.",
         "advances_to": "Family: Pheroliodidae"
       },
       "option_b": {
@@ -3156,7 +3156,7 @@
     },
     "55": {
       "option_a": {
-        "morphology": "Notogaster with circummarginal furrow; notogaster extending anteromedially to level of bothridium. Genua, tibiae, and tarsi I-IV with retrotecta. Length: 350-370 µm.",
+        "morphology": "Notogaster with circummarginal furrow; notogaster extending anteromedially to level of bothridium. Genua, tibiae, and tarsi I-IV with retrotecta. Length: 350-370 \u00b5m.",
         "advances_to": "Family: Nacunansellidae"
       },
       "option_b": {
@@ -3166,7 +3166,7 @@
     },
     "56": {
       "option_a": {
-        "morphology": "Femur I with minimum of 8 setae, femur IV with minimum of 5 setae, trochanter IV with 3 setae. Bothridial seta filiform. Coxisternal region neotrichous. Length: 600-800 µm.",
+        "morphology": "Femur I with minimum of 8 setae, femur IV with minimum of 5 setae, trochanter IV with 3 setae. Bothridial seta filiform. Coxisternal region neotrichous. Length: 600-800 \u00b5m.",
         "advances_to": "Family: Plateremaeidae"
       },
       "option_b": {
@@ -3186,21 +3186,21 @@
     },
     "58": {
       "option_a": {
-        "morphology": "Genital and anal apertures partially joined; aggenital setae lateral to genital plates. Notogaster slightly invaginated posteriorly, ovate. Lateral claws of pretarsi slender, weak. Length: 500-600 µm.",
+        "morphology": "Genital and anal apertures partially joined; aggenital setae lateral to genital plates. Notogaster slightly invaginated posteriorly, ovate. Lateral claws of pretarsi slender, weak. Length: 500-600 \u00b5m.",
         "advances_to": "Family: Pedrocortesellidae"
       },
       "option_b": {
-        "morphology": "Genital and anal apertures completely joined, aggenital setae posterior to genital plates. Notogaster rounded posteriorly, round also in general shape. Three claws of pretarsi strongly developed. Length: 500-800 µm.",
+        "morphology": "Genital and anal apertures completely joined, aggenital setae posterior to genital plates. Notogaster rounded posteriorly, round also in general shape. Three claws of pretarsi strongly developed. Length: 500-800 \u00b5m.",
         "advances_to": "Family: Lyrifissellidae"
       }
     },
     "59": {
       "option_a": {
-        "morphology": "Scalps absent. Notogaster with 9-10 pairs of setae; notogastral lyrifissures long, integument reticulate or smooth, without pair of tubercles lateroposteriorly. Femora with porose area. Length: 190-420 µm.",
+        "morphology": "Scalps absent. Notogaster with 9-10 pairs of setae; notogastral lyrifissures long, integument reticulate or smooth, without pair of tubercles lateroposteriorly. Femora with porose area. Length: 190-420 \u00b5m.",
         "advances_to": "Family: Licnodamaeidae"
       },
       "option_b": {
-        "morphology": "Scalps present, with reticulate sculpture, tritonymphal scalp attached anteriorly to notogaster. Notogaster with 4-5 pairs of notogastral setae, of which p series and pair posterior to lateral tubercles distinct; notogastral lyrifissures short; integument of adult notogaster shiny, smooth; notogaster with pair of tubercles lateroposteriorly. Femora with dorsal saccule. Length: 250-300 µm.",
+        "morphology": "Scalps present, with reticulate sculpture, tritonymphal scalp attached anteriorly to notogaster. Notogaster with 4-5 pairs of notogastral setae, of which p series and pair posterior to lateral tubercles distinct; notogastral lyrifissures short; integument of adult notogaster shiny, smooth; notogaster with pair of tubercles lateroposteriorly. Femora with dorsal saccule. Length: 250-300 \u00b5m.",
         "advances_to": "Family: Licnobelbidae"
       }
     },
@@ -3216,11 +3216,11 @@
     },
     "61": {
       "option_a": {
-        "morphology": "Oblique carina present lateral to each costula. Rostral carina present. Notogaster with 2 pairs of tubercles anteriorly; with 10 pairs of setae. With 3 pairs of anal setae. Length: 550-1,100 µm.",
+        "morphology": "Oblique carina present lateral to each costula. Rostral carina present. Notogaster with 2 pairs of tubercles anteriorly; with 10 pairs of setae. With 3 pairs of anal setae. Length: 550-1,100 \u00b5m.",
         "advances_to": "Family: Megeremaeidae"
       },
       "option_b": {
-        "morphology": "Rostral and oblique lateral carinae absent. Notogaster without tubercles anteriorly; usually with 10-11 pairs of setae, occasionally up to 21 pairs. With 2-9 pairs of anal setae. Length: 400-800 µm.",
+        "morphology": "Rostral and oblique lateral carinae absent. Notogaster without tubercles anteriorly; usually with 10-11 pairs of setae, occasionally up to 21 pairs. With 2-9 pairs of anal setae. Length: 400-800 \u00b5m.",
         "advances_to": "Family: Eremaeidae"
       }
     },
@@ -3236,7 +3236,7 @@
     },
     "63": {
       "option_a": {
-        "morphology": "Subcapitulum diarthric; rutella very large, thin, and leaflike. Chelicerae with unusually large teeth. Palpgenu without seta, fused or not to femur; palptarsus with 3-5 setae. Length: 215-250 µm.",
+        "morphology": "Subcapitulum diarthric; rutella very large, thin, and leaflike. Chelicerae with unusually large teeth. Palpgenu without seta, fused or not to femur; palptarsus with 3-5 setae. Length: 215-250 \u00b5m.",
         "advances_to": "Family: Damaeolidae"
       },
       "option_b": {
@@ -3256,7 +3256,7 @@
     },
     "65": {
       "option_a": {
-        "morphology": "Prodorsum with or without paired flat regions (tectopedial fields) and short costulae or knoblike tubercle. Tarsus IV with 2 ventral setae more strongly developed, clavate, terminating bluntly, often pinnate, trochanter III with 1 seta. Prodorsum centrally granular or not; and/or rostral setae geniculate. Length: 170-300 µm.",
+        "morphology": "Prodorsum with or without paired flat regions (tectopedial fields) and short costulae or knoblike tubercle. Tarsus IV with 2 ventral setae more strongly developed, clavate, terminating bluntly, often pinnate, trochanter III with 1 seta. Prodorsum centrally granular or not; and/or rostral setae geniculate. Length: 170-300 \u00b5m.",
         "advances_to": "Family: Suctobelbidae"
       },
       "option_b": {
@@ -3266,21 +3266,21 @@
     },
     "66": {
       "option_a": {
-        "morphology": "Fused epimera III-IV very elongate; with 5 pairs of genital setae. Prodorsum large, broad, triangular; bothridium positioned well anterior of dorsosejugal furrow. Length: 430-450 µm.",
+        "morphology": "Fused epimera III-IV very elongate; with 5 pairs of genital setae. Prodorsum large, broad, triangular; bothridium positioned well anterior of dorsosejugal furrow. Length: 430-450 \u00b5m.",
         "advances_to": "Family: Trizetidae"
       },
       "option_b": {
-        "morphology": "Fused epimera III-IV not elongate; with 7 pairs of genital setae. Prodorsum elongate, with rostrum gradually or abruptly attenuated; bothridium positioned only slightly anterior of dorsosejugal furrow. Length: 500-1,000 µm.",
+        "morphology": "Fused epimera III-IV not elongate; with 7 pairs of genital setae. Prodorsum elongate, with rostrum gradually or abruptly attenuated; bothridium positioned only slightly anterior of dorsosejugal furrow. Length: 500-1,000 \u00b5m.",
         "advances_to": "Family: Rhynchoribatidae"
       }
     },
     "67": {
       "option_a": {
-        "morphology": "Notogaster narrow, about twice as long as wide; with strong depression laterally between setae c and la; porelike alveolar vestige of second exobothridial seta present, costulae present. With 3-4 pairs of genital setae. Tarsi and tibiae functionally fused, move as single segment. Length: 600-1,400 µm.",
+        "morphology": "Notogaster narrow, about twice as long as wide; with strong depression laterally between setae c and la; porelike alveolar vestige of second exobothridial seta present, costulae present. With 3-4 pairs of genital setae. Tarsi and tibiae functionally fused, move as single segment. Length: 600-1,400 \u00b5m.",
         "advances_to": "Family: Dampfiellidae (pars)"
       },
       "option_b": {
-        "morphology": "Notogaster not elongated, slightly longer than wide; without strong depression laterally between setae c and la; alveolar vestige of second exobothridial seta absent, costulae absent. With 6 pairs of genital setae. Tarsi and tibiae with normal articulation. Length: 270-515 µm.",
+        "morphology": "Notogaster not elongated, slightly longer than wide; without strong depression laterally between setae c and la; alveolar vestige of second exobothridial seta absent, costulae absent. With 6 pairs of genital setae. Tarsi and tibiae with normal articulation. Length: 270-515 \u00b5m.",
         "advances_to": "Family: Oxyameridae"
       }
     },
@@ -3296,17 +3296,17 @@
     },
     "69": {
       "option_a": {
-        "morphology": "Scalps affixed on medial tubercle at anterior of notogaster. Bothridial seta with ringlike thickenings proximally. Genital plates with 6 pairs of setae; circumventral carina present curving posterior to anal plates. Trochanter II with broad ventral keel that mimics pedotectum II, setae (p) absent from tarsi II to IV. Length: 400-750 µm.",
+        "morphology": "Scalps affixed on medial tubercle at anterior of notogaster. Bothridial seta with ringlike thickenings proximally. Genital plates with 6 pairs of setae; circumventral carina present curving posterior to anal plates. Trochanter II with broad ventral keel that mimics pedotectum II, setae (p) absent from tarsi II to IV. Length: 400-750 \u00b5m.",
         "advances_to": "Family: Basilobelbidae"
       },
       "option_b": {
-        "morphology": "Scalps affixed on pair of humeral tubercles at anterior of notogaster. Bothridial seta without ringlike thickenings. Genital plates with 7 pairs of setae; circumventral carina absent. Trochanter II without broad ventral keel, setae (p) present on tarsi II-IV. Length: 300-400 µm.",
+        "morphology": "Scalps affixed on pair of humeral tubercles at anterior of notogaster. Bothridial seta without ringlike thickenings. Genital plates with 7 pairs of setae; circumventral carina absent. Trochanter II without broad ventral keel, setae (p) present on tarsi II-IV. Length: 300-400 \u00b5m.",
         "advances_to": "Family: Heterobelbidae"
       }
     },
     "70": {
       "option_a": {
-        "morphology": "Prodorsum subequal in length to notogaster; strongly constricted anterior to legs I. Legs I palplike; claw present or absent; eupathidial setae (p) of tarsus I very long, almost twice length of claw, when claw present, tarsus I is thickest segment; leg segments without porose areas. Subcapitular mentum with tectum. Length: 400-500 µm.",
+        "morphology": "Prodorsum subequal in length to notogaster; strongly constricted anterior to legs I. Legs I palplike; claw present or absent; eupathidial setae (p) of tarsus I very long, almost twice length of claw, when claw present, tarsus I is thickest segment; leg segments without porose areas. Subcapitular mentum with tectum. Length: 400-500 \u00b5m.",
         "advances_to": "Family: Staurobatidae"
       },
       "option_b": {
@@ -3316,7 +3316,7 @@
     },
     "71": {
       "option_a": {
-        "morphology": "Posterior of prodorsum and anterior of notogaster strongly flattened and usually fused; longer notogastral setae often showing two distinct patterns: lm, lp, and h3 arch toward midline, and h1 and h2 arch posteriorly; rostrum usually with pair of incisions. Axillary saccule present at base of palp. Length: 600-1,050 µm.",
+        "morphology": "Posterior of prodorsum and anterior of notogaster strongly flattened and usually fused; longer notogastral setae often showing two distinct patterns: lm, lp, and h3 arch toward midline, and h1 and h2 arch posteriorly; rostrum usually with pair of incisions. Axillary saccule present at base of palp. Length: 600-1,050 \u00b5m.",
         "advances_to": "Family: Ameridae"
       },
       "option_b": {
@@ -3336,7 +3336,7 @@
     },
     "73": {
       "option_a": {
-        "morphology": "Adanal neotrichy present (more than 3 pairs of setae). Tibiae and tarsi I-IV with retrotecta, femora I-IV and trochanters III-IV with saccules. Length: 300-550 µm.",
+        "morphology": "Adanal neotrichy present (more than 3 pairs of setae). Tibiae and tarsi I-IV with retrotecta, femora I-IV and trochanters III-IV with saccules. Length: 300-550 \u00b5m.",
         "advances_to": "Family: Eremobelbidae"
       },
       "option_b": {
@@ -3346,11 +3346,11 @@
     },
     "74": {
       "option_a": {
-        "morphology": "Ventral plate setae branched. Costulae present. Pedotectum I present; propodolateral apophysis absent. Length: 275-500 µm.",
+        "morphology": "Ventral plate setae branched. Costulae present. Pedotectum I present; propodolateral apophysis absent. Length: 275-500 \u00b5m.",
         "advances_to": "Family: Eremulidae"
       },
       "option_b": {
-        "morphology": "Ventral plate setae not branched. Costulae absent. Pedotectum I absent; propodolateral apophysis present. Length: 335-415 µm.",
+        "morphology": "Ventral plate setae not branched. Costulae absent. Pedotectum I absent; propodolateral apophysis present. Length: 335-415 \u00b5m.",
         "advances_to": "Family: Hungarobelbidae"
       }
     },
@@ -3366,17 +3366,17 @@
     },
     "76": {
       "option_a": {
-        "morphology": "Prodorsum without costulae, usually fused to notogaster. Length: 500-800 µm.",
+        "morphology": "Prodorsum without costulae, usually fused to notogaster. Length: 500-800 \u00b5m.",
         "advances_to": "Family: Amerobelbidae"
       },
       "option_b": {
-        "morphology": "Prodorsum with parallel costulae; prodorsum usually separate from notogaster. Length: 400-500 µm.",
+        "morphology": "Prodorsum with parallel costulae; prodorsum usually separate from notogaster. Length: 400-500 \u00b5m.",
         "advances_to": "Family: Ctenobelbidae"
       }
     },
     "77": {
       "option_a": {
-        "morphology": "Notogastral setae (other than p series) arranged in 2 conspicuous longitudinal rows. Well-developed parastigmatic enantiophysis present. Legs moniliform, tarsal segments swollen proximally, tapered distally; femora and tibiae narrow proximally, swollen distally. Length: 450-1,300 µm.",
+        "morphology": "Notogastral setae (other than p series) arranged in 2 conspicuous longitudinal rows. Well-developed parastigmatic enantiophysis present. Legs moniliform, tarsal segments swollen proximally, tapered distally; femora and tibiae narrow proximally, swollen distally. Length: 450-1,300 \u00b5m.",
         "advances_to": "Family: Damaeidae"
       },
       "option_b": {
@@ -3396,7 +3396,7 @@
     },
     "79": {
       "option_a": {
-        "morphology": "Seta d inserted on proximal 1/5 of femora I-III, proximal to other femoral setae; with 13 or 15-17 pairs of notogastral setae (secondary h setae). Bothridial seta reduced or absent (frequently broken). Lenticulus present, circular, strongly convex. Length: 400-700 µm.",
+        "morphology": "Seta d inserted on proximal 1/5 of femora I-III, proximal to other femoral setae; with 13 or 15-17 pairs of notogastral setae (secondary h setae). Bothridial seta reduced or absent (frequently broken). Lenticulus present, circular, strongly convex. Length: 400-700 \u00b5m.",
         "advances_to": "Family: Hydrozetidae (pars)"
       },
       "option_b": {
@@ -3416,7 +3416,7 @@
     },
     "81": {
       "option_a": {
-        "morphology": "Genital plates with 3 pairs of setae. Coxisternal setation 1-0-1-1, tarsus II with 1 solenidion. Length: 370-420 µm.",
+        "morphology": "Genital plates with 3 pairs of setae. Coxisternal setation 1-0-1-1, tarsus II with 1 solenidion. Length: 370-420 \u00b5m.",
         "advances_to": "Family: Selenoribatidae"
       },
       "option_b": {
@@ -3426,17 +3426,17 @@
     },
     "82": {
       "option_a": {
-        "morphology": "Genital plates with 5 pairs of setae. Lyrifissure iad positioned anterior to ad3. Lateral plastron (Van der Hammen's organ) absent. Leg tibiae and tarsi completely separate. Length: 550-800 µm.",
+        "morphology": "Genital plates with 5 pairs of setae. Lyrifissure iad positioned anterior to ad3. Lateral plastron (Van der Hammen's organ) absent. Leg tibiae and tarsi completely separate. Length: 550-800 \u00b5m.",
         "advances_to": "Family: Ameronothridae"
       },
       "option_b": {
-        "morphology": "Genital plates with 6 pairs of setae. Lyrifissure iad positioned beside or posterior to ad3. Lateral plastron (Van der Hammen's organ) present. Tibiae and tarsi partially fused. Length: 400-500 µm.",
+        "morphology": "Genital plates with 6 pairs of setae. Lyrifissure iad positioned beside or posterior to ad3. Lateral plastron (Van der Hammen's organ) present. Tibiae and tarsi partially fused. Length: 400-500 \u00b5m.",
         "advances_to": "Family: Fortuyniidae"
       }
     },
     "83": {
       "option_a": {
-        "morphology": "Notogaster narrow, elongated, about twice as long as wide, prodorsum and notogaster fused; vestigial alveolus of second exobothridial seta present. Leg tarsi and tibiae functionally fused, move as single segment. Genital plates with 3-4 pairs of setae. Length: 300-850 µm.",
+        "morphology": "Notogaster narrow, elongated, about twice as long as wide, prodorsum and notogaster fused; vestigial alveolus of second exobothridial seta present. Leg tarsi and tibiae functionally fused, move as single segment. Genital plates with 3-4 pairs of setae. Length: 300-850 \u00b5m.",
         "advances_to": "Family: Dampfiellidae (pars)"
       },
       "option_b": {
@@ -3446,7 +3446,7 @@
     },
     "84": {
       "option_a": {
-        "morphology": "Border of epimere IV with taenidium and minitectum. Length: 300-500 µm.",
+        "morphology": "Border of epimere IV with taenidium and minitectum. Length: 300-500 \u00b5m.",
         "advances_to": "Family: Thyrisomidae (pars)"
       },
       "option_b": {
@@ -3456,7 +3456,7 @@
     },
     "85": {
       "option_a": {
-        "morphology": "Notogaster with pair of deep depressions between setae c and la, lamellar setae arising from medial tubercle. Body elongated, prodorsum nearly as long as notogaster. Costulae with long, thin cusps. Prodorsum usually with spine(s) between interlamellar and lamellar setae. Bothridial seta with ringlike thickenings proximally. Rostrum with pair of incisions. Length: 300-400 µm.",
+        "morphology": "Notogaster with pair of deep depressions between setae c and la, lamellar setae arising from medial tubercle. Body elongated, prodorsum nearly as long as notogaster. Costulae with long, thin cusps. Prodorsum usually with spine(s) between interlamellar and lamellar setae. Bothridial seta with ringlike thickenings proximally. Rostrum with pair of incisions. Length: 300-400 \u00b5m.",
         "advances_to": "Family: Spinozetidae"
       },
       "option_b": {
@@ -3466,7 +3466,7 @@
     },
     "86": {
       "option_a": {
-        "morphology": "Femora I-IV with very broad ventral keel, trochanters III-IV without porose areas. Costulae absent. Propodolateral apophysis present. Enantiophyses L and E4 present. Length: 450-600 µm.",
+        "morphology": "Femora I-IV with very broad ventral keel, trochanters III-IV without porose areas. Costulae absent. Propodolateral apophysis present. Enantiophyses L and E4 present. Length: 450-600 \u00b5m.",
         "advances_to": "Family: Arceremaeidae"
       },
       "option_b": {
@@ -3476,7 +3476,7 @@
     },
     "87": {
       "option_a": {
-        "morphology": "Femora III-IV with retrotecta. Bothridial seta long, bifurcated. Tutorium, humeral apophysis, parastigmatic enantiophysis S, and enantiophysis V absent. Notogaster with 2 pairs of cristae. Length: 400-500 µm.",
+        "morphology": "Femora III-IV with retrotecta. Bothridial seta long, bifurcated. Tutorium, humeral apophysis, parastigmatic enantiophysis S, and enantiophysis V absent. Notogaster with 2 pairs of cristae. Length: 400-500 \u00b5m.",
         "advances_to": "Family: Machadobelbidae"
       },
       "option_b": {
@@ -3486,11 +3486,11 @@
     },
     "88": {
       "option_a": {
-        "morphology": "Bothridium with internal spiral thickening. Notogaster without tubercles on anterior margin, depressions absent between notogastral setae c and la; pedotectum II present, enantiophysis A absent. Fixed digit of chelicerae with unsclerotized lobe with 7-10 small teeth. Tarsus II with 2 solenidia. Length: 280-850 µm.",
+        "morphology": "Bothridium with internal spiral thickening. Notogaster without tubercles on anterior margin, depressions absent between notogastral setae c and la; pedotectum II present, enantiophysis A absent. Fixed digit of chelicerae with unsclerotized lobe with 7-10 small teeth. Tarsus II with 2 solenidia. Length: 280-850 \u00b5m.",
         "advances_to": "Family: Anderemaeidae"
       },
       "option_b": {
-        "morphology": "Bothridium without internal thickening. Notogaster with tubercles on anterior margin, with 1 to several pairs of small, circular depressions between notogastral setae c and la; pedotectum II absent, enantiophysis A present. Fixed digit of chelicerae without unsclerotized lobe. Tarsus II with 1 solenidion. Length: 300-475 µm.",
+        "morphology": "Bothridium without internal thickening. Notogaster with tubercles on anterior margin, with 1 to several pairs of small, circular depressions between notogastral setae c and la; pedotectum II absent, enantiophysis A present. Fixed digit of chelicerae without unsclerotized lobe. Tarsus II with 1 solenidion. Length: 300-475 \u00b5m.",
         "advances_to": "Family: Caleremaeidae"
       }
     },
@@ -3506,11 +3506,11 @@
     },
     "90": {
       "option_a": {
-        "morphology": "Costulae present. Pedotectum II auriculate. Border of epimere IV without minitectum. Length: 500-1,600 µm.",
+        "morphology": "Costulae present. Pedotectum II auriculate. Border of epimere IV without minitectum. Length: 500-1,600 \u00b5m.",
         "advances_to": "Family: Otocepheidae"
       },
       "option_b": {
-        "morphology": "Costulae absent. Pedotectum II not auriculate. Border of epimere IV with minitectum. Length: 650-750 µm.",
+        "morphology": "Costulae absent. Pedotectum II not auriculate. Border of epimere IV with minitectum. Length: 650-750 \u00b5m.",
         "advances_to": "Family: Tokunocepheidae"
       }
     },
@@ -3526,11 +3526,11 @@
     },
     "92": {
       "option_a": {
-        "morphology": "Notogaster and posterior of prodorsum covered with very thick, white cerotegument, held between long, thick, and heavily barbed interlamellar setae and 5 pairs of long, thick, and heavily barbed notogastral setae. Subcapitulum diarthric. Chelicerae with dentate chelae. Length: ca. 425 µm.",
+        "morphology": "Notogaster and posterior of prodorsum covered with very thick, white cerotegument, held between long, thick, and heavily barbed interlamellar setae and 5 pairs of long, thick, and heavily barbed notogastral setae. Subcapitulum diarthric. Chelicerae with dentate chelae. Length: ca. 425 \u00b5m.",
         "advances_to": "Family: Tuparezetidae"
       },
       "option_b": {
-        "morphology": "Thick, white cerotegument absent. Notogastral and interlamellar setae setiform. Subcapitulum anarthric. Chelicerae with edentate chelae. Length: 370-400 µm.",
+        "morphology": "Thick, white cerotegument absent. Notogastral and interlamellar setae setiform. Subcapitulum anarthric. Chelicerae with edentate chelae. Length: 370-400 \u00b5m.",
         "advances_to": "Family: Nosybelbidae"
       }
     },
@@ -3546,17 +3546,17 @@
     },
     "94": {
       "option_a": {
-        "morphology": "Aggenital setae absent. Notogaster with 14 pairs of setae. Tarsal setation I-IV reduced, 13-12-9-8, respectively (not including solenidia). Femora III-IV with 2 porose areas each, 1 proximally on femoral bulge and 1 paraxially on segment. Subcapitular mentum without tectum. Solenidion σ absent from genu III, porose areas or saccules absent from tibiae and tarsi. Palpal eupathidium acm forming imperfect \"double horn\" with solenidion. Length: 240-315 µm.",
+        "morphology": "Aggenital setae absent. Notogaster with 14 pairs of setae. Tarsal setation I-IV reduced, 13-12-9-8, respectively (not including solenidia). Femora III-IV with 2 porose areas each, 1 proximally on femoral bulge and 1 paraxially on segment. Subcapitular mentum without tectum. Solenidion \u03c3 absent from genu III, porose areas or saccules absent from tibiae and tarsi. Palpal eupathidium acm forming imperfect \"double horn\" with solenidion. Length: 240-315 \u00b5m.",
         "advances_to": "Family: Micreremidae (pars)"
       },
       "option_b": {
-        "morphology": "Aggenital setae present. Notogaster usually with 10 or 13 pairs of setae. Tarsal setation not reduced, usually (17-20)-15-15-12, respectively (not including solenidia), femora III-IV with 1 porose area, on paraxial face. Subcapitular mentum with or without tectum. Solenidion σ present on genu III, tibiae and tarsi with porose areas or saccules. Palpal eupathidium acm free from solenidion. Length: 350-800 µm.",
+        "morphology": "Aggenital setae present. Notogaster usually with 10 or 13 pairs of setae. Tarsal setation not reduced, usually (17-20)-15-15-12, respectively (not including solenidia), femora III-IV with 1 porose area, on paraxial face. Subcapitular mentum with or without tectum. Solenidion \u03c3 present on genu III, tibiae and tarsi with porose areas or saccules. Palpal eupathidium acm free from solenidion. Length: 350-800 \u00b5m.",
         "advances_to": "Family: Cymbaeremaeidae (pars)"
       }
     },
     "95": {
       "option_a": {
-        "morphology": "Border of epimere IV with minitectum. Genital and anal plates very large, almost touching, separated by distance of less than 1/2 length genital plate. Length: 290-500 µm.",
+        "morphology": "Border of epimere IV with minitectum. Genital and anal plates very large, almost touching, separated by distance of less than 1/2 length genital plate. Length: 290-500 \u00b5m.",
         "advances_to": "Family: Thyrisomidae (pars)"
       },
       "option_b": {
@@ -3566,7 +3566,7 @@
     },
     "96": {
       "option_a": {
-        "morphology": "Rostrum with straight, deep, medial incision. Medially positioned parallel costulae present; humeral enantiophysis present. Tibia I with large dorsodistal tubercle overhanging tarsus I. Length: 250-350 µm.",
+        "morphology": "Rostrum with straight, deep, medial incision. Medially positioned parallel costulae present; humeral enantiophysis present. Tibia I with large dorsodistal tubercle overhanging tarsus I. Length: 250-350 \u00b5m.",
         "advances_to": "Family: Autognetidae"
       },
       "option_b": {
@@ -3576,7 +3576,7 @@
     },
     "97": {
       "option_a": {
-        "morphology": "Costulae H shaped. Seven pairs of notogastral setae arranged in submarginal longitudinal row. Length: 250-350 µm.",
+        "morphology": "Costulae H shaped. Seven pairs of notogastral setae arranged in submarginal longitudinal row. Length: 250-350 \u00b5m.",
         "advances_to": "Family: Eremellidae"
       },
       "option_b": {
@@ -3586,7 +3586,7 @@
     },
     "98": {
       "option_a": {
-        "morphology": "Tibiae I-II expanded laterally, with apophyses. Genital plates with 6 pairs of setae. Length: 300-450 µm.",
+        "morphology": "Tibiae I-II expanded laterally, with apophyses. Genital plates with 6 pairs of setae. Length: 300-450 \u00b5m.",
         "advances_to": "Family: Teratoppiidae"
       },
       "option_b": {
@@ -3596,7 +3596,7 @@
     },
     "99": {
       "option_a": {
-        "morphology": "Genital plates with 3 pairs of setae. Prodorsum flattened; rostrum very broad. Lamellar setae originating near anterior margin of rostrum in transverse alignment with rostral setae; interlamellar setae positioned midway between bothridia and rostrum. Length: 450-900 µm.",
+        "morphology": "Genital plates with 3 pairs of setae. Prodorsum flattened; rostrum very broad. Lamellar setae originating near anterior margin of rostrum in transverse alignment with rostral setae; interlamellar setae positioned midway between bothridia and rostrum. Length: 450-900 \u00b5m.",
         "advances_to": "Family: Platyameridae"
       },
       "option_b": {
@@ -3606,7 +3606,7 @@
     },
     "100": {
       "option_a": {
-        "morphology": "Coxisternal setal formula 2-2-4-5 or up to 17 pairs of coxisternal setae; coxisternal setae directed medially toward ventrosejugal region, forming a \"basket\" within a thick layer of cerotegument. Anterior margin of epimere I with medial tooth. Distance between genital and anal plates less than length of genital plate. Length: 150-250 µm.",
+        "morphology": "Coxisternal setal formula 2-2-4-5 or up to 17 pairs of coxisternal setae; coxisternal setae directed medially toward ventrosejugal region, forming a \"basket\" within a thick layer of cerotegument. Anterior margin of epimere I with medial tooth. Distance between genital and anal plates less than length of genital plate. Length: 150-250 \u00b5m.",
         "advances_to": "Family: Machuellidae"
       },
       "option_b": {
@@ -3616,7 +3616,7 @@
     },
     "101": {
       "option_a": {
-        "morphology": "Coxisternal setae large, plumose; coxisternum covered by 2 overlapping plates. Length: 250-350 µm.",
+        "morphology": "Coxisternal setae large, plumose; coxisternum covered by 2 overlapping plates. Length: 250-350 \u00b5m.",
         "advances_to": "Family: Sternoppiidae"
       },
       "option_b": {
@@ -3626,7 +3626,7 @@
     },
     "102": {
       "option_a": {
-        "morphology": "Borders of epimera III-IV separated medially by area subequal in width to genital aperture. Length: 300-500 µm.",
+        "morphology": "Borders of epimera III-IV separated medially by area subequal in width to genital aperture. Length: 300-500 \u00b5m.",
         "advances_to": "Family: Epimerellidae"
       },
       "option_b": {
@@ -3646,7 +3646,7 @@
     },
     "104": {
       "option_a": {
-        "morphology": "Setae ad1 (most posterior pair) in adanal position, far removed from anal plates; setae ad3 in preanal position; costulae present. Length: ca. 450-680 µm.",
+        "morphology": "Setae ad1 (most posterior pair) in adanal position, far removed from anal plates; setae ad3 in preanal position; costulae present. Length: ca. 450-680 \u00b5m.",
         "advances_to": "Family: Granuloppiidae"
       },
       "option_b": {
@@ -3656,17 +3656,17 @@
     },
     "105": {
       "option_a": {
-        "morphology": "Epimera III-IV long, extending well posterior of genital plates. Notogaster without anteromedial sclerotized elevation between 2 oval concavities. Length: 120-550 µm.",
+        "morphology": "Epimera III-IV long, extending well posterior of genital plates. Notogaster without anteromedial sclerotized elevation between 2 oval concavities. Length: 120-550 \u00b5m.",
         "advances_to": "Family: Oppiidae (pars)"
       },
       "option_b": {
-        "morphology": "Epimera III-IV normal in length, not extending posterior of genital plates. Notogaster with anteromedial sclerotized elevation between 2 oval concavities. Length: 400-500 µm.",
+        "morphology": "Epimera III-IV normal in length, not extending posterior of genital plates. Notogaster with anteromedial sclerotized elevation between 2 oval concavities. Length: 400-500 \u00b5m.",
         "advances_to": "Family: Enantioppiidae"
       }
     },
     "106": {
       "option_a": {
-        "morphology": "Epimeral border IV straight, transverse, posterior to genital plates. Papillate cerotegument covering body. Costulae strongly developed, with anterior cusp; notogastral setae papillate. Length: 220-250 µm.",
+        "morphology": "Epimeral border IV straight, transverse, posterior to genital plates. Papillate cerotegument covering body. Costulae strongly developed, with anterior cusp; notogastral setae papillate. Length: 220-250 \u00b5m.",
         "advances_to": "Family: Papillonotidae"
       },
       "option_b": {
@@ -3676,7 +3676,7 @@
     },
     "107": {
       "option_a": {
-        "morphology": "Prodorsum with lateral paired flat regions (tectopedial fields), notogaster without crista. Epimera appear separated by broad sternal region. Length: 260-290 µm.",
+        "morphology": "Prodorsum with lateral paired flat regions (tectopedial fields), notogaster without crista. Epimera appear separated by broad sternal region. Length: 260-290 \u00b5m.",
         "advances_to": "Family: Chaviniidae"
       },
       "option_b": {
@@ -3686,17 +3686,17 @@
     },
     "108": {
       "option_a": {
-        "morphology": "Ventral plate with postanal saccule. Posterior margin of notogaster divided medially, with margins overlapping. Solenidion ω2 on tarsus I arising well proximal of famulus; ω1 on tarsus II positioned proximally on segment. Length: 230-260 µm.",
+        "morphology": "Ventral plate with postanal saccule. Posterior margin of notogaster divided medially, with margins overlapping. Solenidion \u03c92 on tarsus I arising well proximal of famulus; \u03c91 on tarsus II positioned proximally on segment. Length: 230-260 \u00b5m.",
         "advances_to": "Family: Luxtoniidae"
       },
       "option_b": {
-        "morphology": "Ventral plate without postanal saccule. Posterior margin of notogaster undivided. Solenidion ω2 on tarsus I arising close to famulus; ω1 on tarsus II positioned medially on segment.",
+        "morphology": "Ventral plate without postanal saccule. Posterior margin of notogaster undivided. Solenidion \u03c92 on tarsus I arising close to famulus; \u03c91 on tarsus II positioned medially on segment.",
         "advances_to": "Node 109"
       }
     },
     "109": {
       "option_a": {
-        "morphology": "Costulae, if present, shorter than 1/2 length of prodorsum. Crista, if present, not longer than 1/3 length of notogaster. Length: 120-550 µm.",
+        "morphology": "Costulae, if present, shorter than 1/2 length of prodorsum. Crista, if present, not longer than 1/3 length of notogaster. Length: 120-550 \u00b5m.",
         "advances_to": "Family: Oppiidae (pars)"
       },
       "option_b": {
@@ -3706,11 +3706,11 @@
     },
     "110": {
       "option_a": {
-        "morphology": "Notogaster with 9 pairs of setae, similar in size and shape. Length: 150-230 µm.",
+        "morphology": "Notogaster with 9 pairs of setae, similar in size and shape. Length: 150-230 \u00b5m.",
         "advances_to": "Family: Quadroppiidae"
       },
       "option_b": {
-        "morphology": "Notogaster with 10 pairs of setae, of which 3 pairs are long and densely pilose. Length: 180-200 µm.",
+        "morphology": "Notogaster with 10 pairs of setae, of which 3 pairs are long and densely pilose. Length: 180-200 \u00b5m.",
         "advances_to": "Family: Hexoppiidae"
       }
     },
@@ -3726,11 +3726,11 @@
     },
     "112": {
       "option_a": {
-        "morphology": "Cerotegument very thick and bearing dirt mass. Lamellae very large and touching medially, medially thickened and with thin lateral extensions. Patronium present, pedotectum II absent. Subcapitulum anarthric; mentum and gena extending anteriorly over rutella like a tectum; rutella in form of large bifurcate seta. Chelicerae highly modified with strainerlike teeth; cheliceral setae setiform. Length: 400-560 µm.",
+        "morphology": "Cerotegument very thick and bearing dirt mass. Lamellae very large and touching medially, medially thickened and with thin lateral extensions. Patronium present, pedotectum II absent. Subcapitulum anarthric; mentum and gena extending anteriorly over rutella like a tectum; rutella in form of large bifurcate seta. Chelicerae highly modified with strainerlike teeth; cheliceral setae setiform. Length: 400-560 \u00b5m.",
         "advances_to": "Family: Polypterozetidae"
       },
       "option_b": {
-        "morphology": "Cerotegument thin, without adherent dirt. Lamellae very large and fused medially, patronium absent. Small pedotectum I present. Subcapitulum diarthric; mentum and gena not extending anteriorly over rutella; rutella normal. Chelicerae chelate-dentate; cheliceral seta cha curved and coiled many times back over digit. Length: 350-400 µm.",
+        "morphology": "Cerotegument thin, without adherent dirt. Lamellae very large and fused medially, patronium absent. Small pedotectum I present. Subcapitulum diarthric; mentum and gena not extending anteriorly over rutella; rutella normal. Chelicerae chelate-dentate; cheliceral seta cha curved and coiled many times back over digit. Length: 350-400 \u00b5m.",
         "advances_to": "Family: Podopterotegaeidae"
       }
     },
@@ -3746,7 +3746,7 @@
     },
     "114": {
       "option_a": {
-        "morphology": "Notogaster with or without large fossae. Ventral plate with gutterlike tectum, accommodating edge of notogaster. Chelicerae pelopsiform. Length: 340-420 µm.",
+        "morphology": "Notogaster with or without large fossae. Ventral plate with gutterlike tectum, accommodating edge of notogaster. Chelicerae pelopsiform. Length: 340-420 \u00b5m.",
         "advances_to": "Family: Charassobatidae"
       },
       "option_b": {
@@ -3756,7 +3756,7 @@
     },
     "115": {
       "option_a": {
-        "morphology": "Chelicerae styliform, movable digit serrate distally, fixed digit absent. Border of epimere IV with minitectum. Length: ca. 600 µm.",
+        "morphology": "Chelicerae styliform, movable digit serrate distally, fixed digit absent. Border of epimere IV with minitectum. Length: ca. 600 \u00b5m.",
         "advances_to": "Family: Gustaviidae"
       },
       "option_b": {
@@ -3776,17 +3776,17 @@
     },
     "117": {
       "option_a": {
-        "morphology": "Notogaster with large projection anteromedially, curving above prodorsum and forming large open depression with anterior of notogaster; prodorsum with broad converging lamella-like tubercles, bearing interlamellar setae, these tubercles with connecting transverse ridge. With 10 pairs of notogastral setae; seta c2 absent. Length: ca. 500 µm.",
+        "morphology": "Notogaster with large projection anteromedially, curving above prodorsum and forming large open depression with anterior of notogaster; prodorsum with broad converging lamella-like tubercles, bearing interlamellar setae, these tubercles with connecting transverse ridge. With 10 pairs of notogastral setae; seta c2 absent. Length: ca. 500 \u00b5m.",
         "advances_to": "Family: Tumerozetidae"
       },
       "option_b": {
-        "morphology": "Notogaster without projection anteromedially; prodorsum with large medial hump, bearing interlamellar setae. With 11 pairs of notogastral setae; seta c2 hidden by dorsally curved humeral process. Length: 300-350 µm.",
+        "morphology": "Notogaster without projection anteromedially; prodorsum with large medial hump, bearing interlamellar setae. With 11 pairs of notogastral setae; seta c2 hidden by dorsally curved humeral process. Length: 300-350 \u00b5m.",
         "advances_to": "Family: Nodocepheidae"
       }
     },
     "118": {
       "option_a": {
-        "morphology": "Integument shiny; cerotegument weakly developed, mainly in acetabular region. Notogaster without humeral processes or tubercles. Length: 400-800 µm.",
+        "morphology": "Integument shiny; cerotegument weakly developed, mainly in acetabular region. Notogaster without humeral processes or tubercles. Length: 400-800 \u00b5m.",
         "advances_to": "Family: Peloppiidae (pars)"
       },
       "option_b": {
@@ -3796,11 +3796,11 @@
     },
     "119": {
       "option_a": {
-        "morphology": "Rostrum without medial incision. Bothridium cup shaped, without internal thickening. Enantiophysis E4 present on either side of genital plates; deep pit present medially over sejugal apodeme. Tutorium absent. Length: 210-380 µm.",
+        "morphology": "Rostrum without medial incision. Bothridium cup shaped, without internal thickening. Enantiophysis E4 present on either side of genital plates; deep pit present medially over sejugal apodeme. Tutorium absent. Length: 210-380 \u00b5m.",
         "advances_to": "Family: Microtegeidae (pars)"
       },
       "option_b": {
-        "morphology": "Rostrum with long, deep medial incision. Bothridium trumpet shaped, with internal thickening. Enantiophysis E4 absent; pit absent medially over sejugal apodeme. Tutorium present. Length: approximately 400 µm.",
+        "morphology": "Rostrum with long, deep medial incision. Bothridium trumpet shaped, with internal thickening. Enantiophysis E4 absent; pit absent medially over sejugal apodeme. Tutorium present. Length: approximately 400 \u00b5m.",
         "advances_to": "Family: Cerocepheidae"
       }
     },
@@ -3816,7 +3816,7 @@
     },
     "121": {
       "option_a": {
-        "morphology": "Subcapitular mentum with tectum. Palptarsal eupathidium acm on tubercle, associated with solenidion, or solenidion positioned at base of tubercle. Length: 350-800 µm.",
+        "morphology": "Subcapitular mentum with tectum. Palptarsal eupathidium acm on tubercle, associated with solenidion, or solenidion positioned at base of tubercle. Length: 350-800 \u00b5m.",
         "advances_to": "Family: Cymbaeremaeidae (pars)"
       },
       "option_b": {
@@ -3826,7 +3826,7 @@
     },
     "122": {
       "option_a": {
-        "morphology": "Notogaster with large subtriangular or subrectangular humeral processes projecting dorsally over bothridium; prodorsum with large processes, interlocked or not with humeral processes. Length: 600-750 µm.",
+        "morphology": "Notogaster with large subtriangular or subrectangular humeral processes projecting dorsally over bothridium; prodorsum with large processes, interlocked or not with humeral processes. Length: 600-750 \u00b5m.",
         "advances_to": "Family: Nippobodidae"
       },
       "option_b": {
@@ -3836,17 +3836,17 @@
     },
     "123": {
       "option_a": {
-        "morphology": "Prodorsum and notogaster smooth, shiny; bothridium without internal spiral thickenings. Podosomal region with depressions for reception of retracted legs. Epimeral border IV with minitectum. Trochanters III-IV and femora III-IV without ventral carina. Length: 800-1,200 µm.",
+        "morphology": "Prodorsum and notogaster smooth, shiny; bothridium without internal spiral thickenings. Podosomal region with depressions for reception of retracted legs. Epimeral border IV with minitectum. Trochanters III-IV and femora III-IV without ventral carina. Length: 800-1,200 \u00b5m.",
         "advances_to": "Family: Tenuialidae"
       },
       "option_b": {
-        "morphology": "Prodorsum and notogaster sculptured, not shiny; bothridium with internal spiral thickenings. Podosomal region without concavities for reception of retracted legs. Epimeral border IV without minitectum. Trochanter III-IV and femora III-IV with well-developed ventral carina. Length: 700-1,050 µm.",
+        "morphology": "Prodorsum and notogaster sculptured, not shiny; bothridium with internal spiral thickenings. Podosomal region without concavities for reception of retracted legs. Epimeral border IV without minitectum. Trochanter III-IV and femora III-IV with well-developed ventral carina. Length: 700-1,050 \u00b5m.",
         "advances_to": "Family: Eutegaeidae"
       }
     },
     "124": {
       "option_a": {
-        "morphology": "Genital neotrichy present; 11-18 pairs of genital setae in 2 longitudinal rows. Epimere IV with 4 setae. Length: 850-1,150 µm.",
+        "morphology": "Genital neotrichy present; 11-18 pairs of genital setae in 2 longitudinal rows. Epimere IV with 4 setae. Length: 850-1,150 \u00b5m.",
         "advances_to": "Family: Niphocepheidae"
       },
       "option_b": {
@@ -3856,7 +3856,7 @@
     },
     "125": {
       "option_a": {
-        "morphology": "Integument of genital area usually darker than surrounding area. Epimeral setae 4a and 4b closely adjacent. Lenticulus usually present. Pedotectum I in two parts (narrow dorsal part and wider ventral part). Length: 250-500 µm.",
+        "morphology": "Integument of genital area usually darker than surrounding area. Epimeral setae 4a and 4b closely adjacent. Lenticulus usually present. Pedotectum I in two parts (narrow dorsal part and wider ventral part). Length: 250-500 \u00b5m.",
         "advances_to": "Family: Tegeocranellidae"
       },
       "option_b": {
@@ -3866,7 +3866,7 @@
     },
     "126": {
       "option_a": {
-        "morphology": "Subcapitular mentum with tectum. Eupathidium acm of palptarsus on tubercle. Lamellar cusps touching medially, fused or not, covering rostrum medially; lamellar setae arising anteroventrally on lamellar cusps. Length: 350-800 µm.",
+        "morphology": "Subcapitular mentum with tectum. Eupathidium acm of palptarsus on tubercle. Lamellar cusps touching medially, fused or not, covering rostrum medially; lamellar setae arising anteroventrally on lamellar cusps. Length: 350-800 \u00b5m.",
         "advances_to": "Family: Cymbaeremaeidae (pars)"
       },
       "option_b": {
@@ -3876,7 +3876,7 @@
     },
     "127": {
       "option_a": {
-        "morphology": "Tarsus I with 3 solenidia, pretarsus with very small claw, tarsal pulvillus present; legs IV modified for jumping or not. Cerotegument with large globules. Adanal setation 1 or 2 pairs, positioned postanally. Length: 330-550 µm.",
+        "morphology": "Tarsus I with 3 solenidia, pretarsus with very small claw, tarsal pulvillus present; legs IV modified for jumping or not. Cerotegument with large globules. Adanal setation 1 or 2 pairs, positioned postanally. Length: 330-550 \u00b5m.",
         "advances_to": "Family: Zetorchestidae"
       },
       "option_b": {
@@ -3896,17 +3896,17 @@
     },
     "129": {
       "option_a": {
-        "morphology": "Notogaster with 1 pair of setae centrodorsally; other notogastral setae in marginal or posteromarginal position; enantiophysis E4 present on either side of genital aperture. Integument sculptured. Length: 210-380 µm.",
+        "morphology": "Notogaster with 1 pair of setae centrodorsally; other notogastral setae in marginal or posteromarginal position; enantiophysis E4 present on either side of genital aperture. Integument sculptured. Length: 210-380 \u00b5m.",
         "advances_to": "Family: Microtegeidae (pars)"
       },
       "option_b": {
-        "morphology": "Notogaster without setae centrodorsally; all notogastral setae in marginal or posteromarginal position; enantiophysis E4 absent. Integument usually sculptured (smooth in Conoppia). Length: 500-1,200 µm.",
+        "morphology": "Notogaster without setae centrodorsally; all notogastral setae in marginal or posteromarginal position; enantiophysis E4 absent. Integument usually sculptured (smooth in Conoppia). Length: 500-1,200 \u00b5m.",
         "advances_to": "Family: Cepheidae"
       }
     },
     "130": {
       "option_a": {
-        "morphology": "Humeral region with 2 pairs of closely adjacent setae c (c1 and c2). Length: 500-1,160 µm.",
+        "morphology": "Humeral region with 2 pairs of closely adjacent setae c (c1 and c2). Length: 500-1,160 \u00b5m.",
         "advances_to": "Family: Liacaridae"
       },
       "option_b": {
@@ -3926,7 +3926,7 @@
     },
     "132": {
       "option_a": {
-        "morphology": "Notogaster with 50-55 pairs of setal alveoli. Length: 600-750 µm.",
+        "morphology": "Notogaster with 50-55 pairs of setal alveoli. Length: 600-750 \u00b5m.",
         "advances_to": "Family: Multoribulidae"
       },
       "option_b": {
@@ -3936,7 +3936,7 @@
     },
     "133": {
       "option_a": {
-        "morphology": "Anal plates with 3 pairs of setae. Length: 750-900 µm.",
+        "morphology": "Anal plates with 3 pairs of setae. Length: 750-900 \u00b5m.",
         "advances_to": "Family: Kodiakellidae"
       },
       "option_b": {
@@ -3946,17 +3946,17 @@
     },
     "134": {
       "option_a": {
-        "morphology": "Genital plates large; distance between genital and anal plates usually less than length of anal plates. Notogaster glabrous or with 10 pairs of notogastral setae. Length: 250-600 µm.",
+        "morphology": "Genital plates large; distance between genital and anal plates usually less than length of anal plates. Notogaster glabrous or with 10 pairs of notogastral setae. Length: 250-600 \u00b5m.",
         "advances_to": "Family: Astegistidae"
       },
       "option_b": {
-        "morphology": "Genital plates medium in size; distance between genital and anal plates usually greater than length of anal plates. Eight pairs of notogastral setae present or vestigial. Length: 400-800 µm.",
+        "morphology": "Genital plates medium in size; distance between genital and anal plates usually greater than length of anal plates. Eight pairs of notogastral setae present or vestigial. Length: 400-800 \u00b5m.",
         "advances_to": "Family: Peloppiidae (pars)"
       }
     },
     "135": {
       "option_a": {
-        "morphology": "Genal notch present. Circumpedal carina developed caudally. Anal plate triangular. Leg tarsi and tibiae articulate normally. Interlamellar setae positioned in interbothridial region. Length: 225-300 µm.",
+        "morphology": "Genal notch present. Circumpedal carina developed caudally. Anal plate triangular. Leg tarsi and tibiae articulate normally. Interlamellar setae positioned in interbothridial region. Length: 225-300 \u00b5m.",
         "advances_to": "Family: Tectocepheidae (pars)"
       },
       "option_b": {
@@ -3966,11 +3966,11 @@
     },
     "136": {
       "option_a": {
-        "morphology": "Rostrum rounded; lamellar cusps present. Cerotegument of notogaster with foveae or tubercles. Tutorium without free cusp. Length: 350-600 µm.",
+        "morphology": "Rostrum rounded; lamellar cusps present. Cerotegument of notogaster with foveae or tubercles. Tutorium without free cusp. Length: 350-600 \u00b5m.",
         "advances_to": "Family: Carabodidae"
       },
       "option_b": {
-        "morphology": "Rostrum elongate; lamellar cusps absent, lamellae merging with prodorsum anteriorly. Cerotegument of notogaster granular. Tutorium with free cusp. Length: ca. 600 µm.",
+        "morphology": "Rostrum elongate; lamellar cusps absent, lamellae merging with prodorsum anteriorly. Cerotegument of notogaster granular. Tutorium with free cusp. Length: ca. 600 \u00b5m.",
         "advances_to": "Family: Carabocepheidae"
       }
     },
@@ -3996,17 +3996,17 @@
     },
     "139": {
       "option_a": {
-        "morphology": "Rostrum acuminate. Chelicerae pelopsiform. Length: 440-500 µm.",
+        "morphology": "Rostrum acuminate. Chelicerae pelopsiform. Length: 440-500 \u00b5m.",
         "advances_to": "Family: Galumnellidae"
       },
       "option_b": {
-        "morphology": "Rostrum rounded. Chelicerae chelate-dentate. Length: 300-1100 µm.",
+        "morphology": "Rostrum rounded. Chelicerae chelate-dentate. Length: 300-1100 \u00b5m.",
         "advances_to": "Family: Galumnidae"
       }
     },
     "140": {
       "option_a": {
-        "morphology": "Lamella usually narrow, directed anteriorly from bothridium as simple carina. Seta c positioned on body of notogaster, notogaster without posterior tectum. Tibiae and tarsi I-IV with porose areas ventrally. Marginoventral porose areas present. Adalar porose organ of octotaxic system expressed as porose area or saccule, other 3 (mesonotic porose organs) always expressed as saccules. Length: 300-820 µm.",
+        "morphology": "Lamella usually narrow, directed anteriorly from bothridium as simple carina. Seta c positioned on body of notogaster, notogaster without posterior tectum. Tibiae and tarsi I-IV with porose areas ventrally. Marginoventral porose areas present. Adalar porose organ of octotaxic system expressed as porose area or saccule, other 3 (mesonotic porose organs) always expressed as saccules. Length: 300-820 \u00b5m.",
         "advances_to": "Family: Parakalummidae"
       },
       "option_b": {
@@ -4016,17 +4016,17 @@
     },
     "141": {
       "option_a": {
-        "morphology": "Notogaster and pteromorphs foveate. Genital plates with 6 pairs of setae; postanal porose area absent. Length: 210-300 µm.",
+        "morphology": "Notogaster and pteromorphs foveate. Genital plates with 6 pairs of setae; postanal porose area absent. Length: 210-300 \u00b5m.",
         "advances_to": "Family: Epactozetidae"
       },
       "option_b": {
-        "morphology": "Notogaster and pteromorphs smooth. Genital plates with 5 pairs of setae; postanal porose area present. Length: 250-350 µm.",
+        "morphology": "Notogaster and pteromorphs smooth. Genital plates with 5 pairs of setae; postanal porose area present. Length: 250-350 \u00b5m.",
         "advances_to": "Family: Ceratokalummidae"
       }
     },
     "142": {
       "option_a": {
-        "morphology": "Epimeral border IV clearly evident, extending transversely anterior to genital plates; border of epimere IV with tectum. Prodorsum often longer than notogaster; the latter as wide as long, or wider than long. Chelicerae dorsally with bacilliform tubercle. Tarsi II-IV with short, thick setae (p). Length: 150-550 µm.",
+        "morphology": "Epimeral border IV clearly evident, extending transversely anterior to genital plates; border of epimere IV with tectum. Prodorsum often longer than notogaster; the latter as wide as long, or wider than long. Chelicerae dorsally with bacilliform tubercle. Tarsi II-IV with short, thick setae (p). Length: 150-550 \u00b5m.",
         "advances_to": "Family: Microzetidae"
       },
       "option_b": {
@@ -4046,11 +4046,11 @@
     },
     "144": {
       "option_a": {
-        "morphology": "Lenticulus absent. Notogaster with or without pteromorphs, with 10 pairs of notogastral setae, lamellae and tutoria well developed. Length: 260-380 µm.",
+        "morphology": "Lenticulus absent. Notogaster with or without pteromorphs, with 10 pairs of notogastral setae, lamellae and tutoria well developed. Length: 260-380 \u00b5m.",
         "advances_to": "Family: Limnozetidae"
       },
       "option_b": {
-        "morphology": "Lenticulus present, circular, strongly convex. Notogaster without pteromorphs, with 13 or 15-17 pairs of notogastral setae (because of secondary h setae), prodorsal carina and tutoria weakly expressed. Length: 400-700 µm.",
+        "morphology": "Lenticulus present, circular, strongly convex. Notogaster without pteromorphs, with 13 or 15-17 pairs of notogastral setae (because of secondary h setae), prodorsal carina and tutoria weakly expressed. Length: 400-700 \u00b5m.",
         "advances_to": "Family: Hydrozetidae (pars)"
       }
     },
@@ -4076,27 +4076,27 @@
     },
     "147": {
       "option_a": {
-        "morphology": "Notogaster shorter than prodorsum, strongly convex, with anterior process bearing lenticulus; apophyses lateral to process bearing setae c; humeral processes shaped as prominent discal projections; with pteromorphs long, attenuated, strongly bent downward. Interlamellar setae present. Length: 260-405 µm.",
+        "morphology": "Notogaster shorter than prodorsum, strongly convex, with anterior process bearing lenticulus; apophyses lateral to process bearing setae c; humeral processes shaped as prominent discal projections; with pteromorphs long, attenuated, strongly bent downward. Interlamellar setae present. Length: 260-405 \u00b5m.",
         "advances_to": "Family: Idiozetidae"
       },
       "option_b": {
-        "morphology": "Notogaster longer than prodorsum, weakly convex, without anterior process; without apophyses laterally; humeral processes usually subrectangular or round; with pteromorphs small to long, attenuated or not, often strongly bent downward. Interlamellar setae usually absent. Length: 260-600 µm.",
+        "morphology": "Notogaster longer than prodorsum, weakly convex, without anterior process; without apophyses laterally; humeral processes usually subrectangular or round; with pteromorphs small to long, attenuated or not, often strongly bent downward. Interlamellar setae usually absent. Length: 260-600 \u00b5m.",
         "advances_to": "Family: Eremaeozetidae"
       }
     },
     "148": {
       "option_a": {
-        "morphology": "Genital plates with 8 or more pairs of setae. Octotaxic system absent. Notogastral setal pair c1 divergent, posteromarginal region of notogaster undulate. Pedotectum I without transverse carina. Interlamellar seta setose. Chelicerae normal. Length: 550-670 µm.",
+        "morphology": "Genital plates with 8 or more pairs of setae. Octotaxic system absent. Notogastral setal pair c1 divergent, posteromarginal region of notogaster undulate. Pedotectum I without transverse carina. Interlamellar seta setose. Chelicerae normal. Length: 550-670 \u00b5m.",
         "advances_to": "Family: Unduloribatidae"
       },
       "option_b": {
-        "morphology": "Genital plates with 6 pairs of setae. Octotaxic system of porose areas, if present, all closely associated with setae. Posteromarginal region of notogaster smooth, notogastral setal pair p1 convergent or directed posteriorly. Pedotectum I with transverse carina. Interlamellar seta large, spatulate or short, setose. Chelicerae pelopsiform or normal. Length: 400-1,000 µm.",
+        "morphology": "Genital plates with 6 pairs of setae. Octotaxic system of porose areas, if present, all closely associated with setae. Posteromarginal region of notogaster smooth, notogastral setal pair p1 convergent or directed posteriorly. Pedotectum I with transverse carina. Interlamellar seta large, spatulate or short, setose. Chelicerae pelopsiform or normal. Length: 400-1,000 \u00b5m.",
         "advances_to": "Family: Phenopelopidae"
       }
     },
     "149": {
       "option_a": {
-        "morphology": "Bothridium with internal, spiral thickenings. Genu IV long thin segment, concave dorsally; longer than genu III, usually longer than tibia IV. Pteromorph present, with or without long, knifelike anterior projection. Length: 390-850 µm.",
+        "morphology": "Bothridium with internal, spiral thickenings. Genu IV long thin segment, concave dorsally; longer than genu III, usually longer than tibia IV. Pteromorph present, with or without long, knifelike anterior projection. Length: 390-850 \u00b5m.",
         "advances_to": "Family: Achipteriidae"
       },
       "option_b": {
@@ -4106,7 +4106,7 @@
     },
     "150": {
       "option_a": {
-        "morphology": "Lamellae completely fused medially (exception: separate in Hypozetes). Tibia IV usually without solenidion. Length: 340-480 µm.",
+        "morphology": "Lamellae completely fused medially (exception: separate in Hypozetes). Tibia IV usually without solenidion. Length: 340-480 \u00b5m.",
         "advances_to": "Family: Tegoribatidae"
       },
       "option_b": {
@@ -4116,7 +4116,7 @@
     },
     "151": {
       "option_a": {
-        "morphology": "Lenticulus sharply defined, oval, at center of concavity on notogaster. Prodorsum without lamellae; with or without costulae; lamellar setae positioned closely adjacent to rostral setae, not associated with costulae. Tibiae and tarsi with retrotecta. Pteromorph absent. Length: 230-460 µm.",
+        "morphology": "Lenticulus sharply defined, oval, at center of concavity on notogaster. Prodorsum without lamellae; with or without costulae; lamellar setae positioned closely adjacent to rostral setae, not associated with costulae. Tibiae and tarsi with retrotecta. Pteromorph absent. Length: 230-460 \u00b5m.",
         "advances_to": "Family: Passalozetidae"
       },
       "option_b": {
@@ -4126,7 +4126,7 @@
     },
     "152": {
       "option_a": {
-        "morphology": "Circumpedal carina partially developed close to lateral margin of ventral plate. Octotaxic system absent. Sejugal apodeme and apodemes 3-4 meet medially anterior to genital plate. Genal notch present. Length: 250-280 µm.",
+        "morphology": "Circumpedal carina partially developed close to lateral margin of ventral plate. Octotaxic system absent. Sejugal apodeme and apodemes 3-4 meet medially anterior to genital plate. Genal notch present. Length: 250-280 \u00b5m.",
         "advances_to": "Family: Tectocepheidae (pars)"
       },
       "option_b": {
@@ -4136,7 +4136,7 @@
     },
     "153": {
       "option_a": {
-        "morphology": "Notogastral neotrichy present, with 30-35 pairs of long, dark, notogastral setae. Length: 700-750 µm.",
+        "morphology": "Notogastral neotrichy present, with 30-35 pairs of long, dark, notogastral setae. Length: 700-750 \u00b5m.",
         "advances_to": "Family: Neotrichozetidae"
       },
       "option_b": {
@@ -4156,7 +4156,7 @@
     },
     "155": {
       "option_a": {
-        "morphology": "Notogaster with triangular humeral process bearing large seta apically, seta larger than other notogastral setae; rostrum denticulate. Legs IV sometimes modified as jumping legs. Trochanter IV without seta. Lyrifissure im often modified as piriform organ. Large humeral saccule present or absent. Length: 350-550 µm.",
+        "morphology": "Notogaster with triangular humeral process bearing large seta apically, seta larger than other notogastral setae; rostrum denticulate. Legs IV sometimes modified as jumping legs. Trochanter IV without seta. Lyrifissure im often modified as piriform organ. Large humeral saccule present or absent. Length: 350-550 \u00b5m.",
         "advances_to": "Family: Zetomotrichidae"
       },
       "option_b": {
@@ -4176,17 +4176,17 @@
     },
     "157": {
       "option_a": {
-        "morphology": "Bothridial seta large, strongly widened distally, leaf shaped; prodorsum with costulae. Notogaster extending medially between bothridia and the in, forming acute angle; with large circular to reticulate sculpturing, independent of sculpturing formed by cerotegument. Length: 200-250 µm.",
+        "morphology": "Bothridial seta large, strongly widened distally, leaf shaped; prodorsum with costulae. Notogaster extending medially between bothridia and the in, forming acute angle; with large circular to reticulate sculpturing, independent of sculpturing formed by cerotegument. Length: 200-250 \u00b5m.",
         "advances_to": "Family: Licneremaeidae"
       },
       "option_b": {
-        "morphology": "Bothridial seta not strongly widened distally, not leaf shaped; prodorsum with lamellae and translamella; notogaster curved to flat anteriorly, not extending medially between bothridia and setae in. Notogaster and cerotegument without large circular to reticulate sculpturing. Length: 200-300 µm.",
+        "morphology": "Bothridial seta not strongly widened distally, not leaf shaped; prodorsum with lamellae and translamella; notogaster curved to flat anteriorly, not extending medially between bothridia and setae in. Notogaster and cerotegument without large circular to reticulate sculpturing. Length: 200-300 \u00b5m.",
         "advances_to": "Family: Lamellareidae"
       }
     },
     "158": {
       "option_a": {
-        "morphology": "Prodorsum laterally with broad hyaline expansions. Aggenital setae absent, with 2 pairs of adanal setae. Length: ca. 270 µm.",
+        "morphology": "Prodorsum laterally with broad hyaline expansions. Aggenital setae absent, with 2 pairs of adanal setae. Length: ca. 270 \u00b5m.",
         "advances_to": "Family: Nesozetidae"
       },
       "option_b": {
@@ -4196,11 +4196,11 @@
     },
     "159": {
       "option_a": {
-        "morphology": "Aggenital setae absent. Femora III-IV each with 2 porose areas, 1 proximally on femoral bulge and 1 paraxially on segment, solenidion σ absent from genu III. Length: 240-315 µm.",
+        "morphology": "Aggenital setae absent. Femora III-IV each with 2 porose areas, 1 proximally on femoral bulge and 1 paraxially on segment, solenidion \u03c3 absent from genu III. Length: 240-315 \u00b5m.",
         "advances_to": "Family: Micreremidae (pars)"
       },
       "option_b": {
-        "morphology": "Aggenital setae present. Femora III-IV each with 1 porose area, solenidion σ present on genu III.",
+        "morphology": "Aggenital setae present. Femora III-IV each with 1 porose area, solenidion \u03c3 present on genu III.",
         "advances_to": "Node 160"
       }
     },
@@ -4216,11 +4216,11 @@
     },
     "161": {
       "option_a": {
-        "morphology": "Tutorium present. Posterior notogastral tectum without overlapping lobes. Tarsal pulvillus absent, brachytracheae or saccules present on tibiae I-IV. Length: 350-500 µm.",
+        "morphology": "Tutorium present. Posterior notogastral tectum without overlapping lobes. Tarsal pulvillus absent, brachytracheae or saccules present on tibiae I-IV. Length: 350-500 \u00b5m.",
         "advances_to": "Family: Scutoverticidae"
       },
       "option_b": {
-        "morphology": "Tutorium absent. Posterior notogastral tectum with overlapping lobes. Tarsal pulvillus present; porose areas, brachytracheae or saccules absent from tibiae I-IV. Length: 400-450 µm.",
+        "morphology": "Tutorium absent. Posterior notogastral tectum with overlapping lobes. Tarsal pulvillus present; porose areas, brachytracheae or saccules absent from tibiae I-IV. Length: 400-450 \u00b5m.",
         "advances_to": "Family: Adhaesozetidae"
       }
     },
@@ -4236,11 +4236,11 @@
     },
     "163": {
       "option_a": {
-        "morphology": "Subcapitulum anarthric. Chelicerae pelopsiform. Notogastral setae reduced to length of alveolus, octotaxic system of 4 pairs of saccules. Length: approximately 670 µm.",
+        "morphology": "Subcapitulum anarthric. Chelicerae pelopsiform. Notogastral setae reduced to length of alveolus, octotaxic system of 4 pairs of saccules. Length: approximately 670 \u00b5m.",
         "advances_to": "Family: Tubulozetidae"
       },
       "option_b": {
-        "morphology": "Subcapitulum diarthric. Chelicerae chelate-dentate. Notogastral setae developed, octotaxic system of porose areas or saccules. Length: 250-650 µm.",
+        "morphology": "Subcapitulum diarthric. Chelicerae chelate-dentate. Notogastral setae developed, octotaxic system of porose areas or saccules. Length: 250-650 \u00b5m.",
         "advances_to": "Family: Haplozetidae"
       }
     },
@@ -4256,7 +4256,7 @@
     },
     "165": {
       "option_a": {
-        "morphology": "Pretarsi tridactylous. With 4 pairs of saccules. With 1-3 pairs of genital setae. Length: 250-550 µm.",
+        "morphology": "Pretarsi tridactylous. With 4 pairs of saccules. With 1-3 pairs of genital setae. Length: 250-550 \u00b5m.",
         "advances_to": "Family: Oripodidae"
       },
       "option_b": {
@@ -4266,17 +4266,17 @@
     },
     "166": {
       "option_a": {
-        "morphology": "Octotaxic system present as porose areas; sexual dimorphism in octotaxic system such that porose areas of male differ from those of female. Aggenital setae present. Setae (u) of tarsi I-IV setiform. Sexually dimorphic rostral setae present, those of female setose, directed anteromedially, those of male robust, tapered projections directed anteriorly. Length: 220-260 µm.",
+        "morphology": "Octotaxic system present as porose areas; sexual dimorphism in octotaxic system such that porose areas of male differ from those of female. Aggenital setae present. Setae (u) of tarsi I-IV setiform. Sexually dimorphic rostral setae present, those of female setose, directed anteromedially, those of male robust, tapered projections directed anteriorly. Length: 220-260 \u00b5m.",
         "advances_to": "Family: Symbioribatidae"
       },
       "option_b": {
-        "morphology": "Octotaxic system absent, or 1-2 pairs of saccules present, sexual dimorphism in octotaxic system absent. Aggenital setae absent. Setae (u) of tarsi I-IV short, dark colored and terminally bifid. Sexually dimorphic rostral setae absent. Length: 230-335 µm.",
+        "morphology": "Octotaxic system absent, or 1-2 pairs of saccules present, sexual dimorphism in octotaxic system absent. Aggenital setae absent. Setae (u) of tarsi I-IV short, dark colored and terminally bifid. Sexually dimorphic rostral setae absent. Length: 230-335 \u00b5m.",
         "advances_to": "Family: Campbellobatidae"
       }
     },
     "167": {
       "option_a": {
-        "morphology": "Notogaster with both porose areas and saccules, Sa and S1 saccules, remainder of octotaxic system porose areas. Length: 800-1,020 µm.",
+        "morphology": "Notogaster with both porose areas and saccules, Sa and S1 saccules, remainder of octotaxic system porose areas. Length: 800-1,020 \u00b5m.",
         "advances_to": "Family: Drymobatidae"
       },
       "option_b": {
@@ -4286,7 +4286,7 @@
     },
     "168": {
       "option_a": {
-        "morphology": "Rostrum with medial projection, almost tubelike. Granular cerotegument present over entire body. Notogastral setae lanceolate; tutorium present. Length: ca. 430 µm.",
+        "morphology": "Rostrum with medial projection, almost tubelike. Granular cerotegument present over entire body. Notogastral setae lanceolate; tutorium present. Length: ca. 430 \u00b5m.",
         "advances_to": "Family: Nasobatidae"
       },
       "option_b": {
@@ -4296,7 +4296,7 @@
     },
     "169": {
       "option_a": {
-        "morphology": "Notogaster with 4 or more pairs of porose areas, their limits often well defined by internally thickened border; porose areas sexually dimorphic, or not; notogaster without conspicuous setae; 3 pairs of short setae in p row and 7 pairs of alveoli; prodorsum fused to notogaster; tutorium present. Distinct notch present antiaxially on chelicerae. Length: 500-800 µm.",
+        "morphology": "Notogaster with 4 or more pairs of porose areas, their limits often well defined by internally thickened border; porose areas sexually dimorphic, or not; notogaster without conspicuous setae; 3 pairs of short setae in p row and 7 pairs of alveoli; prodorsum fused to notogaster; tutorium present. Distinct notch present antiaxially on chelicerae. Length: 500-800 \u00b5m.",
         "advances_to": "Family: Mochlozetidae"
       },
       "option_b": {
@@ -4306,7 +4306,7 @@
     },
     "170": {
       "option_a": {
-        "morphology": "Notogaster with 4 pairs of curved, sausage-shaped saccules, notogastral setae unusually long. Tutorium and pleural carinae present. Length: 380-500 µm.",
+        "morphology": "Notogaster with 4 pairs of curved, sausage-shaped saccules, notogastral setae unusually long. Tutorium and pleural carinae present. Length: 380-500 \u00b5m.",
         "advances_to": "Family: Stelechobatidae"
       },
       "option_b": {
@@ -4316,7 +4316,7 @@
     },
     "171": {
       "option_a": {
-        "morphology": "Pteromorphs or humeral projections usually present (if absent, octotaxic system as saccules). Distal eupathidia on palptarsus in same plane. Notogaster with 2-4 pairs of porose areas or saccules. With 1-4 pairs of genital setae. Prodorsum with prolamella often present; sublamella present. Sternal furrow extending from genital plates anteriorly on coxisternum often present. Length: 200-650 µm.",
+        "morphology": "Pteromorphs or humeral projections usually present (if absent, octotaxic system as saccules). Distal eupathidia on palptarsus in same plane. Notogaster with 2-4 pairs of porose areas or saccules. With 1-4 pairs of genital setae. Prodorsum with prolamella often present; sublamella present. Sternal furrow extending from genital plates anteriorly on coxisternum often present. Length: 200-650 \u00b5m.",
         "advances_to": "Family: Scheloribatidae"
       },
       "option_b": {
@@ -4326,7 +4326,7 @@
     },
     "172": {
       "option_a": {
-        "morphology": "Adanal setation 2 pairs. Octotaxic system with 5 pairs of saccules, integument strongly foveate, notogastral setae strongly barbed to plumose, translamella present. Length 350-850 µm.",
+        "morphology": "Adanal setation 2 pairs. Octotaxic system with 5 pairs of saccules, integument strongly foveate, notogastral setae strongly barbed to plumose, translamella present. Length 350-850 \u00b5m.",
         "advances_to": "Family: Caloppiidae"
       },
       "option_b": {
@@ -4336,7 +4336,7 @@
     },
     "173": {
       "option_a": {
-        "morphology": "Marginoventral porose areas present. Tarsus I without dorsal porose area. Length: 250-900 µm.",
+        "morphology": "Marginoventral porose areas present. Tarsus I without dorsal porose area. Length: 250-900 \u00b5m.",
         "advances_to": "Family: Oribatulidae"
       },
       "option_b": {
@@ -4346,17 +4346,17 @@
     },
     "174": {
       "option_a": {
-        "morphology": "Octotaxic system of 5 pairs of small porose areas. Femur II with 4 or fewer setae. Notogaster without caudal protuberance. Circumpedal carina incomplete posterior to acetabulum IV. Tarsus II with 2 solenidia, without porose area at base. Length: 300-400 µm.",
+        "morphology": "Octotaxic system of 5 pairs of small porose areas. Femur II with 4 or fewer setae. Notogaster without caudal protuberance. Circumpedal carina incomplete posterior to acetabulum IV. Tarsus II with 2 solenidia, without porose area at base. Length: 300-400 \u00b5m.",
         "advances_to": "Family: Crassoribatulidae"
       },
       "option_b": {
-        "morphology": "Octotaxic system of 4 pairs of porose areas. Femur II with 5 setae. Notogaster with caudal protuberance bearing porose area and seta p1. Circumpedal carina complete posterior to acetabulum IV. Tarsus II with 1 solenidion, with porose area at base. Length: 575-625 µm.",
+        "morphology": "Octotaxic system of 4 pairs of porose areas. Femur II with 5 setae. Notogaster with caudal protuberance bearing porose area and seta p1. Circumpedal carina complete posterior to acetabulum IV. Tarsus II with 1 solenidion, with porose area at base. Length: 575-625 \u00b5m.",
         "advances_to": "Family: Sellnickiidae"
       }
     },
     "175": {
       "option_a": {
-        "morphology": "Lamellae well developed, fused at base of cusps; lamellar cusps almost covering entire prodorsum, usually deeply incised, forming large medial and lateral tooth, or large lateral tooth; lamellar setae inserted at base of incision. Tutorium usually rectangular, dentate distally, or if tapered, notogaster with indistinct hexagonal pattern anteriorly. Pteromorph without hinge. Length: 240-750 µm.",
+        "morphology": "Lamellae well developed, fused at base of cusps; lamellar cusps almost covering entire prodorsum, usually deeply incised, forming large medial and lateral tooth, or large lateral tooth; lamellar setae inserted at base of incision. Tutorium usually rectangular, dentate distally, or if tapered, notogaster with indistinct hexagonal pattern anteriorly. Pteromorph without hinge. Length: 240-750 \u00b5m.",
         "advances_to": "Family: Oribatellidae"
       },
       "option_b": {
@@ -4376,11 +4376,11 @@
     },
     "177": {
       "option_a": {
-        "morphology": "Notogaster with porose areas Aa and A3 only, Aa positioned anteriorly, just posterior or medial to seta c. Claw of leg I expanded medially. With 10 pairs of notogastral setae. Length: ca. 315 µm.",
+        "morphology": "Notogaster with porose areas Aa and A3 only, Aa positioned anteriorly, just posterior or medial to seta c. Claw of leg I expanded medially. With 10 pairs of notogastral setae. Length: ca. 315 \u00b5m.",
         "advances_to": "Family: Onychobatidae"
       },
       "option_b": {
-        "morphology": "Notogaster with 4 pairs of porose areas, Aa positioned well posteriorly of seta c or porose areas absent. Claw of leg I not expanded medially. With 10-11 pairs of notogastral setae or their alveoli; if 11 pairs, then 2 pairs of setae p (or their alveoli) closely adjacent on anterior of notogaster. Length: 250-750 µm.",
+        "morphology": "Notogaster with 4 pairs of porose areas, Aa positioned well posteriorly of seta c or porose areas absent. Claw of leg I not expanded medially. With 10-11 pairs of notogastral setae or their alveoli; if 11 pairs, then 2 pairs of setae p (or their alveoli) closely adjacent on anterior of notogaster. Length: 250-750 \u00b5m.",
         "advances_to": "Family: Zetomimidae"
       }
     },
@@ -4396,7 +4396,7 @@
     },
     "179": {
       "option_a": {
-        "morphology": "Lamellar setae inserted on prodorsal surface, lamellar cusps absent. Postanal porose area absent. Length: 290-700 µm.",
+        "morphology": "Lamellar setae inserted on prodorsal surface, lamellar cusps absent. Postanal porose area absent. Length: 290-700 \u00b5m.",
         "advances_to": "Family: Chamobatidae"
       },
       "option_b": {
@@ -4406,17 +4406,17 @@
     },
     "180": {
       "option_a": {
-        "morphology": "Prolamella extending from tip of lamellae to rostral margin, positioned medial to rostral seta. Tibiae and tarsi I-IV with distoventral and proximoventral porose areas. Tutorium without distinct cusp. Subcapitular mentum without tectum. Length: 600-936 µm.",
+        "morphology": "Prolamella extending from tip of lamellae to rostral margin, positioned medial to rostral seta. Tibiae and tarsi I-IV with distoventral and proximoventral porose areas. Tutorium without distinct cusp. Subcapitular mentum without tectum. Length: 600-936 \u00b5m.",
         "advances_to": "Family: Humerobatidae"
       },
       "option_b": {
-        "morphology": "Prolamella absent. Tibiae and tarsi I-IV without porose areas. Tutorium with distinct cusp. Subcapitular mentum with or without tectum. Length: 400-650 µm.",
+        "morphology": "Prolamella absent. Tibiae and tarsi I-IV without porose areas. Tutorium with distinct cusp. Subcapitular mentum with or without tectum. Length: 400-650 \u00b5m.",
         "advances_to": "Family: Mycobatidae"
       }
     },
     "181": {
       "option_a": {
-        "morphology": "Pteromorph small, not projecting ventrally. Custodium absent. Postanal porose area absent. Length: 500-650 µm.",
+        "morphology": "Pteromorph small, not projecting ventrally. Custodium absent. Postanal porose area absent. Length: 500-650 \u00b5m.",
         "advances_to": "Family: Maudheimiidae"
       },
       "option_b": {
@@ -4426,11 +4426,11 @@
     },
     "182": {
       "option_a": {
-        "morphology": "Subcapitular mentum with tectum. Epimere IV neotrichous (4 or more pairs of setae). With 10 pairs of minute notogastral setae or setae reduced to alveoli. Length: 1,000-1,200 µm.",
+        "morphology": "Subcapitular mentum with tectum. Epimere IV neotrichous (4 or more pairs of setae). With 10 pairs of minute notogastral setae or setae reduced to alveoli. Length: 1,000-1,200 \u00b5m.",
         "advances_to": "Family: Euzetidae"
       },
       "option_b": {
-        "morphology": "Subcapitular mentum without tectum. Epimere IV with 2 or 3 pairs of setae. With 10-15 pairs of minute to long notogastral setae. Length: 270-990 µm.",
+        "morphology": "Subcapitular mentum without tectum. Epimere IV with 2 or 3 pairs of setae. With 10-15 pairs of minute to long notogastral setae. Length: 270-990 \u00b5m.",
         "advances_to": "Family: Ceratozetidae"
       }
     }
@@ -4572,7 +4572,7 @@
         "advances_to": "Node 15"
       },
       "option_b": {
-        "morphology": "Body cuticle without striations; small rounded protuberances or small triangular microtrichia may be present; solenidion ω2 variable in position, usually more basal than ω1; rectal setae present on all tarsi or one member of pair may be absent on all tarsi.",
+        "morphology": "Body cuticle without striations; small rounded protuberances or small triangular microtrichia may be present; solenidion \u03c92 variable in position, usually more basal than \u03c91; rectal setae present on all tarsi or one member of pair may be absent on all tarsi.",
         "advances_to": "Node 16"
       }
     },
@@ -5118,21 +5118,21 @@
     },
     "69": {
       "option_a": {
-        "morphology": "Tarsus I with solenidion ω1 inserted subapically, very near solenidion ω3.",
+        "morphology": "Tarsus I with solenidion \u03c91 inserted subapically, very near solenidion \u03c93.",
         "advances_to": "Node 70"
       },
       "option_b": {
-        "morphology": "Tarsus I with solenidion ω1 inserted basally.",
+        "morphology": "Tarsus I with solenidion \u03c91 inserted basally.",
         "advances_to": "Node 71"
       }
     },
     "70": {
       "option_a": {
-        "morphology": "Tarsus II with solenidion ω1 inserted subapically. In quills of Apodiformes (Trochilidae).",
+        "morphology": "Tarsus II with solenidion \u03c91 inserted subapically. In quills of Apodiformes (Trochilidae).",
         "advances_to": "Family: Ptyssalgidae"
       },
       "option_b": {
-        "morphology": "Tarsus II with solenidion ω1 inserted in basal half of the segment. On feathers and skin or in quills of many avian orders, bird or mammal nests, house dust, or stored food products; cosmopolitan.",
+        "morphology": "Tarsus II with solenidion \u03c91 inserted in basal half of the segment. On feathers and skin or in quills of many avian orders, bird or mammal nests, house dust, or stored food products; cosmopolitan.",
         "advances_to": "Family: Pyroglyphidae"
       }
     },
@@ -6868,11 +6868,11 @@
     },
     "52": {
       "option_a": {
-        "morphology": "Hypostomatic setae h1 short, spiniform; genital shield of female located behind coxae IV. Small mites, with adults under 400 µm in length.",
+        "morphology": "Hypostomatic setae h1 short, spiniform; genital shield of female located behind coxae IV. Small mites, with adults under 400 \u00b5m in length.",
         "advances_to": "Family: Metagynuridae"
       },
       "option_b": {
-        "morphology": "Hypostomatic setae h1 typically long and setiform; female genital shield located between coxae II-IV. Adults generally over 400 µm in length.",
+        "morphology": "Hypostomatic setae h1 typically long and setiform; female genital shield located between coxae II-IV. Adults generally over 400 \u00b5m in length.",
         "advances_to": "Family: Uropodidae"
       }
     },
@@ -6904,6 +6904,548 @@
       "option_b": {
         "morphology": "Dorsal shield of adults without conspicuous ornamentation or T-shaped dorsal setae. Movable cheliceral digit shorter than twice its basal width.",
         "advances_to": "Family: Oplitidae"
+      }
+    }
+  },
+  "Key_to_Genera_of_Tetranychini": {
+    "1": {
+      "option_a": {
+        "morphology": "2 pairs of para-anal setae (ps1-2).",
+        "advances_to": "Node 2"
+      },
+      "option_b": {
+        "morphology": "1 pair of para-anal setae.",
+        "advances_to": "Node 16"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Empodium claw-like.",
+        "advances_to": "Node 3"
+      },
+      "option_b": {
+        "morphology": "Empodium split distally or ending in tuft of hairs.",
+        "advances_to": "Node 11"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Empodium a single claw-like structure.",
+        "advances_to": "Node 4"
+      },
+      "option_b": {
+        "morphology": "Empodium split into 2 claw-like structures, usually with appendant hairs.",
+        "advances_to": "Node 9"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "Empodium without proximoventral hairs.",
+        "advances_to": "Node 5"
+      },
+      "option_b": {
+        "morphology": "Empodium with proximoventral hairs.",
+        "advances_to": "Node 8"
+      }
+    },
+    "5": {
+      "option_a": {
+        "morphology": "Empodial claw much longer than the pads of the true claws.",
+        "advances_to": "Node 6"
+      },
+      "option_b": {
+        "morphology": "Empodial claw very short, about as long as the pads of the true claws.",
+        "advances_to": "Genus: Brevinychus"
+      }
+    },
+    "6": {
+      "option_a": {
+        "morphology": "Empodial claw strong; dorsal setae stout; integument forming reticulate pattern.",
+        "advances_to": "Node 7"
+      },
+      "option_b": {
+        "morphology": "Empodial claw thin; dorsal setae fine; integument with simple striations.",
+        "advances_to": "Genus: Sonotetranycus"
+      }
+    },
+    "7": {
+      "option_a": {
+        "morphology": "Opisthosoma with 10 pairs of dorsal setae.",
+        "advances_to": "Genus: Mixonychus"
+      },
+      "option_b": {
+        "morphology": "Opisthosoma with 9 pairs of dorsal setae.",
+        "advances_to": "Genus: Evertelia"
+      }
+    },
+    "8": {
+      "option_a": {
+        "morphology": "Empodial claw as long or longer than proximoventral hairs, which are at right angles to the claw.",
+        "advances_to": "Genus: Panonychus"
+      },
+      "option_b": {
+        "morphology": "Empodial claw shorter than proximoventral hairs, which are at less than right angles to the claw.",
+        "advances_to": "Genus: Allonychus"
+      }
+    },
+    "9": {
+      "option_a": {
+        "morphology": "Opisthosoma with 10 pairs of dorsal setae.",
+        "advances_to": "Genus: Schizotetranychus"
+      },
+      "option_b": {
+        "morphology": "Opisthosoma with 9 pairs of dorsal setae.",
+        "advances_to": "Node 10"
+      }
+    },
+    "10": {
+      "option_a": {
+        "morphology": "c2 setae present.",
+        "advances_to": "Genus: Yunotetranycus"
+      },
+      "option_b": {
+        "morphology": "c2 setae absent.",
+        "advances_to": "Genus: Yezonychus"
+      }
+    },
+    "11": {
+      "option_a": {
+        "morphology": "Empodium split distally; dorsal body setae on tubercles.",
+        "advances_to": "Node 12"
+      },
+      "option_b": {
+        "morphology": "Empodium split near the middle into 3 pairs of hairs.",
+        "advances_to": "Node 13"
+      }
+    },
+    "12": {
+      "option_a": {
+        "morphology": "2 pairs of anal setae (ps1-2).",
+        "advances_to": "Genus: Neotetranychus"
+      },
+      "option_b": {
+        "morphology": "1 pair of anal setae (ps3).",
+        "advances_to": "Genus: Acanthonychus"
+      }
+    },
+    "13": {
+      "option_a": {
+        "morphology": "Opisthosoma with longitudinal striae between the e1 setae; dorsal body setae serrate.",
+        "advances_to": "Genus: Mononychellus"
+      },
+      "option_b": {
+        "morphology": "Opisthosoma with transverse striae.",
+        "advances_to": "Node 14"
+      }
+    },
+    "14": {
+      "option_a": {
+        "morphology": "Dorsal body setae much shorter than the intervals between their bases.",
+        "advances_to": "Genus: Platytetranychus"
+      },
+      "option_b": {
+        "morphology": "Dorsal body setae as long or longer than the intervals between their bases.",
+        "advances_to": "Node 15"
+      }
+    },
+    "15": {
+      "option_a": {
+        "morphology": "2 pairs of anal setae (ps1-2).",
+        "advances_to": "Genus: Eotetranychus"
+      },
+      "option_b": {
+        "morphology": "1 pair of anal setae.",
+        "advances_to": "Genus: Palmanychus"
+      }
+    },
+    "16": {
+      "option_a": {
+        "morphology": "Empodium claw-like with proximoventral hairs; duplex setae of tarsus I distal and adjacent.",
+        "advances_to": "Node 17"
+      },
+      "option_b": {
+        "morphology": "Empodium split distally, usually into 3 pairs of hairs; duplex setae of tarsus I well separated.",
+        "advances_to": "Node 20"
+      }
+    },
+    "17": {
+      "option_a": {
+        "morphology": "2 pairs of anal setae (ps1-2).",
+        "advances_to": "Node 18"
+      },
+      "option_b": {
+        "morphology": "1 pair of anal setae.",
+        "advances_to": "Genus: Atrichoproctus"
+      }
+    },
+    "18": {
+      "option_a": {
+        "morphology": "Opisthosoma with 9 pairs of dorsal setae (c2 absent).",
+        "advances_to": "Genus: Xinella"
+      },
+      "option_b": {
+        "morphology": "Opisthosoma with 10 pairs of dorsal setae.",
+        "advances_to": "Node 19"
+      }
+    },
+    "19": {
+      "option_a": {
+        "morphology": "All the legs or most of them with empodial claws as long or longer than the proximoventral hairs.",
+        "advances_to": "Genus: Oligonychus"
+      },
+      "option_b": {
+        "morphology": "All the legs or most of them with empodial claws nearly as long as the proximoventral hairs.",
+        "advances_to": "Genus: Hellenychus"
+      }
+    },
+    "20": {
+      "option_a": {
+        "morphology": "Empodial spur generally visible; peritreme recurved distally.",
+        "advances_to": "Genus: Tetranychus"
+      },
+      "option_b": {
+        "morphology": "Empodial spur absent; peritreme anastomosed distally.",
+        "advances_to": "Genus: Amphitetranychus"
+      }
+    }
+  },
+  "Key_to_Species_of_Tetranychus": {
+    "1": {
+      "option_a": {
+        "morphology": "Dorsal lobes extended as hair-like processes.",
+        "advances_to": "Species: T. hirsutus"
+      },
+      "option_b": {
+        "morphology": "Dorsal lobe variable in shape but not with hair-like extended processes.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Spur on empodium I of female stout, 2/3 the length of proximoventral hairs.",
+        "advances_to": "Species: T. bambusae"
+      },
+      "option_b": {
+        "morphology": "Spur on empodium I when present short, never exceeding 1/3 the length of proximoventral hairs.",
+        "advances_to": "Node 3"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Aedeagus long, slender, tapering without a distinct terminal knob.",
+        "advances_to": "Node 4"
+      },
+      "option_b": {
+        "morphology": "Aedeagus not long, not slender, not tapering; with a terminal knob.",
+        "advances_to": "Node 5"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "Peritreme weakly hooked; pregenital striae entire; aedeagus exceedingly long with pointed tip.",
+        "advances_to": "Species: T. jijiensis"
+      },
+      "option_b": {
+        "morphology": "Peritreme typically hooked; pregenital striae broken; aedeagus considerably shorter and blunt at tip.",
+        "advances_to": "Species: T. taiwanicus"
+      }
+    },
+    "5": {
+      "option_a": {
+        "morphology": "Female with proximal set of duplex setae more or less in line with the proximal tactile setae.",
+        "advances_to": "Node 6"
+      },
+      "option_b": {
+        "morphology": "Female with proximal set of duplex setae well beyond the proximal four tactile setae.",
+        "advances_to": "Node 7"
+      }
+    },
+    "6": {
+      "option_a": {
+        "morphology": "Aedeagal knob with very small anterior and posterior projections; empodium II of male with proximoventral tridigitate spurs.",
+        "advances_to": "Species: T. macfarlanei"
+      },
+      "option_b": {
+        "morphology": "Aedeagal knob with acute anterior projection and without posterior projections; empodium II of male with 3 pairs of proximoventral hairs and a small distinct mediodorsal spur.",
+        "advances_to": "Species: T. ludeni"
+      }
+    },
+    "7": {
+      "option_a": {
+        "morphology": "Aedeagus with a tiny knob.",
+        "advances_to": "Node 8"
+      },
+      "option_b": {
+        "morphology": "Aedeagus with a distinct knob.",
+        "advances_to": "Node 9"
+      }
+    },
+    "8": {
+      "option_a": {
+        "morphology": "Aedeagal knob with slight anterior and posterior angulations.",
+        "advances_to": "Species: T. udaipurensis"
+      },
+      "option_b": {
+        "morphology": "Aedeagal knob without posterior angulation.",
+        "advances_to": "Species: T. hypogeae"
+      }
+    },
+    "9": {
+      "option_a": {
+        "morphology": "Female with transverse to irregularly transverse striae between 3rd pair of dorsocentral hysterosomals (e1) and longitudinal between 4th pair of dorsocentrals (f1).",
+        "advances_to": "Species: T. angloensts"
+      },
+      "option_b": {
+        "morphology": "Female with longitudinal to irregularly longitudinal striae between 3rd pair of dorsoventral hysterosomals (e1) and longitudinal between 4th pair of dorsocentrals (f1).",
+        "advances_to": "Node 10"
+      }
+    },
+    "10": {
+      "option_a": {
+        "morphology": "Female hysterosoma with irregularly longitudinal striae between 4th pair of dorsocentral hysterosomals (e1 and f1).",
+        "advances_to": "Species: T. africindicus"
+      },
+      "option_b": {
+        "morphology": "Female hysterosoma with longitudinal striae between 4th pair of dorsocentral hysterosomals (e1), forming a more or less diamond shaped pattern between 3rd and 4th pair (e1 and f1).",
+        "advances_to": "Node 11"
+      }
+    },
+    "11": {
+      "option_a": {
+        "morphology": "Female hysterosoma with irregular longitudinal striae between 3rd pair of dorsocentrals (e1).",
+        "advances_to": "Species: T. sayedi"
+      },
+      "option_b": {
+        "morphology": "Female hysterosoma with longitudinal striae between 3rd pair of dorsocentrals (e1).",
+        "advances_to": "Node 12"
+      }
+    },
+    "12": {
+      "option_a": {
+        "morphology": "Male empodium I and II with spurs minute or absent, less than 1 \u00b5m long.",
+        "advances_to": "Node 13"
+      },
+      "option_b": {
+        "morphology": "Male empodium I and II with larger spurs, greater than 2 \u00b5m long.",
+        "advances_to": "Node 17"
+      }
+    },
+    "13": {
+      "option_a": {
+        "morphology": "Dorsum of aedeagal knob with median indentation, berry-like.",
+        "advances_to": "Node 14"
+      },
+      "option_b": {
+        "morphology": "Dorsum of aedeagal knob slightly rounded, not berry-like, without median indentation.",
+        "advances_to": "Node 15"
+      }
+    },
+    "14": {
+      "option_a": {
+        "morphology": "Aedeagal neck not conspicuous; shaft shorter; anterior projection of the knob rounded and much bigger than posterior projection.",
+        "advances_to": "Species: T. puschelii"
+      },
+      "option_b": {
+        "morphology": "Aedeagal neck conspicuous; shaft longer; anterior and posterior projections of the knob subequal.",
+        "advances_to": "Species: T. neocaledonicus"
+      }
+    },
+    "15": {
+      "option_a": {
+        "morphology": "Dorsal surface of the knob parallel to the axis of the shaft.",
+        "advances_to": "Species: T. zoheri"
+      },
+      "option_b": {
+        "morphology": "Dorsal surface of the knob at an angle to the axis of the shaft.",
+        "advances_to": "Node 16"
+      }
+    },
+    "16": {
+      "option_a": {
+        "morphology": "Posterior angulation of knob elongated; width of the knob more than twice the width of the aedeagal neck.",
+        "advances_to": "Species: T. marianae"
+      },
+      "option_b": {
+        "morphology": "Posterior angulation of knob shorter; width of the knob one and a half times the width of the aedeagal neck.",
+        "advances_to": "Species: T. lombardinii"
+      }
+    },
+    "17": {
+      "option_a": {
+        "morphology": "Aedeagal knob with anterior projection acute.",
+        "advances_to": "Node 18"
+      },
+      "option_b": {
+        "morphology": "Aedeagal knob with anterior projection rounded.",
+        "advances_to": "Node 19"
+      }
+    },
+    "18": {
+      "option_a": {
+        "morphology": "Stylophore notched anteriorly.",
+        "advances_to": "Species: T. papayae"
+      },
+      "option_b": {
+        "morphology": "Stylophore rounded anteriorly.",
+        "advances_to": "Species: T. belloti"
+      }
+    },
+    "19": {
+      "option_a": {
+        "morphology": "Dorsal surface of the aedeagal knob not convex completely; at least posterior half of the knob with a median indentation.",
+        "advances_to": "Species: T. truncatus"
+      },
+      "option_b": {
+        "morphology": "Dorsal surface of the aedeagal knob convex or most part of it convex.",
+        "advances_to": "Node 20"
+      }
+    },
+    "20": {
+      "option_a": {
+        "morphology": "Dorsal margin of the shaft is inclined with the dorsal margin of the knob; posterior projection of the knob beak-like, whole knob looks like a bird's head.",
+        "advances_to": "Species: T. gloveri"
+      },
+      "option_b": {
+        "morphology": "Dorsal margin of the shaft is almost parallel to the dorsal margin of the knob.",
+        "advances_to": "Node 21"
+      }
+    },
+    "21": {
+      "option_a": {
+        "morphology": "Tubercles on the dorsal striae triangular in shape.",
+        "advances_to": "Species: T. urticae (variant)"
+      },
+      "option_b": {
+        "morphology": "Tubercles on the dorsal striae semicircular in shape.",
+        "advances_to": "Node 22"
+      }
+    },
+    "22": {
+      "option_a": {
+        "morphology": "Terminal sensillum of male palpus about 3\u20134 times as long as broad; aedeagal knob about 1/5th to 1/4th the length of the dorsal margin of the shaft.",
+        "advances_to": "Species: T. urticae"
+      },
+      "option_b": {
+        "morphology": "Terminal sensillum of male palpus about 3 times as long as broad; aedeagal knob about 1/3 the length of the dorsal margin of the shaft.",
+        "advances_to": "Species: T. kanzawai"
+      }
+    }
+  },
+  "Key_to_Species_of_Oligonychus": {
+    "1": {
+      "option_a": {
+        "morphology": "Aedeagus bent ventrad with distal end narrowing gradually.",
+        "advances_to": "Species: O. punicae"
+      },
+      "option_b": {
+        "morphology": "Aedeagus bent dorsad.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Peritreme retrose distally.",
+        "advances_to": "Species: O. biharensis"
+      },
+      "option_b": {
+        "morphology": "Peritreme ending with simple straight bulb.",
+        "advances_to": "Node 3"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Aedeagus without distinct knob.",
+        "advances_to": "Node 4"
+      },
+      "option_b": {
+        "morphology": "Aedeagus with distinct knob.",
+        "advances_to": "Node 5"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "Dorsal margin of the neck straight and upright projected.",
+        "advances_to": "Species: O. indicus"
+      },
+      "option_b": {
+        "morphology": "Aedeagus bent acutely as sigmoid.",
+        "advances_to": "Species: O. oryzae"
+      }
+    },
+    "5": {
+      "option_a": {
+        "morphology": "Aedeagus with narrow neck; knob is spear-shaped and small.",
+        "advances_to": "Species: O. tylus"
+      },
+      "option_b": {
+        "morphology": "Aedeagus with slightly projected posterior end; neck width more broadly developed.",
+        "advances_to": "Species: O. neotylus"
+      }
+    }
+  },
+  "Key_to_Tribes_of_Nothopodinae": {
+    "1": {
+      "option_a": {
+        "morphology": "Anterolateral setae on coxisternum I (1b) present.",
+        "advances_to": "Tribe: Nothopodini (with setae)"
+      },
+      "option_b": {
+        "morphology": "Anterolateral setae on coxisternum I (1b) absent.",
+        "advances_to": "Tribe: Nothopodini"
+      }
+    }
+  },
+  "Key_to_Tribes_of_Phyllocoptinae": {
+    "1": {
+      "option_a": {
+        "morphology": "Empodium divided.",
+        "advances_to": "Tribe: Acaricalini"
+      },
+      "option_b": {
+        "morphology": "Empodium entire.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Scapular setae (sc) absent.",
+        "advances_to": "Tribe: Calacarini"
+      },
+      "option_b": {
+        "morphology": "Scapular setae (sc) present.",
+        "advances_to": "Node 3"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Opisthosoma when viewed dorsally with lateral lobes or pointed projections from some or all annuli, or with a plate behind prodorsal shield.",
+        "advances_to": "Tribe: Tegonotini"
+      },
+      "option_b": {
+        "morphology": "Opisthosoma without lateral lobes or plate.",
+        "advances_to": "Node 4"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "Scapular tubercles ahead of or near rear shield margin; setae directed forward, up or centrad; if tubercles and setae on rear shield margin then tubercles are subcylindrical and setae projecting convergent to the rear.",
+        "advances_to": "Tribe: Phyllocoptini"
+      },
+      "option_b": {
+        "morphology": "Scapular tubercles on or near rear shield margin; setae directed to rear.",
+        "advances_to": "Tribe: Anthocoptini"
+      }
+    }
+  },
+  "Key_to_Subfamilies_of_Diptilomiopidae": {
+    "1": {
+      "option_a": {
+        "morphology": "Tarsal empodium divided.",
+        "advances_to": "Subfamily: Diptilomiopinae"
+      },
+      "option_b": {
+        "morphology": "Tarsal empodium entire.",
+        "advances_to": "Subfamily: Rhyncaphytoptinae"
       }
     }
   }
