@@ -607,6 +607,11 @@ def main() -> None:
     st.title("Acarology Taxonomy Key")
     st.caption("Interactive dichotomous key for mite identification from morphology.")
 
+   tab1, tab2, tab3 = st.tabs([
+    "Identify",
+    "Admin",
+    "Mind Map"
+])
     with st.sidebar:
         st.radio("Mode", ["Identify", "Admin"], key="app_mode")
 
