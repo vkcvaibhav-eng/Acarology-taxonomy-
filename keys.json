@@ -5219,6 +5219,28 @@
       }
     }
   },
+  "Key_to_Families_of_Tetranychoidea": {
+    "1": {
+      "option_a": {
+        "morphology": "Setae of posterior margin of idiosoma forming a fanlike transverse row of 5 or more pairs of flagellate or bipectinate setae; dorsal and lateral opisthosomatic setae expanded, fanlike.",
+        "advances_to": "Family: Tuckerellidae"
+      },
+      "option_b": {
+        "morphology": "Setae of posterior margin of idiosoma slender, simple, not forming a fanlike row; dorsal and lateral opisthosomatic setae variable in form, the anterior row comprising at most 4 pairs.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Tarsi I-II without peg-shaped or bulbous solenidia and with 1-2 long, slender, tapered solenidia usually closely associated with a short or minute seta to form duplex sets; stylophore attachment to idiosoma without ribbed collar; palpi 5-segmented, with thumb-claw process; palptarsus with or without one distal eupathidium enlarged as a spinneret.",
+        "advances_to": "Family: Tetranychidae"
+      },
+      "option_b": {
+        "morphology": "Tarsi I-II with distal, peg-shaped solenidia and with no solenidia closely associated with a seta to form duplex sets; stylophore attached to idiosoma by retractable ribbed collar; palpi 5 or fewer segments and without thumb-claw process; palptarsus without eupathidial modification as above.",
+        "advances_to": "Family: Tenuipalpidae"
+      }
+    }
+  },
   "Key_to_Subfamilies_of_Tetranychidae": {
     "1": {
       "option_a": {
