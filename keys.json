@@ -1,16 +1,4 @@
 {
-  "Key_to_Kingdoms_of_Life": {
-    "1": {
-      "option_a": {
-        "morphology": "Multicellular eukaryotic organisms that ingest food, lack cell walls, and develop from a blastula stage.",
-        "advances_to": "Kingdom: Animalia"
-      },
-      "option_b": {
-        "morphology": "Organisms not matching Animalia (for example plants, fungi, protists, bacteria, or archaea).",
-        "advances_to": "Other Kingdoms"
-      }
-    }
-  },
   "Key_to_Phyla_of_Animalia": {
     "1": {
       "option_a": {
@@ -32,18 +20,6 @@
       "option_b": {
         "morphology": "Body segmentation varies (e.g., distinct head, thorax, and abdomen); bearing mandibles and at least one pair of antennae; three or more pairs of walking legs.",
         "advances_to": "Other Classes"
-      }
-    }
-  },
-  "Key_to_Subclasses_of_Arachnida": {
-    "1": {
-      "option_a": {
-        "morphology": "Without conspicuous primary somatic segmentation or segmentally arranged tergites; body often compact, with the gnathosoma/capitulum forming the anterior feeding region.",
-        "advances_to": "Subclass: Acari"
-      },
-      "option_b": {
-        "morphology": "With arachnid characters not matching Acari, such as conspicuous spinnerets, a terminal spine or flagellum, chelate palpi, or other clearly segmented arachnid body forms.",
-        "advances_to": "Other Arachnid Subclasses"
       }
     }
   },
@@ -2542,708 +2518,6 @@
       "option_b": {
         "morphology": "Legs lacking trichobothria; tibia I usually bearing 2 (rarely 3) solenidia.",
         "advances_to": "Family: Erythraeidae"
-      }
-    }
-  },
-  "Key_to_Families_of_Prostigmata_excluding_Parasitengonina": {
-    "1": {
-      "option_a": {
-        "morphology": "Adults and deutonymphs often densely hypertrichous, typically free-living predators; larvae usually strongly heteromorphic, parasitic on arthropods or vertebrates, protonymphs and tritonymphs calyptostatic. Terrestrial forms with 1 or 2 pairs of bothridial setae on a prodorsal sclerite, aquatic forms highly diverse, without bothridial setae, usually with multiple modified idiosomatic lyrifissures (glandularia) that open on small platelets or amalgamated shields.",
-        "advances_to": "Cohort: Parasitengonina"
-      },
-      "option_b": {
-        "morphology": "Adults and nymphs with or without dense hypertrichy, bothridial setae and prodorsal sclerite present or absent, without glandularia. Larvae more or less similar to other stages, free living or parasitic. Alternating calyptostasis rare.",
-        "advances_to": "Node 2"
-      }
-    },
-    "2": {
-      "option_a": {
-        "morphology": "With undivided, heavily armored dorsal and ventral shields, coxal fields expanded and mesally contiguous. Prodorsum with 2 pairs of trichobothria (bothridial setae vi, si) and 4 additional pairs of setae; a pair of lateral ocelli (rarely absent) and an unpaired anteromedian ocellus; one or more pairs of lateral pustules. Genital and anal valves of females contiguous, those of males usually separated; 2 pairs of genital papillae. Chelicerae separate and strongly chelate, each with 2 setae (cha, chb).",
-        "advances_to": "Family: Labidostomatidae"
-      },
-      "option_b": {
-        "morphology": "Variously armored or soft bodied. Prodorsum with a maximum of 5 pairs of setae, including 0-2 pairs of bothridial setae, or hypertrichous; ocelli present or absent, lateral pustules absent. 0-3 pairs of genital papillae in adults. Chelicerae various.",
-        "advances_to": "Node 3"
-      }
-    },
-    "3": {
-      "option_a": {
-        "morphology": "Females usually with a pair of stigmata and associated tracheae anterolaterally on prodorsum and commonly with a pair of capitate bothridial setae (both usually absent in immatures and males); peritremes absent. Opisthosoma usually with a longitudinal series of 4 dorsal plates (tergites), often overlapping. Tarsi of legs II-III with stalked, smooth, padlike empodium usually flanked by paired claws, or rarely without empodium but with paired claws. Sexual dimorphism pronounced, males often with a genital capsule.",
-        "advances_to": "Node 56"
-      },
-      "option_b": {
-        "morphology": "Females and males with a pair of stigmata between cheliceral bases or on posterodorsal margin of gnathosoma and often opening into a simple to complex peritreme, or absent; prodorsal trichobothria, if present, of various forms and on immatures and adults of both sexes. Opisthosoma variously armored or soft bodied. Tarsi of legs II-III generally with setulose, rayed, or clawlike empodium, often flanked by paired claws. Sexual dimorphism strong or weak, but males without genital capsule.",
-        "advances_to": "Node 4"
-      }
-    },
-    "4": {
-      "option_a": {
-        "morphology": "With 1-2 pairs of variously shaped prodorsal bothridial setae usually inserted in distinctly cup-shaped bothridia.",
-        "advances_to": "Node 5"
-      },
-      "option_b": {
-        "morphology": "Without prodorsal bothridial setae.",
-        "advances_to": "Node 10"
-      }
-    },
-    "5": {
-      "option_a": {
-        "morphology": "Legs III-IV absent in all stages; legs I-II ending in a highly branched empodial featherclaw; opisthosoma elongated, annulated, vermiform, or fusiform. Obligate plant parasites.",
-        "advances_to": "Node 6"
-      },
-      "option_b": {
-        "morphology": "Legs III present and legs IV usually present in postlarval instars; one or more pairs of legs typically ending in an empodium of various forms and often with a pair of lateral claws; opisthosoma variously shaped. Free living or aquatic, or associated with a variety of plant and animal hosts.",
-        "advances_to": "Node 8"
-      }
-    },
-    "6": {
-      "option_a": {
-        "morphology": "Prodorsal shield with 1, 3, 4, or 5 setae; spermathecal tubes usually long; tibia I with or without solenidion.",
-        "advances_to": "Family: Phytoptidae"
-      },
-      "option_b": {
-        "morphology": "Prodorsal shield nude or with 1 pair of setae; spermathecal tubes short; tibia I without solenidion.",
-        "advances_to": "Node 7"
-      }
-    },
-    "7": {
-      "option_a": {
-        "morphology": "Gnathosoma large compared to body and stylets abruptly curving ventrally near base; featherclaw deeply divided medially or entire.",
-        "advances_to": "Family: Diptilomiopidae"
-      },
-      "option_b": {
-        "morphology": "Gnathosoma relatively small compared to body and stylets more or less straight; featherclaw entire, rarely divided medially.",
-        "advances_to": "Family: Eriophyidae"
-      }
-    },
-    "8": {
-      "option_a": {
-        "morphology": "Marine, brackish, and freshwater mites usually found attached to substrates (including algae and marine invertebrates) or in interstitial samples; tarsi I-IV with strongly developed lateral claws, usually with serrate margins, and often with a clawlike or bifid empodium; adults with 2 to several pairs of genital papillae on, near, or under a pair of genital valves.",
-        "advances_to": "Node 9"
-      },
-      "option_b": {
-        "morphology": "Mostly terrestrial mites, occasionally intertidal or on the surface of freshwater, or parasitic on terrestrial plants and animals; tarsal apoteles various but not modified into clawlike holdfasts with serrate margins; adults with 3 pairs of genital papillae or genital papillae absent.",
-        "advances_to": "Node 29"
-      }
-    },
-    "9": {
-      "option_a": {
-        "morphology": "With 5-10 pairs of dorsal idiosomatic setae; marine and freshwater forms.",
-        "advances_to": "Family: Halacaridae"
-      },
-      "option_b": {
-        "morphology": "With 16-20 pairs of dorsal setae; freshwater forms.",
-        "advances_to": "Family: Pezidae"
-      }
-    },
-    "10": {
-      "option_a": {
-        "morphology": "Prodorsal peritremes present (sometimes emergent), palptibia usually with at least 1 clawlike seta distally and often apposed to a reduced or thumblike palptarsus; if thumb-claw process absent, then body elongate and with 1 or more postpedal furrows or oval with a postpedal constriction.",
-        "advances_to": "Node 23"
-      },
-      "option_b": {
-        "morphology": "Peritremes absent, palptibia without clawlike setae or thumblike palptarsus; postpedal furrows absent.",
-        "advances_to": "Node 11"
-      }
-    },
-    "11": {
-      "option_a": {
-        "morphology": "Leg trichobothria absent; chelicerae fused or free but with little potential for lateral motion, inserted on or fused with short subcapitulum.",
-        "advances_to": "Node 13"
-      },
-      "option_b": {
-        "morphology": "Trichobothria on tibia IV, and sometimes on tibia I, tarsus III, and tarsus IV; chelicerae free and capable of considerable lateral motion, inserted on elongate subcapitular snout.",
-        "advances_to": "Node 12"
-      }
-    },
-    "12": {
-      "option_a": {
-        "morphology": "Adults with 3 pairs of genital papillae and 2 or more eugenital setae; palpi usually ending in 1-2 elongate setae and often elbowed, without strong spines or knobs; tarsi III-IV and tibia I typically with trichobothria.",
-        "advances_to": "Family: Bdellidae"
-      },
-      "option_b": {
-        "morphology": "Adults with 2 pairs of genital papillae and usually without eugenital setae; palpi usually ending in a stout spine and sometimes with strong spines or knobs; tarsi III-IV and tibia I without trichobothria.",
-        "advances_to": "Family: Cunaxidae"
-      }
-    },
-    "13": {
-      "option_a": {
-        "morphology": "Chelicerae freely articulating, digits variously formed; tarsus I with a famulus and at least 1 recumbent solenidion; idiosomatic chaetome sometimes with postlarval hypertrichy; naso usually present.",
-        "advances_to": "Node 14"
-      },
-      "option_b": {
-        "morphology": "Chelicerae closely contiguous or fused medially, fixed digit regressed and movable digit styletlike to whiplike; tarsus I without famulus, solenidia erect; idiosoma never hypertrichous, naso absent.",
-        "advances_to": "Node 20"
-      }
-    },
-    "14": {
-      "option_a": {
-        "morphology": "Body fully sclerotized, dorsum with V- or Y-shaped furrow and an anterior epirostrum projecting over the gnathosoma.",
-        "advances_to": "Family: Penthalodidae"
-      },
-      "option_b": {
-        "morphology": "Soft bodied, without V- or Y-shaped furrow or epirostrum.",
-        "advances_to": "Node 15"
-      }
-    },
-    "15": {
-      "option_a": {
-        "morphology": "Palptibia with 6-7 setae; subcapitulum with more than 15 setae; naso-prodorsal process present and hypertrichous.",
-        "advances_to": "Family: Eriorhynchidae"
-      },
-      "option_b": {
-        "morphology": "Palptibia with 3 or fewer setae; subcapitulum typically with 2 or 4 pairs of setae; naso, when present, not enlarged, usually bearing one pair of setae.",
-        "advances_to": "Node 16"
-      }
-    },
-    "16": {
-      "option_a": {
-        "morphology": "Chelicerae strongly chelate, shearlike, with well-developed fixed digit opposed to large, often toothed, movable digit.",
-        "advances_to": "Node 17"
-      },
-      "option_b": {
-        "morphology": "Chelicerae weakly chelate, hooked, or styletlike, not shearlike.",
-        "advances_to": "Node 19"
-      }
-    },
-    "17": {
-      "option_a": {
-        "morphology": "Palpi with 5 free segments; tarsus I with 2 solenidia; empodia clawlike.",
-        "advances_to": "Family: Pentapalpidae"
-      },
-      "option_b": {
-        "morphology": "Palpi with 4 free segments; tarsus I with 3 or more solenidia; empodia padlike.",
-        "advances_to": "Node 18"
-      }
-    },
-    "18": {
-      "option_a": {
-        "morphology": "Palptibia with 3 setae; tibia I with 2 or more solenidia, prodorsum with 1 pair of bothridia and 3 pairs of setae.",
-        "advances_to": "Family: Rhagidiidae"
-      },
-      "option_b": {
-        "morphology": "Palptibia with 1 seta; tibia I with 1 solenidion, prodorsum with 1 pair of bothridia and 4 pairs of setae.",
-        "advances_to": "Family: Strandtmanniidae"
-      }
-    },
-    "19": {
-      "option_a": {
-        "morphology": "Anal opening dorsal or dorsoterminal; intercoxal region with 15 or more pairs of setae; femora IV similar to others.",
-        "advances_to": "Family: Penthaleidae"
-      },
-      "option_b": {
-        "morphology": "Anal opening ventral or terminal; intercoxal region with fewer than 10 pairs of setae; femora IV normal or strongly swollen, used in jumping.",
-        "advances_to": "Family: Eupodidae"
-      }
-    },
-    "20": {
-      "option_a": {
-        "morphology": "Tibia I with deeply recessed solenidion in saclike structure connecting to surface by narrow duct; legs and prodorsum often with netlike ornamentation; adults with 2 pairs of genital papillae.",
-        "advances_to": "Family: Ereynetidae"
-      },
-      "option_b": {
-        "morphology": "Solenidion of tibia I on surface or absent; with plicate ornamentations or sclerotized plates; adults with 0-2 pairs of genital papillae.",
-        "advances_to": "Node 21"
-      }
-    },
-    "21": {
-      "option_a": {
-        "morphology": "Adults with only 1 pair of genital papillae, or papillae absent; movable digit of chelicerae styletlike or whiplike; palptarsus usually with 3 or 4 elongated setae; males typically with an aedeagus.",
-        "advances_to": "Family: Iolinidae"
-      },
-      "option_b": {
-        "morphology": "Adults with 2 pairs of genital papillae; movable digit of chelicerae styletlike; palptarsus with no markedly elongated setae; males without aedeagus.",
-        "advances_to": "Node 22"
-      }
-    },
-    "22": {
-      "option_a": {
-        "morphology": "Legs I antenniform, apotele vestigial or absent; median eyespot consisting of subcuticular silver granules present; epimeral seta 3d absent.",
-        "advances_to": "Family: Triophtydeidae"
-      },
-      "option_b": {
-        "morphology": "Legs I with claws; median eyespot absent; epimeral seta 3d usually present.",
-        "advances_to": "Family: Tydeidae"
-      }
-    },
-    "23": {
-      "option_a": {
-        "morphology": "Genital papillae absent; palptarsus reduced; tarsal apoteles padlike, produced on annulate stalks.",
-        "advances_to": "Family: Pseudocheylidae"
-      },
-      "option_b": {
-        "morphology": "With 2-3 pairs of genital papillae; palptarsus usually well developed; tarsal apoteles sessile.",
-        "advances_to": "Node 24"
-      }
-    },
-    "24": {
-      "option_a": {
-        "morphology": "Elongate mites with 1 or more postpedal furrows; legs I-II widely separated from legs III-IV; with 1 pair of prodorsal bothridial setae.",
-        "advances_to": "Node 25"
-      },
-      "option_b": {
-        "morphology": "Oval to subrectangular mites without postpedal furrows, although sometimes with a postpedal constriction; legs I-IV closely inserted; with 2 pairs of prodorsal bothridial setae.",
-        "advances_to": "Node 26"
-      }
-    },
-    "25": {
-      "option_a": {
-        "morphology": "Palpi linear, without thumb-claw process; legs I ending in paired claws; prodorsal bothridial setae filiform.",
-        "advances_to": "Family: Paratydeidae"
-      },
-      "option_b": {
-        "morphology": "Palps with well-developed thumb-claw process; legs I without apoteles; bothridial setae clubbed.",
-        "advances_to": "Family: Stigmocheylidae"
-      }
-    },
-    "26": {
-      "option_a": {
-        "morphology": "Moderately to strongly sclerotized mites with 1-2 large dorsal shields or a complex of 8 dorsal plates.",
-        "advances_to": "Node 27"
-      },
-      "option_b": {
-        "morphology": "Soft-bodied mites with at most a weakly sclerotized prodorsal shield.",
-        "advances_to": "Node 28"
-      }
-    },
-    "27": {
-      "option_a": {
-        "morphology": "Adults leathery, with 8 heavily sclerotized dorsal shields and 3 pairs of genital papillae; legs I with strongly spinose anterolateral setae (rake-legged mites).",
-        "advances_to": "Family: Caeculidae"
-      },
-      "option_b": {
-        "morphology": "Adults with 1-2 large, moderately sclerotized dorsal shields and 2 pairs of genital papillae; legs I without spinose setae as above.",
-        "advances_to": "Family: Adamystidae"
-      }
-    },
-    "28": {
-      "option_a": {
-        "morphology": "Naso weakly developed and nude; peritremes sinuous but not emergent distally; prodorsal bothridia usually with rosette pattern; palptarsus reduced, not extending beyond palptibial claw; pretarsal empodia I-II absent.",
-        "advances_to": "Family: Teneriffiidae"
-      },
-      "option_b": {
-        "morphology": "Naso usually present and bearing setae vi; peritremes linear and often emergent distally; prodorsal bothridia simple; palptarsus usually extending beyond palptibial claw; pretarsal empodia I-II padlike or clawlike.",
-        "advances_to": "Family: Anystidae"
-      }
-    },
-    "29": {
-      "option_a": {
-        "morphology": "Adult females with 3 pairs of genital papillae, an elongate, extrusible ovipositor, a well-developed prodorsal shield, and a series of 5 dorsal hysterosomatic shields.",
-        "advances_to": "Family: Pomerantziidae"
-      },
-      "option_b": {
-        "morphology": "Genital papillae absent in all stages; ovipositor absent; dorsal shields various.",
-        "advances_to": "Node 30"
-      }
-    },
-    "30": {
-      "option_a": {
-        "morphology": "Pretarsal claws well developed or reduced but always with tenent hairs; empodium, if present, with or without tenent hairs; palpal thumb-claw process usually well developed (absent in TENUIPALPIDAE).",
-        "advances_to": "Node 31"
-      },
-      "option_b": {
-        "morphology": "Pretarsal claws lacking tenent hairs; empodia, if present, usually with tenent hairs; palpal thumb-claw process well developed, reduced, or absent.",
-        "advances_to": "Node 37"
-      }
-    },
-    "31": {
-      "option_a": {
-        "morphology": "Chelicerae independently movable, elongate, with swollen bases and hooklike movable digit with 1 or more teeth; empodia absent; peritremes emergent. Parasites of lizards, cockroaches, triatomines, and scorpions.",
-        "advances_to": "Family: Pterygosomatidae"
-      },
-      "option_b": {
-        "morphology": "Chelicerae fused basally and with short, needlelike movable digits or fully integrated into a retractable stylophore with long, whiplike digits; empodia usually present, rarely strongly reduced or seemingly absent; peritremes sessile or emergent.",
-        "advances_to": "Node 32"
-      }
-    },
-    "32": {
-      "option_a": {
-        "morphology": "Chelicerae fused basally and with short, needlelike movable digits and bearing short, 3-5 chambered peritremes on their paraxial faces; palptibial claw with a ventral tooth. Free living in soil and litter.",
-        "advances_to": "Family: Barbutiidae"
-      },
-      "option_b": {
-        "morphology": "Cheliceral bases fused into a movable stylophore that is deeply retractable into idiosoma; movable cheliceral digits elongated, whiplike, recurved basally within stylophore. Obligate plant parasites.",
-        "advances_to": "Node 33"
-      }
-    },
-    "33": {
-      "option_a": {
-        "morphology": "Setae of posterior margin of idiosoma (row h) forming a fanlike transverse row of 5 or more pairs of flagellelate or bipectinate setae; dorsal and lateral opisthosomatic setae expanded, fanlike, the anterior row (c) comprising 5 or more pairs.",
-        "advances_to": "Family: Tuckerellidae"
-      },
-      "option_b": {
-        "morphology": "Setae of posterior margin of idiosoma slender, simple, not forming a fanlike row; dorsal and lateral opisthosomatic setae variable in form, the anterior row (c) comprising at most 4 pairs.",
-        "advances_to": "Node 34"
-      }
-    },
-    "34": {
-      "option_a": {
-        "morphology": "Tarsi I-II without peg-shaped or bulbous solenidia, and with 1-2 long, slender, tapered solenidia usually closely associated with a short or minute seta to form duplex sets; stylophore attachment to idiosoma without ribbed collar; palpi 5-segmented, with thumb-claw process; palptarsus with or without one of distal eupathidia enlarged as a spinneret.",
-        "advances_to": "Family: Tetranychidae"
-      },
-      "option_b": {
-        "morphology": "Tarsi I-II with distal, peg-shaped or bulbous solenidia, and with no solenidia closely associated with a seta to form duplex sets; stylophore attached to idiosoma by retractable ribbed collar; palpi with 5 or fewer segments and with or without thumb-claw process; palptarsus without eupathidial modification as above.",
-        "advances_to": "Node 35"
-      }
-    },
-    "35": {
-      "option_a": {
-        "morphology": "Prodorsum with 4 pairs of setae (v1 present) and without eyes; anterior row (c) of opisthosomatic setae comprising 4 pairs (c1-4 present).",
-        "advances_to": "Family: Linotetranidae"
-      },
-      "option_b": {
-        "morphology": "Prodorsum with 3 pairs of setae (v1 absent) and usually with 2 pairs of eyes; anterior row (c) of opisthosomatic setae comprising at most 3 pairs (c1 or c4 absent).",
-        "advances_to": "Node 36"
-      }
-    },
-    "36": {
-      "option_a": {
-        "morphology": "Palpi linear, with 5 or fewer segments and lacking a thumb-claw process; opisthosoma with at most 13 pairs of setae dorsally and laterally (c1 usually present, c4 absent, 2 pairs h setae); anal valves with 1-3 pairs of simple pseudanal setae.",
-        "advances_to": "Family: Tenuipalpidae"
-      },
-      "option_b": {
-        "morphology": "Palpi 5-segmented, with a thumb-claw process; opisthosoma with 14 pairs of setae dorsally and laterally (c1 absent, c4 present, 3 pairs h setae); anal valves with 3 pairs of pseudanal setae, some of which are bifurcate or dendritic.",
-        "advances_to": "Family: Allochaetophoridae"
-      }
-    },
-    "37": {
-      "option_a": {
-        "morphology": "Chelicerae and subcapitulum fused into gnathosomatic capsule that is retractile within the idiosoma; legs I modified for clasping mammalian hairs; immatures with a ventral, unpaired clasper on tarsus I and femora fused to genua on all legs; female anal opening dorsal. Ectoparasites in the fur of bats, rodents, and various insectivores.",
-        "advances_to": "Family: Myobiidae"
-      },
-      "option_b": {
-        "morphology": "Chelicerae separate, fused into stylophore or incorporated into gnathosomatic capsule (if the latter, then exerted and not retractile); legs I not modified for clasping hairs; immatures without clasper on tarsus I or femoral-genual fusions as above, female anal opening typically ventral, sometimes terminal. Free-living predators, or feeding on mosses, or ectoparasitic on mammals, birds, and reptiles (rarely insects), or living in the skin pores or mucosa of mammal and reptiles (rarely birds).",
-        "advances_to": "Node 38"
-      }
-    },
-    "38": {
-      "option_a": {
-        "morphology": "Chelicerae separate, partially fused, or completely coalesced into a stylophore; tibiae and often genua of some legs with more than 3 setae; palpi with 5 free segments, thumb-claw process usually well developed, but palptarsus sometimes reduced and palptibial claw sometimes reduced or absent; legs well developed, ambulatory, and each with a pair of claws and an empodium with tenent hairs. Free-living predators, moss associates, or insect phoretics.",
-        "advances_to": "Node 39"
-      },
-      "option_b": {
-        "morphology": "Chelicerae fused into a stylophore, or fully integrated into a gnathosomatic capsule; all tibiae and genua with 3 or fewer setae; palpi often with fewer than 5 segments, palptibial claw various, typically absent in parasitic groups. Capsulate forms with well-developed legs, usually with paired claws and with tenent hairs on empodia (sometimes absent on legs I) and well-developed palpi. Free-living predators, insect associates, or parasites of vertebrates. Stylophoric forms with legs flattened, telescoped, or otherwise reduced, often with highly modified empodia; claws may be absent. Parasitic on vertebrates.",
-        "advances_to": "Node 50"
-      }
-    },
-    "39": {
-      "option_a": {
-        "morphology": "Fully armored mites with a holodorsal shield produced anteriorly into a hyaline or ornamented collar into which the narrow, elongate gnathosoma can be retracted.",
-        "advances_to": "Family: Cryptognathidae"
-      },
-      "option_b": {
-        "morphology": "Soft bodied or with an array of dorsal shields separated by striate cuticle, or with 1-2 dorsal shields; prodorsal collar absent, gnathosoma not deeply retractable.",
-        "advances_to": "Node 40"
-      }
-    },
-    "40": {
-      "option_a": {
-        "morphology": "Stigmata opening at bases of chelicerae; peritremes simple to highly convoluted, produced on cheliceral bases or on anterior edge of prodorsum.",
-        "advances_to": "Node 46"
-      },
-      "option_b": {
-        "morphology": "Peritremes and stigmata absent.",
-        "advances_to": "Node 41"
-      }
-    },
-    "41": {
-      "option_a": {
-        "morphology": "Cheliceral bases often closely associated but apparently freely movable.",
-        "advances_to": "Node 42"
-      },
-      "option_b": {
-        "morphology": "Cheliceral bases fused at their bases or coalesced into a distinct stylophore.",
-        "advances_to": "Node 43"
-      }
-    },
-    "42": {
-      "option_a": {
-        "morphology": "Fully armored and strongly hemispherical mites with a holodorsal shield bearing an arched groove posterior to the large eyes and internal flasklike or funnel-shaped structures. On surface of standing freshwater and associated vegetation or in subaquatic soils.",
-        "advances_to": "Family: Homocaligidae"
-      },
-      "option_b": {
-        "morphology": "Mostly soft bodied, or with one or more dorsal plates separated by striate cuticle, rarely with a holodorsal shield but, if present, lacking arched groove and internal structures as above; found in many habitats including mosses, vegetation, bark, soil, marshes, and freshwater habitats.",
-        "advances_to": "Node 43"
-      }
-    },
-    "43": {
-      "option_a": {
-        "morphology": "Cheliceral bases insensibly fused into stylophore.",
-        "advances_to": "Node 44"
-      },
-      "option_b": {
-        "morphology": "Cheliceral bases distinct and fused medially, at least in basal 1/3.",
-        "advances_to": "Family: Stigmaeidae (pars)"
-      }
-    },
-    "44": {
-      "option_a": {
-        "morphology": "Palpi slender, much longer than chelicerae.",
-        "advances_to": "Node 45"
-      },
-      "option_b": {
-        "morphology": "Palpi robust, subequal to chelicerae in length.",
-        "advances_to": "Family: Stigmaeidae (pars)"
-      }
-    },
-    "45": {
-      "option_a": {
-        "morphology": "Palptarsus longer than palptibia; empodia on all tarsi with 1-2 pairs of tenent hairs.",
-        "advances_to": "Family: Eupalopsellidae"
-      },
-      "option_b": {
-        "morphology": "Palptarsus shorter than palptibia; empodia on all tarsi with 3 pairs of tenent hairs.",
-        "advances_to": "Family: Mecognathidae"
-      }
-    },
-    "46": {
-      "option_a": {
-        "morphology": "Chambered peritremes embedded in dorsal surface of stylophore; coxae II narrowly to widely separated from coxae III.",
-        "advances_to": "Node 47"
-      },
-      "option_b": {
-        "morphology": "Peritremes linear on prodorsum, usually emergent; coxae II-III contiguous.",
-        "advances_to": "Family: Raphignathidae"
-      }
-    },
-    "47": {
-      "option_a": {
-        "morphology": "Leg tibiae and tarsi subequal in length; body shapes various.",
-        "advances_to": "Node 48"
-      },
-      "option_b": {
-        "morphology": "Leg tibiae about 3 times longer than respective tarsi; oval to subcircular mites with very long legs.",
-        "advances_to": "Family: Camerobiidae"
-      }
-    },
-    "48": {
-      "option_a": {
-        "morphology": "With 1 or 2 plates covering most of dorsum and bearing 15 or more pairs of setae, of which at least 6 pairs are much longer than idiosoma; palptibial claw peglike or absent.",
-        "advances_to": "Node 49"
-      },
-      "option_b": {
-        "morphology": "Soft bodied, with at most a small prodorsal shield and/or small sclerites around the setal bases; all 11-12 pairs of dorsal setae considerably shorter than idiosoma; palptibial claw usually well developed.",
-        "advances_to": "Family: Caligonellidae"
-      }
-    },
-    "49": {
-      "option_a": {
-        "morphology": "With a single holodorsal shield; palptarsus elongate and tapering; palptibial claw absent.",
-        "advances_to": "Family: Xenocaligonellididae"
-      },
-      "option_b": {
-        "morphology": "With 2 dorsal shields; palptarsus short and mound shaped; palptibial claw peglike.",
-        "advances_to": "Family: Dasythyreidae"
-      }
-    },
-    "50": {
-      "option_a": {
-        "morphology": "Cheliceral stylophore fused to subcapitulum to form a gnathosomatic capsule; peritremes elaborated on dorsal surface of capsule; genu I with solenidion.",
-        "advances_to": "Node 51"
-      },
-      "option_b": {
-        "morphology": "Cheliceral stylophore separate from subcapitulum; peritremes at base of chelicerae or absent; genu I without solenidion.",
-        "advances_to": "Node 52"
-      }
-    },
-    "51": {
-      "option_a": {
-        "morphology": "Body oval to rounded, occasionally elongate; palptibial claw present and well developed. Free living, predators, insect associates, or parasites of vertebrates.",
-        "advances_to": "Family: Cheyletidae"
-      },
-      "option_b": {
-        "morphology": "Body elongate; palptibial claw absent. Parasites within the quills of birds.",
-        "advances_to": "Family: Syringophilidae"
-      }
-    },
-    "52": {
-      "option_a": {
-        "morphology": "Gnathosoma relatively well developed, chelicerae present, movable digit styletlike; bodies oval, flattened, or wormlike. Parasites on, in, or (rarely) under the skin of vertebrates.",
-        "advances_to": "Node 54"
-      },
-      "option_b": {
-        "morphology": "Gnathosoma highly reduced, chelicerae absent. Internal parasites of reptiles (rarely birds) or small mammals.",
-        "advances_to": "Node 53"
-      }
-    },
-    "53": {
-      "option_a": {
-        "morphology": "Weakly sclerotized mites with striate opisthosomatic cuticle; gnathosoma reduced, but distinct; palpi with apical bifid claw; legs with lateral claws. Internal parasites in the tissues of shrews, moles, and mice.",
-        "advances_to": "Family: Epimyodicidae"
-      },
-      "option_b": {
-        "morphology": "Well-sclerotized mites without opisthosomatic striae; gnathosoma reduced to single-segmented palpi, each with a long, fanglike stylet apically; legs without distinct claws. Internal parasites in the tissues of reptiles and birds.",
-        "advances_to": "Family: Cloacaridae"
-      }
-    },
-    "54": {
-      "option_a": {
-        "morphology": "Body wormlike with numerous annuli; legs strongly telescoped, highly reduced, or modified into hooks. Parasites in the hair follicles, dermal glands, or subdermal regions of mammals.",
-        "advances_to": "Family: Demodicidae"
-      },
-      "option_b": {
-        "morphology": "Body oval, flattened; legs I-II well developed, legs III-IV well developed or reduced. Skin parasites of mammals, birds, and reptiles.",
-        "advances_to": "Node 55"
-      }
-    },
-    "55": {
-      "option_a": {
-        "morphology": "All legs ending in paired lateral claws and padlike or bilobed empodia; femora I-IV each with a strong ventral spur. Parasites on the skin of mammals.",
-        "advances_to": "Family: Psorergatidae"
-      },
-      "option_b": {
-        "morphology": "Legs I-II with empodial tenent hairs and with or without lateral claws, legs III-IV without lateral claws or legs IV absent; femora I-IV without strong ventral spurs. Skin parasites under the feathers of birds or under the scales of reptiles.",
-        "advances_to": "Family: Harpirhynchidae"
-      }
-    },
-    "56": {
-      "option_a": {
-        "morphology": "Cheliceral bases fused into a subconical stylophore that is not consolidated with the subcapitulum; palpi pronounced, 3-segmented, extending well beyond other gnathosomatic extremities, and with well-developed apical claw. Female genital opening large, flanked by conspicuous pair of genital valves, and functioning in oviposition.",
-        "advances_to": "Node 57"
-      },
-      "option_b": {
-        "morphology": "Cheliceral stylophore consolidated with subcapitulum to form a capsulate gnathosoma; palpi reduced, usually with no more than 2 readily distinguishable nonarticulating segments, extending to or slightly beyond other gnathosomatic extremities, and with reduced or vestigial apical claw. Female genital opening usually small and not flanked by genital valves, usually functioning in insemination but rarely in oviposition.",
-        "advances_to": "Node 58"
-      }
-    },
-    "57": {
-      "option_a": {
-        "morphology": "Prodorsum of female and male with a pair of stigmata and associated tracheae, and a pair of capitate bothridial sensilla laterally. Tarsi II-IV with paired claws and a stalked empodium, tarsus I with paired claws and no empodium. Gnathosoma with 2 pairs of dorsal setae. Free living or associated with passalid beetles.",
-        "advances_to": "Family: Tarsocheylidae"
-      },
-      "option_b": {
-        "morphology": "Prodorsum of female only with a pair of stigmata and associated tracheae laterally and a pair of ampulliform organs posteromedially; male prodorsum lacking stigmata and tracheae, and with a pair of normal setae instead of ampulliform organs. Tarsi II-IV without claws but with large discoid empodium, tarsus I without claws or empodium. Gnathosoma without dorsal setae. Subelytral associates of passalid beetles.",
-        "advances_to": "Family: Heterocheylidae"
-      }
-    },
-    "58": {
-      "option_a": {
-        "morphology": "Legs IV of female with separate femur and genu, with total of 5-12 setae on tibia and tarsus, and often with paired claws and empodium; legs IV of male 5-segmented, with symmetrically or asymmetrically paired claws or single or vestigial claw.",
-        "advances_to": "Node 59"
-      },
-      "option_b": {
-        "morphology": "Legs IV of female, when present, typically with fused femur and genu, with total of 2-3 setae on tibia and tarsus, and without claws and empodium; legs IV of male, when present, usually 4-segmented, with a single sessile or vestigial claw.",
-        "advances_to": "Node 70"
-      }
-    },
-    "59": {
-      "option_a": {
-        "morphology": "Tarsus I with paired claws; trochanters of legs I, II, IV, and usually III, lacking setae. Females lacking the pair of stigmata and associated tracheae anterolaterally on prodorsum; female genital aperture exposed, either on genital plate and flanked by paired aggenital plates or flanked by paired valves bearing genital setae. Male legs IV with pretarsus, empodium, and paired or reduced claws like those on legs II-III.",
-        "advances_to": "Node 60"
-      },
-      "option_b": {
-        "morphology": "Tarsus I with single claw or without claws; trochanters of legs I-IV usually each with a seta. Females with the pair of stigmata and associated tracheae anterolaterally on prodorsum; female genital aperture covered by posterior margin of consolidated aggenital plate. Male legs IV with claws variously shaped but often different in form from those on legs II-III.",
-        "advances_to": "Node 61"
-      }
-    },
-    "60": {
-      "option_a": {
-        "morphology": "Prodorsum of females with a pair of expansive winglike processes that overlap with similar expansions of tergite C. Female genital aperture elongate, flanked by 4 pairs of readily visible genital setae. Tarsi II-IV lacking empodium between claws. Trochanter III with a seta; setation of genua I-II-III-IV, 5-4-3-1. Associates of carabid beetles.",
-        "advances_to": "Family: Crotalomorphidae"
-      },
-      "option_b": {
-        "morphology": "Prodorsum and tergite C of females normal in form, without winglike expansions. Female genital aperture small, flanked by 1-3 pairs of minute or vestigial genital setae, or these absent. Tarsi II-IV with smooth flexible empodium between claws. Trochanter III without a seta; setation of genua I-II-III-IV, maximally 2-1-1-1. Free living or associated with insects.",
-        "advances_to": "Family: Dolichocybidae"
-      }
-    },
-    "61": {
-      "option_a": {
-        "morphology": "Trochanter IV quadrangular, generally longer than wide, different in form from subtriangular trochanter III. Female pharynx divided into 2 or 3 muscular sections. Male gnathosoma reduced, tubiform, lacking chelicerae and palpi. Larval instar active.",
-        "advances_to": "Node 62"
-      },
-      "option_b": {
-        "morphology": "Trochanter IV subtriangular, similar in form to trochanter III, or, if compressed and subquadrangular, then as wide as or wider than long. Female pharynx large, muscular, undivided. Male gnathosoma not reduced to tubiform appendage, chelicerae and palpi present. Larval instar usually inactive, calyptostatic.",
-        "advances_to": "Node 65"
-      }
-    },
-    "62": {
-      "option_a": {
-        "morphology": "Prodorsum of females not covered posteriorly by tergite C and usually with 3 pairs of setiform setae (v1 and usually v2 present). Coxisternal plates I-II together with 4-6 pairs of setae. Femur I usually with 4 setae. Male aedeagus usually relatively short, stiff.",
-        "advances_to": "Node 63"
-      },
-      "option_b": {
-        "morphology": "Prodorsum of females usually covered to greater or lesser extent by tergite C and with 1-2 pairs of setiform setae (v1 and sometimes v2 absent). Coxisternal plates I-II together with maximum of 4 pairs of setae. Femur I with 3 setae. Male aedeagus relatively long, flexible, curved, or looped.",
-        "advances_to": "Node 64"
-      }
-    },
-    "63": {
-      "option_a": {
-        "morphology": "Femur I of females with all setae slender, attenuate (seta d setiform). Coxisternal plates I-II together usually with 4 pairs of setae. Prodorsum of females with stigmata often extended into longitudinal grooves (peritremes). Plant, fungus associates.",
-        "advances_to": "Family: Siteroptidae"
-      },
-      "option_b": {
-        "morphology": "Femur I of females with seta d thickened, rigid, and bladelike, rodlike, or hooked. Coxisternal plates I-II together with 4-6 pairs of setae. Prodorsum of females with stigmata round or oval, not extended into elongate grooves. Free living or associated with fungi, insects, and animal nests.",
-        "advances_to": "Family: Pygmephoridae"
-      }
-    },
-    "64": {
-      "option_a": {
-        "morphology": "Tergite C of females expansive, covering prodorsum completely forming a roof over gnathosoma; prodorsum usually with 2 pairs of short setiform setae (covered, often difficult to discern). Idiosoma broadly oval or rounded, compact, with distance between insertions of legs II-III usually similar to that between legs III-IV. Femur I with seta d short, stout, usually branched. Male aedeagal tube apparently annulated or striated. Free living or associated with insects and animal nests.",
-        "advances_to": "Family: Scutacaridae"
-      },
-      "option_b": {
-        "morphology": "Tergite C of females covering posterior region of prodorsum to variable extent, not covering entire prodorsum and gnathosoma; prodorsum with usually 1 pair of setiform setae, a 2nd pair (v2) rudimentary or absent. Idiosoma oval, distance between insertions of legs II and III at least twice that between legs III and IV. Femur I with seta d attenuated, smooth or barbed. Male aedeagal tube apparently smooth. Free living or associated with insects and animal nests.",
-        "advances_to": "Family: Microdispidae"
-      }
-    },
-    "65": {
-      "option_a": {
-        "morphology": "Coxisternal plates I-II together with usually 6 pairs of setae. Femur I and genu I each with 5 setae. Female gnathosomatic capsule with palpi prominent, extending slightly beyond apex of stylophore. Males with incompletely formed caudal genital capsule, with exposed setigenous processes.",
-        "advances_to": "Node 66"
-      },
-      "option_b": {
-        "morphology": "Coxisternal plates I-II together with maximally 4 pairs of setae. Femur I and genu I each with 3 or usually 4 setae. Female gnathosomatic capsule with palpi usually somewhat reduced or poorly delineated, usually not extending beyond apex of stylophore. Males with fully formed caudal or ventrocaudal genital capsule, with retractable setigenous processes.",
-        "advances_to": "Node 67"
-      }
-    },
-    "66": {
-      "option_a": {
-        "morphology": "Prodorsum of females with anterior pair of vertical setae inserted posterior to stigmata; aggenital plate with 1 pair of setae; tergite EF with setae e and f aligned transversely; caudal plate PS rounded posteriorly, without a caudal protrusion. Male gnathosoma reduced, lacking chelicerae and delineated palpi; male leg I lacking claws. Associated with bees.",
-        "advances_to": "Family: Trochometridiidae"
-      },
-      "option_b": {
-        "morphology": "Prodorsum of females with anterior pair of vertical setae inserted anterior or medial to stigmata; aggenital plate with 2 or 3 pairs of setae; tergite EF with setae e and f aligned longitudinally; caudal plate PS with a caudally protruding process. Males unknown. Associated with beetles.",
-        "advances_to": "Family: Athyreacaridae"
-      }
-    },
-    "67": {
-      "option_a": {
-        "morphology": "Females with gnathosomatic capsule large, clearly wider than long. Female coxisternal plates I with a pair of discoid adhesive structures. Female legs I lacking claws, smaller than legs II-IV; legs IV with tibia and tarsus at least partially fused, and with reduced claws. Associated with carabid beetles.",
-        "advances_to": "Family: Caraboacaridae"
-      },
-      "option_b": {
-        "morphology": "Females with gnathosomatic capsule of normal or reduced size, no wider than long. Female coxisternal plates I lacking discoid structures. Female legs I with or without a single claw, similar in size to legs II-IV; legs IV with tibia and tarsus separate, and with paired claws if these present on legs II-III.",
-        "advances_to": "Node 68"
-      }
-    },
-    "68": {
-      "option_a": {
-        "morphology": "Prodorsum of females lacking bothridia and bothridial setae. Coxisternal plates I-II together with maximally 2 pairs of setae. Gnathosoma somewhat hypognathous, enclosed and partly hidden in propodosomatic camerostome; palpi not differentiated from lateral walls of gnathosoma. Male genital capsule ventrocaudal in position. Parasitoids of insect eggs.",
-        "advances_to": "Family: Acarophenacidae"
-      },
-      "option_b": {
-        "morphology": "Prodorsum of females with pair of bothridia and capitate bothridial setae. Coxisternal plates I and II together with 4 pairs of setae. Gnathosoma prognathous, well exposed from propodosoma; palpi delineated from lateral walls of gnathosoma. Male genital capsule caudal in position.",
-        "advances_to": "Node 69"
-      }
-    },
-    "69": {
-      "option_a": {
-        "morphology": "Female coxisternal plates III-IV separated from each other medially by soft cuticle that bears a separate triangular sternal plate. Male legs IV differentiated from legs II-III in being somewhat stouter and ending with a single sessile claw. Parasitoids of immature insects.",
-        "advances_to": "Family: Pyemotidae"
-      },
-      "option_b": {
-        "morphology": "Female coxisternal plates III-IV united medially, effacing separate medial plate. Male legs III differentiated from legs II and IV in being somewhat stouter and having a large, spurlike tarsal process. Associated with insects.",
-        "advances_to": "Family: Resinacaridae"
-      }
-    },
-    "70": {
-      "option_a": {
-        "morphology": "Females always with 4 pairs of legs; legs IV 3-segmented, usually much more slender than legs II-III. Males always with 4 pairs of legs; legs IV 3- or 4-segmented, always inserted ventrally; male genital capsule caudal in position. Free living or plant, fungus, or insect associates.",
-        "advances_to": "Family: Tarsonemidae"
-      },
-      "option_b": {
-        "morphology": "Females typically with 1-3 pairs of legs; legs IV, if present, 5-segmented and more slender than legs II-III. Males with 3 or 4 pairs of legs; legs IV, if present, 5-segmented and inserted ventrally or reduced and inserted dorsally; male genital capsule caudal or dorsal in position. Parasites of insects.",
-        "advances_to": "Family: Podapolipidae"
       }
     }
   },
@@ -6082,6 +5356,1554 @@
       "option_b": {
         "morphology": "Order Sarcoptiformes: Chelicerae typically robust, adapted for pinching and chewing (chelate-dentate), not modified into piercing stylets; palpi simple and filiform; specialized respiratory peritremes absent; true stigmata absent, respiration primarily cutaneous or via specialized apodemes/tracheae.",
         "advances_to": "Order: Sarcoptiformes"
+      }
+    }
+  },
+  "Key_to_Families_of_Prostigmata": {
+    "1": {
+      "option_a": {
+        "morphology": "Adults and deutonymphs often densely hypertrichous, typically free-living predators; larvae usually strongly heteromorphic, parasitic on arthropods or vertebrates, protonymphs and tritonymphs calyptostatic. Terrestrial forms with 1 or 2 pairs of bothridial setae on a prodorsal sclerite, aquatic forms highly diverse, without bothridial setae, usually with multiple modified idiosomatic lyrifissures (glandularia) that open on small platelets or amalgamated shields.",
+        "advances_to": "Cohort: Parasitengonina"
+      },
+      "option_b": {
+        "morphology": "Adults and nymphs with or without dense hypertrichy, bothridial setae and prodorsal sclerite present or absent, without glandularia. Larvae more or less similar to other stages, free living or parasitic. Alternating calyptostasis rare.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "With undivided, heavily armored dorsal and ventral shields, coxal fields expanded and mesally contiguous. Prodorsum with 2 pairs of trichobothria (bothridial setae vi, si) and 4 additional pairs of setae; a pair of lateral ocelli (rarely absent) and an unpaired anteromedian ocellus; one or more pairs of lateral pustules. Genital and anal valves of females contiguous, those of males usually separated; 2 pairs of genital papillae. Chelicerae separate and strongly chelate, each with 2 setae (cha, chb).",
+        "advances_to": "Family: Labidostomatidae"
+      },
+      "option_b": {
+        "morphology": "Variously armored or soft bodied. Prodorsum with a maximum of 5 pairs of setae, including 0-2 pairs of bothridial setae, or hypertrichous; ocelli present or absent, lateral pustules absent. 0-3 pairs of genital papillae in adults. Chelicerae various.",
+        "advances_to": "Node 3"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Females usually with a pair of stigmata and associated tracheae anterolaterally on prodorsum and commonly with a pair of capitate bothridial setae (both usually absent in immatures and males); peritremes absent. Opisthosoma usually with a longitudinal series of 4 dorsal plates (tergites), often overlapping. Tarsi of legs II-III with stalked, smooth, padlike empodium usually flanked by paired claws, or rarely without empodium but with paired claws. Sexual dimorphism pronounced, males often with a genital capsule.",
+        "advances_to": "Node 56"
+      },
+      "option_b": {
+        "morphology": "Females and males with a pair of stigmata between cheliceral bases or on posterodorsal margin of gnathosoma and often opening into a simple to complex peritreme, or absent; prodorsal trichobothria, if present, of various forms and on immatures and adults of both sexes. Opisthosoma variously armored or soft bodied. Tarsi of legs II-III generally with setulose, rayed, or clawlike empodium, often flanked by paired claws. Sexual dimorphism strong or weak, but males without genital capsule.",
+        "advances_to": "Node 4"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "With 1-2 pairs of variously shaped prodorsal bothridial setae usually inserted in distinctly cup-shaped bothridia.",
+        "advances_to": "Node 5"
+      },
+      "option_b": {
+        "morphology": "Without prodorsal bothridial setae.",
+        "advances_to": "Node 10"
+      }
+    },
+    "5": {
+      "option_a": {
+        "morphology": "Legs III-IV absent in all stages; legs I-II ending in a highly branched empodial featherclaw; opisthosoma elongated, annulated, vermiform, or fusiform. Obligate plant parasites.",
+        "advances_to": "Node 6"
+      },
+      "option_b": {
+        "morphology": "Legs III present and legs IV usually present in postlarval instars; one or more pairs of legs typically ending in an empodium of various forms and often with a pair of lateral claws; opisthosoma variously shaped. Free living or aquatic, or associated with a variety of plant and animal hosts.",
+        "advances_to": "Node 8"
+      }
+    },
+    "6": {
+      "option_a": {
+        "morphology": "Prodorsal shield with 1, 3, 4, or 5 setae; spermathecal tubes usually long; tibia I with or without solenidion.",
+        "advances_to": "Family: Phytoptidae"
+      },
+      "option_b": {
+        "morphology": "Prodorsal shield nude or with 1 pair of setae; spermathecal tubes short; tibia I without solenidion.",
+        "advances_to": "Node 7"
+      }
+    },
+    "7": {
+      "option_a": {
+        "morphology": "Gnathosoma large compared to body and stylets abruptly curving ventrally near base; featherclaw deeply divided medially or entire.",
+        "advances_to": "Family: Diptilomiopidae"
+      },
+      "option_b": {
+        "morphology": "Gnathosoma relatively small compared to body and stylets more or less straight; featherclaw entire, rarely divided medially.",
+        "advances_to": "Family: Eriophyidae"
+      }
+    },
+    "8": {
+      "option_a": {
+        "morphology": "Marine, brackish, and freshwater mites usually found attached to substrates (including algae and marine invertebrates) or in interstitial samples; tarsi I-IV with strongly developed lateral claws, usually with serrate margins, and often with a clawlike or bifid empodium; adults with 2 to several pairs of genital papillae on, near, or under a pair of genital valves.",
+        "advances_to": "Node 9"
+      },
+      "option_b": {
+        "morphology": "Mostly terrestrial mites, occasionally intertidal or on the surface of freshwater, or parasitic on terrestrial plants and animals; tarsal apoteles various but not modified into clawlike holdfasts with serrate margins; adults with 3 pairs of genital papillae or genital papillae absent.",
+        "advances_to": "Node 29"
+      }
+    },
+    "9": {
+      "option_a": {
+        "morphology": "With 5-10 pairs of dorsal idiosomatic setae; marine and freshwater forms.",
+        "advances_to": "Family: Halacaridae"
+      },
+      "option_b": {
+        "morphology": "With 16-20 pairs of dorsal setae; freshwater forms.",
+        "advances_to": "Family: Pezidae"
+      }
+    },
+    "10": {
+      "option_a": {
+        "morphology": "Prodorsal peritremes present (sometimes emergent), palptibia usually with at least 1 clawlike seta distally and often apposed to a reduced or thumblike palptarsus; if thumb-claw process absent, then body elongate and with 1 or more postpedal furrows or oval with a postpedal constriction.",
+        "advances_to": "Node 23"
+      },
+      "option_b": {
+        "morphology": "Peritremes absent, palptibia without clawlike setae or thumblike palptarsus; postpedal furrows absent.",
+        "advances_to": "Node 11"
+      }
+    },
+    "11": {
+      "option_a": {
+        "morphology": "Leg trichobothria absent; chelicerae fused or free but with little potential for lateral motion, inserted on or fused with short subcapitulum.",
+        "advances_to": "Node 13"
+      },
+      "option_b": {
+        "morphology": "Trichobothria on tibia IV, and sometimes on tibia I, tarsus III, and tarsus IV; chelicerae free and capable of considerable lateral motion, inserted on elongate subcapitular snout.",
+        "advances_to": "Node 12"
+      }
+    },
+    "12": {
+      "option_a": {
+        "morphology": "Adults with 3 pairs of genital papillae and 2 or more eugenital setae; palpi usually ending in 1-2 elongate setae and often elbowed, without strong spines or knobs; tarsi III-IV and tibia I typically with trichobothria.",
+        "advances_to": "Family: Bdellidae"
+      },
+      "option_b": {
+        "morphology": "Adults with 2 pairs of genital papillae and usually without eugenital setae; palpi usually ending in a stout spine and sometimes with strong spines or knobs; tarsi III-IV and tibia I without trichobothria.",
+        "advances_to": "Family: Cunaxidae"
+      }
+    },
+    "13": {
+      "option_a": {
+        "morphology": "Chelicerae freely articulating, digits variously formed; tarsus I with a famulus and at least 1 recumbent solenidion; idiosomatic chaetome sometimes with postlarval hypertrichy; naso usually present.",
+        "advances_to": "Node 14"
+      },
+      "option_b": {
+        "morphology": "Chelicerae closely contiguous or fused medially, fixed digit regressed and movable digit styletlike to whiplike; tarsus I without famulus, solenidia erect; idiosoma never hypertrichous, naso absent.",
+        "advances_to": "Node 20"
+      }
+    },
+    "14": {
+      "option_a": {
+        "morphology": "Body fully sclerotized, dorsum with V- or Y-shaped furrow and an anterior epirostrum projecting over the gnathosoma.",
+        "advances_to": "Family: Penthalodidae"
+      },
+      "option_b": {
+        "morphology": "Soft bodied, without V- or Y-shaped furrow or epirostrum.",
+        "advances_to": "Node 15"
+      }
+    },
+    "15": {
+      "option_a": {
+        "morphology": "Palptibia with 6-7 setae; subcapitulum with more than 15 setae; naso-prodorsal process present and hypertrichous.",
+        "advances_to": "Family: Eriorhynchidae"
+      },
+      "option_b": {
+        "morphology": "Palptibia with 3 or fewer setae; subcapitulum typically with 2 or 4 pairs of setae; naso, when present, not enlarged, usually bearing one pair of setae.",
+        "advances_to": "Node 16"
+      }
+    },
+    "16": {
+      "option_a": {
+        "morphology": "Chelicerae strongly chelate, shearlike, with well-developed fixed digit opposed to large, often toothed, movable digit.",
+        "advances_to": "Node 17"
+      },
+      "option_b": {
+        "morphology": "Chelicerae weakly chelate, hooked, or styletlike, not shearlike.",
+        "advances_to": "Node 19"
+      }
+    },
+    "17": {
+      "option_a": {
+        "morphology": "Palpi with 5 free segments; tarsus I with 2 solenidia; empodia clawlike.",
+        "advances_to": "Family: Pentapalpidae"
+      },
+      "option_b": {
+        "morphology": "Palpi with 4 free segments; tarsus I with 3 or more solenidia; empodia padlike.",
+        "advances_to": "Node 18"
+      }
+    },
+    "18": {
+      "option_a": {
+        "morphology": "Palptibia with 3 setae; tibia I with 2 or more solenidia, prodorsum with 1 pair of bothridia and 3 pairs of setae.",
+        "advances_to": "Family: Rhagidiidae"
+      },
+      "option_b": {
+        "morphology": "Palptibia with 1 seta; tibia I with 1 solenidion, prodorsum with 1 pair of bothridia and 4 pairs of setae.",
+        "advances_to": "Family: Strandtmanniidae"
+      }
+    },
+    "19": {
+      "option_a": {
+        "morphology": "Anal opening dorsal or dorsoterminal; intercoxal region with 15 or more pairs of setae; femora IV similar to others.",
+        "advances_to": "Family: Penthaleidae"
+      },
+      "option_b": {
+        "morphology": "Anal opening ventral or terminal; intercoxal region with fewer than 10 pairs of setae; femora IV normal or strongly swollen, used in jumping.",
+        "advances_to": "Family: Eupodidae"
+      }
+    },
+    "20": {
+      "option_a": {
+        "morphology": "Tibia I with deeply recessed solenidion in saclike structure connecting to surface by narrow duct; legs and prodorsum often with netlike ornamentation; adults with 2 pairs of genital papillae.",
+        "advances_to": "Family: Ereynetidae"
+      },
+      "option_b": {
+        "morphology": "Solenidion of tibia I on surface or absent; with plicate ornamentations or sclerotized plates; adults with 0-2 pairs of genital papillae.",
+        "advances_to": "Node 21"
+      }
+    },
+    "21": {
+      "option_a": {
+        "morphology": "Adults with only 1 pair of genital papillae, or papillae absent; movable digit of chelicerae styletlike or whiplike; palptarsus usually with 3 or 4 elongated setae; males typically with an aedeagus.",
+        "advances_to": "Family: Iolinidae"
+      },
+      "option_b": {
+        "morphology": "Adults with 2 pairs of genital papillae; movable digit of chelicerae styletlike; palptarsus with no markedly elongated setae; males without aedeagus.",
+        "advances_to": "Node 22"
+      }
+    },
+    "22": {
+      "option_a": {
+        "morphology": "Legs I antenniform, apotele vestigial or absent; median eyespot consisting of subcuticular silver granules present; epimeral seta 3d absent.",
+        "advances_to": "Family: Triophtydeidae"
+      },
+      "option_b": {
+        "morphology": "Legs I with claws; median eyespot absent; epimeral seta 3d usually present.",
+        "advances_to": "Family: Tydeidae"
+      }
+    },
+    "23": {
+      "option_a": {
+        "morphology": "Genital papillae absent; palptarsus reduced; tarsal apoteles padlike, produced on annulate stalks.",
+        "advances_to": "Family: Pseudocheylidae"
+      },
+      "option_b": {
+        "morphology": "With 2-3 pairs of genital papillae; palptarsus usually well developed; tarsal apoteles sessile.",
+        "advances_to": "Node 24"
+      }
+    },
+    "24": {
+      "option_a": {
+        "morphology": "Elongate mites with 1 or more postpedal furrows; legs I-II widely separated from legs III-IV; with 1 pair of prodorsal bothridial setae.",
+        "advances_to": "Node 25"
+      },
+      "option_b": {
+        "morphology": "Oval to subrectangular mites without postpedal furrows, although sometimes with a postpedal constriction; legs I-IV closely inserted; with 2 pairs of prodorsal bothridial setae.",
+        "advances_to": "Node 26"
+      }
+    },
+    "25": {
+      "option_a": {
+        "morphology": "Palpi linear, without thumb-claw process; legs I ending in paired claws; prodorsal bothridial setae filiform.",
+        "advances_to": "Family: Paratydeidae"
+      },
+      "option_b": {
+        "morphology": "Palps with well-developed thumb-claw process; legs I without apoteles; bothridial setae clubbed.",
+        "advances_to": "Family: Stigmocheylidae"
+      }
+    },
+    "26": {
+      "option_a": {
+        "morphology": "Moderately to strongly sclerotized mites with 1-2 large dorsal shields or a complex of 8 dorsal plates.",
+        "advances_to": "Node 27"
+      },
+      "option_b": {
+        "morphology": "Soft-bodied mites with at most a weakly sclerotized prodorsal shield.",
+        "advances_to": "Node 28"
+      }
+    },
+    "27": {
+      "option_a": {
+        "morphology": "Adults leathery, with 8 heavily sclerotized dorsal shields and 3 pairs of genital papillae; legs I with strongly spinose anterolateral setae (rake-legged mites).",
+        "advances_to": "Family: Caeculidae"
+      },
+      "option_b": {
+        "morphology": "Adults with 1-2 large, moderately sclerotized dorsal shields and 2 pairs of genital papillae; legs I without spinose setae as above.",
+        "advances_to": "Family: Adamystidae"
+      }
+    },
+    "28": {
+      "option_a": {
+        "morphology": "Naso weakly developed and nude; peritremes sinuous but not emergent distally; prodorsal bothridia usually with rosette pattern; palptarsus reduced, not extending beyond palptibial claw; pretarsal empodia I-II absent.",
+        "advances_to": "Family: Teneriffiidae"
+      },
+      "option_b": {
+        "morphology": "Naso usually present and bearing setae vi; peritremes linear and often emergent distally; prodorsal bothridia simple; palptarsus usually extending beyond palptibial claw; pretarsal empodia I-II padlike or clawlike.",
+        "advances_to": "Family: Anystidae"
+      }
+    },
+    "29": {
+      "option_a": {
+        "morphology": "Adult females with 3 pairs of genital papillae, an elongate, extrusible ovipositor, a well-developed prodorsal shield, and a series of 5 dorsal hysterosomatic shields.",
+        "advances_to": "Family: Pomerantziidae"
+      },
+      "option_b": {
+        "morphology": "Genital papillae absent in all stages; ovipositor absent; dorsal shields various.",
+        "advances_to": "Node 30"
+      }
+    },
+    "30": {
+      "option_a": {
+        "morphology": "Pretarsal claws well developed or reduced but always with tenent hairs; empodium, if present, with or without tenent hairs; palpal thumb-claw process usually well developed (absent in TENUIPALPIDAE).",
+        "advances_to": "Node 31"
+      },
+      "option_b": {
+        "morphology": "Pretarsal claws lacking tenent hairs; empodia, if present, usually with tenent hairs; palpal thumb-claw process well developed, reduced, or absent.",
+        "advances_to": "Node 37"
+      }
+    },
+    "31": {
+      "option_a": {
+        "morphology": "Chelicerae independently movable, elongate, with swollen bases and hooklike movable digit with 1 or more teeth; empodia absent; peritremes emergent. Parasites of lizards, cockroaches, triatomines, and scorpions.",
+        "advances_to": "Family: Pterygosomatidae"
+      },
+      "option_b": {
+        "morphology": "Chelicerae fused basally and with short, needlelike movable digits or fully integrated into a retractable stylophore with long, whiplike digits; empodia usually present, rarely strongly reduced or seemingly absent; peritremes sessile or emergent.",
+        "advances_to": "Node 32"
+      }
+    },
+    "32": {
+      "option_a": {
+        "morphology": "Chelicerae fused basally and with short, needlelike movable digits and bearing short, 3-5 chambered peritremes on their paraxial faces; palptibial claw with a ventral tooth. Free living in soil and litter.",
+        "advances_to": "Family: Barbutiidae"
+      },
+      "option_b": {
+        "morphology": "Cheliceral bases fused into a movable stylophore that is deeply retractable into idiosoma; movable cheliceral digits elongated, whiplike, recurved basally within stylophore. Obligate plant parasites.",
+        "advances_to": "Node 33"
+      }
+    },
+    "33": {
+      "option_a": {
+        "morphology": "Setae of posterior margin of idiosoma (row h) forming a fanlike transverse row of 5 or more pairs of flagellelate or bipectinate setae; dorsal and lateral opisthosomatic setae expanded, fanlike, the anterior row (c) comprising 5 or more pairs.",
+        "advances_to": "Family: Tuckerellidae"
+      },
+      "option_b": {
+        "morphology": "Setae of posterior margin of idiosoma slender, simple, not forming a fanlike row; dorsal and lateral opisthosomatic setae variable in form, the anterior row (c) comprising at most 4 pairs.",
+        "advances_to": "Node 34"
+      }
+    },
+    "34": {
+      "option_a": {
+        "morphology": "Tarsi I-II without peg-shaped or bulbous solenidia, and with 1-2 long, slender, tapered solenidia usually closely associated with a short or minute seta to form duplex sets; stylophore attachment to idiosoma without ribbed collar; palpi 5-segmented, with thumb-claw process; palptarsus with or without one of distal eupathidia enlarged as a spinneret.",
+        "advances_to": "Family: Tetranychidae"
+      },
+      "option_b": {
+        "morphology": "Tarsi I-II with distal, peg-shaped or bulbous solenidia, and with no solenidia closely associated with a seta to form duplex sets; stylophore attached to idiosoma by retractable ribbed collar; palpi with 5 or fewer segments and with or without thumb-claw process; palptarsus without eupathidial modification as above.",
+        "advances_to": "Node 35"
+      }
+    },
+    "35": {
+      "option_a": {
+        "morphology": "Prodorsum with 4 pairs of setae (v1 present) and without eyes; anterior row (c) of opisthosomatic setae comprising 4 pairs (c1-4 present).",
+        "advances_to": "Family: Linotetranidae"
+      },
+      "option_b": {
+        "morphology": "Prodorsum with 3 pairs of setae (v1 absent) and usually with 2 pairs of eyes; anterior row (c) of opisthosomatic setae comprising at most 3 pairs (c1 or c4 absent).",
+        "advances_to": "Node 36"
+      }
+    },
+    "36": {
+      "option_a": {
+        "morphology": "Palpi linear, with 5 or fewer segments and lacking a thumb-claw process; opisthosoma with at most 13 pairs of setae dorsally and laterally (c1 usually present, c4 absent, 2 pairs h setae); anal valves with 1-3 pairs of simple pseudanal setae.",
+        "advances_to": "Family: Tenuipalpidae"
+      },
+      "option_b": {
+        "morphology": "Palpi 5-segmented, with a thumb-claw process; opisthosoma with 14 pairs of setae dorsally and laterally (c1 absent, c4 present, 3 pairs h setae); anal valves with 3 pairs of pseudanal setae, some of which are bifurcate or dendritic.",
+        "advances_to": "Family: Allochaetophoridae"
+      }
+    },
+    "37": {
+      "option_a": {
+        "morphology": "Chelicerae and subcapitulum fused into gnathosomatic capsule that is retractile within the idiosoma; legs I modified for clasping mammalian hairs; immatures with a ventral, unpaired clasper on tarsus I and femora fused to genua on all legs; female anal opening dorsal. Ectoparasites in the fur of bats, rodents, and various insectivores.",
+        "advances_to": "Family: Myobiidae"
+      },
+      "option_b": {
+        "morphology": "Chelicerae separate, fused into stylophore or incorporated into gnathosomatic capsule (if the latter, then exerted and not retractile); legs I not modified for clasping hairs; immatures without clasper on tarsus I or femoral-genual fusions as above, female anal opening typically ventral, sometimes terminal. Free-living predators, or feeding on mosses, or ectoparasitic on mammals, birds, and reptiles (rarely insects), or living in the skin pores or mucosa of mammal and reptiles (rarely birds).",
+        "advances_to": "Node 38"
+      }
+    },
+    "38": {
+      "option_a": {
+        "morphology": "Chelicerae separate, partially fused, or completely coalesced into a stylophore; tibiae and often genua of some legs with more than 3 setae; palpi with 5 free segments, thumb-claw process usually well developed, but palptarsus sometimes reduced and palptibial claw sometimes reduced or absent; legs well developed, ambulatory, and each with a pair of claws and an empodium with tenent hairs. Free-living predators, moss associates, or insect phoretics.",
+        "advances_to": "Node 39"
+      },
+      "option_b": {
+        "morphology": "Chelicerae fused into a stylophore, or fully integrated into a gnathosomatic capsule; all tibiae and genua with 3 or fewer setae; palpi often with fewer than 5 segments, palptibial claw various, typically absent in parasitic groups. Capsulate forms with well-developed legs, usually with paired claws and with tenent hairs on empodia (sometimes absent on legs I) and well-developed palpi. Free-living predators, insect associates, or parasites of vertebrates. Stylophoric forms with legs flattened, telescoped, or otherwise reduced, often with highly modified empodia; claws may be absent. Parasitic on vertebrates.",
+        "advances_to": "Node 50"
+      }
+    },
+    "39": {
+      "option_a": {
+        "morphology": "Fully armored mites with a holodorsal shield produced anteriorly into a hyaline or ornamented collar into which the narrow, elongate gnathosoma can be retracted.",
+        "advances_to": "Family: Cryptognathidae"
+      },
+      "option_b": {
+        "morphology": "Soft bodied or with an array of dorsal shields separated by striate cuticle, or with 1-2 dorsal shields; prodorsal collar absent, gnathosoma not deeply retractable.",
+        "advances_to": "Node 40"
+      }
+    },
+    "40": {
+      "option_a": {
+        "morphology": "Stigmata opening at bases of chelicerae; peritremes simple to highly convoluted, produced on cheliceral bases or on anterior edge of prodorsum.",
+        "advances_to": "Node 46"
+      },
+      "option_b": {
+        "morphology": "Peritremes and stigmata absent.",
+        "advances_to": "Node 41"
+      }
+    },
+    "41": {
+      "option_a": {
+        "morphology": "Cheliceral bases often closely associated but apparently freely movable.",
+        "advances_to": "Node 42"
+      },
+      "option_b": {
+        "morphology": "Cheliceral bases fused at their bases or coalesced into a distinct stylophore.",
+        "advances_to": "Node 43"
+      }
+    },
+    "42": {
+      "option_a": {
+        "morphology": "Fully armored and strongly hemispherical mites with a holodorsal shield bearing an arched groove posterior to the large eyes and internal flasklike or funnel-shaped structures. On surface of standing freshwater and associated vegetation or in subaquatic soils.",
+        "advances_to": "Family: Homocaligidae"
+      },
+      "option_b": {
+        "morphology": "Mostly soft bodied, or with one or more dorsal plates separated by striate cuticle, rarely with a holodorsal shield but, if present, lacking arched groove and internal structures as above; found in many habitats including mosses, vegetation, bark, soil, marshes, and freshwater habitats.",
+        "advances_to": "Node 43"
+      }
+    },
+    "43": {
+      "option_a": {
+        "morphology": "Cheliceral bases insensibly fused into stylophore.",
+        "advances_to": "Node 44"
+      },
+      "option_b": {
+        "morphology": "Cheliceral bases distinct and fused medially, at least in basal 1/3.",
+        "advances_to": "Family: Stigmaeidae (pars)"
+      }
+    },
+    "44": {
+      "option_a": {
+        "morphology": "Palpi slender, much longer than chelicerae.",
+        "advances_to": "Node 45"
+      },
+      "option_b": {
+        "morphology": "Palpi robust, subequal to chelicerae in length.",
+        "advances_to": "Family: Stigmaeidae (pars)"
+      }
+    },
+    "45": {
+      "option_a": {
+        "morphology": "Palptarsus longer than palptibia; empodia on all tarsi with 1-2 pairs of tenent hairs.",
+        "advances_to": "Family: Eupalopsellidae"
+      },
+      "option_b": {
+        "morphology": "Palptarsus shorter than palptibia; empodia on all tarsi with 3 pairs of tenent hairs.",
+        "advances_to": "Family: Mecognathidae"
+      }
+    },
+    "46": {
+      "option_a": {
+        "morphology": "Chambered peritremes embedded in dorsal surface of stylophore; coxae II narrowly to widely separated from coxae III.",
+        "advances_to": "Node 47"
+      },
+      "option_b": {
+        "morphology": "Peritremes linear on prodorsum, usually emergent; coxae II-III contiguous.",
+        "advances_to": "Family: Raphignathidae"
+      }
+    },
+    "47": {
+      "option_a": {
+        "morphology": "Leg tibiae and tarsi subequal in length; body shapes various.",
+        "advances_to": "Node 48"
+      },
+      "option_b": {
+        "morphology": "Leg tibiae about 3 times longer than respective tarsi; oval to subcircular mites with very long legs.",
+        "advances_to": "Family: Camerobiidae"
+      }
+    },
+    "48": {
+      "option_a": {
+        "morphology": "With 1 or 2 plates covering most of dorsum and bearing 15 or more pairs of setae, of which at least 6 pairs are much longer than idiosoma; palptibial claw peglike or absent.",
+        "advances_to": "Node 49"
+      },
+      "option_b": {
+        "morphology": "Soft bodied, with at most a small prodorsal shield and/or small sclerites around the setal bases; all 11-12 pairs of dorsal setae considerably shorter than idiosoma; palptibial claw usually well developed.",
+        "advances_to": "Family: Caligonellidae"
+      }
+    },
+    "49": {
+      "option_a": {
+        "morphology": "With a single holodorsal shield; palptarsus elongate and tapering; palptibial claw absent.",
+        "advances_to": "Family: Xenocaligonellididae"
+      },
+      "option_b": {
+        "morphology": "With 2 dorsal shields; palptarsus short and mound shaped; palptibial claw peglike.",
+        "advances_to": "Family: Dasythyreidae"
+      }
+    },
+    "50": {
+      "option_a": {
+        "morphology": "Cheliceral stylophore fused to subcapitulum to form a gnathosomatic capsule; peritremes elaborated on dorsal surface of capsule; genu I with solenidion.",
+        "advances_to": "Node 51"
+      },
+      "option_b": {
+        "morphology": "Cheliceral stylophore separate from subcapitulum; peritremes at base of chelicerae or absent; genu I without solenidion.",
+        "advances_to": "Node 52"
+      }
+    },
+    "51": {
+      "option_a": {
+        "morphology": "Body oval to rounded, occasionally elongate; palptibial claw present and well developed. Free living, predators, insect associates, or parasites of vertebrates.",
+        "advances_to": "Family: Cheyletidae"
+      },
+      "option_b": {
+        "morphology": "Body elongate; palptibial claw absent. Parasites within the quills of birds.",
+        "advances_to": "Family: Syringophilidae"
+      }
+    },
+    "52": {
+      "option_a": {
+        "morphology": "Gnathosoma relatively well developed, chelicerae present, movable digit styletlike; bodies oval, flattened, or wormlike. Parasites on, in, or (rarely) under the skin of vertebrates.",
+        "advances_to": "Node 54"
+      },
+      "option_b": {
+        "morphology": "Gnathosoma highly reduced, chelicerae absent. Internal parasites of reptiles (rarely birds) or small mammals.",
+        "advances_to": "Node 53"
+      }
+    },
+    "53": {
+      "option_a": {
+        "morphology": "Weakly sclerotized mites with striate opisthosomatic cuticle; gnathosoma reduced, but distinct; palpi with apical bifid claw; legs with lateral claws. Internal parasites in the tissues of shrews, moles, and mice.",
+        "advances_to": "Family: Epimyodicidae"
+      },
+      "option_b": {
+        "morphology": "Well-sclerotized mites without opisthosomatic striae; gnathosoma reduced to single-segmented palpi, each with a long, fanglike stylet apically; legs without distinct claws. Internal parasites in the tissues of reptiles and birds.",
+        "advances_to": "Family: Cloacaridae"
+      }
+    },
+    "54": {
+      "option_a": {
+        "morphology": "Body wormlike with numerous annuli; legs strongly telescoped, highly reduced, or modified into hooks. Parasites in the hair follicles, dermal glands, or subdermal regions of mammals.",
+        "advances_to": "Family: Demodicidae"
+      },
+      "option_b": {
+        "morphology": "Body oval, flattened; legs I-II well developed, legs III-IV well developed or reduced. Skin parasites of mammals, birds, and reptiles.",
+        "advances_to": "Node 55"
+      }
+    },
+    "55": {
+      "option_a": {
+        "morphology": "All legs ending in paired lateral claws and padlike or bilobed empodia; femora I-IV each with a strong ventral spur. Parasites on the skin of mammals.",
+        "advances_to": "Family: Psorergatidae"
+      },
+      "option_b": {
+        "morphology": "Legs I-II with empodial tenent hairs and with or without lateral claws, legs III-IV without lateral claws or legs IV absent; femora I-IV without strong ventral spurs. Skin parasites under the feathers of birds or under the scales of reptiles.",
+        "advances_to": "Family: Harpirhynchidae"
+      }
+    },
+    "56": {
+      "option_a": {
+        "morphology": "Cheliceral bases fused into a subconical stylophore that is not consolidated with the subcapitulum; palpi pronounced, 3-segmented, extending well beyond other gnathosomatic extremities, and with well-developed apical claw. Female genital opening large, flanked by conspicuous pair of genital valves, and functioning in oviposition.",
+        "advances_to": "Node 57"
+      },
+      "option_b": {
+        "morphology": "Cheliceral stylophore consolidated with subcapitulum to form a capsulate gnathosoma; palpi reduced, usually with no more than 2 readily distinguishable nonarticulating segments, extending to or slightly beyond other gnathosomatic extremities, and with reduced or vestigial apical claw. Female genital opening usually small and not flanked by genital valves, usually functioning in insemination but rarely in oviposition.",
+        "advances_to": "Node 58"
+      }
+    },
+    "57": {
+      "option_a": {
+        "morphology": "Prodorsum of female and male with a pair of stigmata and associated tracheae, and a pair of capitate bothridial sensilla laterally. Tarsi II-IV with paired claws and a stalked empodium, tarsus I with paired claws and no empodium. Gnathosoma with 2 pairs of dorsal setae. Free living or associated with passalid beetles.",
+        "advances_to": "Family: Tarsocheylidae"
+      },
+      "option_b": {
+        "morphology": "Prodorsum of female only with a pair of stigmata and associated tracheae laterally and a pair of ampulliform organs posteromedially; male prodorsum lacking stigmata and tracheae, and with a pair of normal setae instead of ampulliform organs. Tarsi II-IV without claws but with large discoid empodium, tarsus I without claws or empodium. Gnathosoma without dorsal setae. Subelytral associates of passalid beetles.",
+        "advances_to": "Family: Heterocheylidae"
+      }
+    },
+    "58": {
+      "option_a": {
+        "morphology": "Legs IV of female with separate femur and genu, with total of 5-12 setae on tibia and tarsus, and often with paired claws and empodium; legs IV of male 5-segmented, with symmetrically or asymmetrically paired claws or single or vestigial claw.",
+        "advances_to": "Node 59"
+      },
+      "option_b": {
+        "morphology": "Legs IV of female, when present, typically with fused femur and genu, with total of 2-3 setae on tibia and tarsus, and without claws and empodium; legs IV of male, when present, usually 4-segmented, with a single sessile or vestigial claw.",
+        "advances_to": "Node 70"
+      }
+    },
+    "59": {
+      "option_a": {
+        "morphology": "Tarsus I with paired claws; trochanters of legs I, II, IV, and usually III, lacking setae. Females lacking the pair of stigmata and associated tracheae anterolaterally on prodorsum; female genital aperture exposed, either on genital plate and flanked by paired aggenital plates or flanked by paired valves bearing genital setae. Male legs IV with pretarsus, empodium, and paired or reduced claws like those on legs II-III.",
+        "advances_to": "Node 60"
+      },
+      "option_b": {
+        "morphology": "Tarsus I with single claw or without claws; trochanters of legs I-IV usually each with a seta. Females with the pair of stigmata and associated tracheae anterolaterally on prodorsum; female genital aperture covered by posterior margin of consolidated aggenital plate. Male legs IV with claws variously shaped but often different in form from those on legs II-III.",
+        "advances_to": "Node 61"
+      }
+    },
+    "60": {
+      "option_a": {
+        "morphology": "Prodorsum of females with a pair of expansive winglike processes that overlap with similar expansions of tergite C. Female genital aperture elongate, flanked by 4 pairs of readily visible genital setae. Tarsi II-IV lacking empodium between claws. Trochanter III with a seta; setation of genua I-II-III-IV, 5-4-3-1. Associates of carabid beetles.",
+        "advances_to": "Family: Crotalomorphidae"
+      },
+      "option_b": {
+        "morphology": "Prodorsum and tergite C of females normal in form, without winglike expansions. Female genital aperture small, flanked by 1-3 pairs of minute or vestigial genital setae, or these absent. Tarsi II-IV with smooth flexible empodium between claws. Trochanter III without a seta; setation of genua I-II-III-IV, maximally 2-1-1-1. Free living or associated with insects.",
+        "advances_to": "Family: Dolichocybidae"
+      }
+    },
+    "61": {
+      "option_a": {
+        "morphology": "Trochanter IV quadrangular, generally longer than wide, different in form from subtriangular trochanter III. Female pharynx divided into 2 or 3 muscular sections. Male gnathosoma reduced, tubiform, lacking chelicerae and palpi. Larval instar active.",
+        "advances_to": "Node 62"
+      },
+      "option_b": {
+        "morphology": "Trochanter IV subtriangular, similar in form to trochanter III, or, if compressed and subquadrangular, then as wide as or wider than long. Female pharynx large, muscular, undivided. Male gnathosoma not reduced to tubiform appendage, chelicerae and palpi present. Larval instar usually inactive, calyptostatic.",
+        "advances_to": "Node 65"
+      }
+    },
+    "62": {
+      "option_a": {
+        "morphology": "Prodorsum of females not covered posteriorly by tergite C and usually with 3 pairs of setiform setae (v1 and usually v2 present). Coxisternal plates I-II together with 4-6 pairs of setae. Femur I usually with 4 setae. Male aedeagus usually relatively short, stiff.",
+        "advances_to": "Node 63"
+      },
+      "option_b": {
+        "morphology": "Prodorsum of females usually covered to greater or lesser extent by tergite C and with 1-2 pairs of setiform setae (v1 and sometimes v2 absent). Coxisternal plates I-II together with maximum of 4 pairs of setae. Femur I with 3 setae. Male aedeagus relatively long, flexible, curved, or looped.",
+        "advances_to": "Node 64"
+      }
+    },
+    "63": {
+      "option_a": {
+        "morphology": "Femur I of females with all setae slender, attenuate (seta d setiform). Coxisternal plates I-II together usually with 4 pairs of setae. Prodorsum of females with stigmata often extended into longitudinal grooves (peritremes). Plant, fungus associates.",
+        "advances_to": "Family: Siteroptidae"
+      },
+      "option_b": {
+        "morphology": "Femur I of females with seta d thickened, rigid, and bladelike, rodlike, or hooked. Coxisternal plates I-II together with 4-6 pairs of setae. Prodorsum of females with stigmata round or oval, not extended into elongate grooves. Free living or associated with fungi, insects, and animal nests.",
+        "advances_to": "Family: Pygmephoridae"
+      }
+    },
+    "64": {
+      "option_a": {
+        "morphology": "Tergite C of females expansive, covering prodorsum completely forming a roof over gnathosoma; prodorsum usually with 2 pairs of short setiform setae (covered, often difficult to discern). Idiosoma broadly oval or rounded, compact, with distance between insertions of legs II-III usually similar to that between legs III-IV. Femur I with seta d short, stout, usually branched. Male aedeagal tube apparently annulated or striated. Free living or associated with insects and animal nests.",
+        "advances_to": "Family: Scutacaridae"
+      },
+      "option_b": {
+        "morphology": "Tergite C of females covering posterior region of prodorsum to variable extent, not covering entire prodorsum and gnathosoma; prodorsum with usually 1 pair of setiform setae, a 2nd pair (v2) rudimentary or absent. Idiosoma oval, distance between insertions of legs II and III at least twice that between legs III and IV. Femur I with seta d attenuated, smooth or barbed. Male aedeagal tube apparently smooth. Free living or associated with insects and animal nests.",
+        "advances_to": "Family: Microdispidae"
+      }
+    },
+    "65": {
+      "option_a": {
+        "morphology": "Coxisternal plates I-II together with usually 6 pairs of setae. Femur I and genu I each with 5 setae. Female gnathosomatic capsule with palpi prominent, extending slightly beyond apex of stylophore. Males with incompletely formed caudal genital capsule, with exposed setigenous processes.",
+        "advances_to": "Node 66"
+      },
+      "option_b": {
+        "morphology": "Coxisternal plates I-II together with maximally 4 pairs of setae. Femur I and genu I each with 3 or usually 4 setae. Female gnathosomatic capsule with palpi usually somewhat reduced or poorly delineated, usually not extending beyond apex of stylophore. Males with fully formed caudal or ventrocaudal genital capsule, with retractable setigenous processes.",
+        "advances_to": "Node 67"
+      }
+    },
+    "66": {
+      "option_a": {
+        "morphology": "Prodorsum of females with anterior pair of vertical setae inserted posterior to stigmata; aggenital plate with 1 pair of setae; tergite EF with setae e and f aligned transversely; caudal plate PS rounded posteriorly, without a caudal protrusion. Male gnathosoma reduced, lacking chelicerae and delineated palpi; male leg I lacking claws. Associated with bees.",
+        "advances_to": "Family: Trochometridiidae"
+      },
+      "option_b": {
+        "morphology": "Prodorsum of females with anterior pair of vertical setae inserted anterior or medial to stigmata; aggenital plate with 2 or 3 pairs of setae; tergite EF with setae e and f aligned longitudinally; caudal plate PS with a caudally protruding process. Males unknown. Associated with beetles.",
+        "advances_to": "Family: Athyreacaridae"
+      }
+    },
+    "67": {
+      "option_a": {
+        "morphology": "Females with gnathosomatic capsule large, clearly wider than long. Female coxisternal plates I with a pair of discoid adhesive structures. Female legs I lacking claws, smaller than legs II-IV; legs IV with tibia and tarsus at least partially fused, and with reduced claws. Associated with carabid beetles.",
+        "advances_to": "Family: Caraboacaridae"
+      },
+      "option_b": {
+        "morphology": "Females with gnathosomatic capsule of normal or reduced size, no wider than long. Female coxisternal plates I lacking discoid structures. Female legs I with or without a single claw, similar in size to legs II-IV; legs IV with tibia and tarsus separate, and with paired claws if these present on legs II-III.",
+        "advances_to": "Node 68"
+      }
+    },
+    "68": {
+      "option_a": {
+        "morphology": "Prodorsum of females lacking bothridia and bothridial setae. Coxisternal plates I-II together with maximally 2 pairs of setae. Gnathosoma somewhat hypognathous, enclosed and partly hidden in propodosomatic camerostome; palpi not differentiated from lateral walls of gnathosoma. Male genital capsule ventrocaudal in position. Parasitoids of insect eggs.",
+        "advances_to": "Family: Acarophenacidae"
+      },
+      "option_b": {
+        "morphology": "Prodorsum of females with pair of bothridia and capitate bothridial setae. Coxisternal plates I and II together with 4 pairs of setae. Gnathosoma prognathous, well exposed from propodosoma; palpi delineated from lateral walls of gnathosoma. Male genital capsule caudal in position.",
+        "advances_to": "Node 69"
+      }
+    },
+    "69": {
+      "option_a": {
+        "morphology": "Female coxisternal plates III-IV separated from each other medially by soft cuticle that bears a separate triangular sternal plate. Male legs IV differentiated from legs II-III in being somewhat stouter and ending with a single sessile claw. Parasitoids of immature insects.",
+        "advances_to": "Family: Pyemotidae"
+      },
+      "option_b": {
+        "morphology": "Female coxisternal plates III-IV united medially, effacing separate medial plate. Male legs III differentiated from legs II and IV in being somewhat stouter and having a large, spurlike tarsal process. Associated with insects.",
+        "advances_to": "Family: Resinacaridae"
+      }
+    },
+    "70": {
+      "option_a": {
+        "morphology": "Females always with 4 pairs of legs; legs IV 3-segmented, usually much more slender than legs II-III. Males always with 4 pairs of legs; legs IV 3- or 4-segmented, always inserted ventrally; male genital capsule caudal in position. Free living or plant, fungus, or insect associates.",
+        "advances_to": "Family: Tarsonemidae"
+      },
+      "option_b": {
+        "morphology": "Females typically with 1-3 pairs of legs; legs IV, if present, 5-segmented and more slender than legs II-III. Males with 3 or 4 pairs of legs; legs IV, if present, 5-segmented and inserted ventrally or reduced and inserted dorsally; male genital capsule caudal or dorsal in position. Parasites of insects.",
+        "advances_to": "Family: Podapolipidae"
+      }
+    }
+  },
+  "Key_to_Families_of_Sejida": {
+    "1": {
+      "option_a": {
+        "morphology": "Corniculi large, bifurcate; chelicerae massive, with few coarse teeth and lacking pilus dentilis; idiosomatic shields with scalelike ornamentation; anal opening enlarged.",
+        "advances_to": "Family: Ichthyostomatogasteridae"
+      },
+      "option_b": {
+        "morphology": "Corniculi small, horn shaped; chelicerae moderate in size, denticulate, and with setiform pilus dentilis; idiosomatic shields tuberculate to coarsely reticulate; anal opening small.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Apex of podonotum produced into a spiky knob; cheliceral digits with few teeth; female epigynal shield subrectangular, with numerous setae irregularly inserted over most of surface; opisthonotum of female with a pair of lateral shields and a pygidial shield that extends onto the mesonotal region and lacking hornlike processes posteriorly.",
+        "advances_to": "Family: Uropodellidae"
+      },
+      "option_b": {
+        "morphology": "Apex of podonotum without spiky knob; cheliceral digits serrate; female epigynal shield with 1-6 pairs of setae inserted laterally; opisthonotum of female without lateral shields but with 1 or more mesonotal shields and a pygidial shield that often has a pair of posterior, hornlike processes bearing setae.",
+        "advances_to": "Family: Sejidae"
+      }
+    }
+  },
+  "Key_to_Families_of_Trigynaspida": {
+    "1": {
+      "option_a": {
+        "morphology": "Adult female with separate podonotal, mesonotal, and pygidial shields (sometimes obscured by leathery, secondary sclerotization).",
+        "advances_to": "Node 2"
+      },
+      "option_b": {
+        "morphology": "Adult female with holonotal (entire) shield or with separate podonotal and opisthonotal shields.",
+        "advances_to": "Node 3"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Mesonotum with a single, large shield; pygidial shield small, on tail-like posterior process; metapodal shields and peritremes absent; female with well-developed and tapering vaginal sclerites. On Neotropical millipedes.",
+        "advances_to": "Family: Neotenogyniidae"
+      },
+      "option_b": {
+        "morphology": "With a pair of mesonotal shields and a well-developed pygidial shield; free metapodal shields present, distinct in teneral or lightly sclerotized adults but often obscured by secondary leathery cuticle; peritremes present and well developed; female with a pair of straplike internal genital plates with numerous large pores. Free living.",
+        "advances_to": "Family: Davacaridae"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Often yellowish to light brown in color; weakly to strongly sclerotized and with a holodorsal shield or separate podonotal and opisthonotal shields; palpgenu with 6 setae; gnathotectum denticulate, usually not coming to point and without median keel; tritosternal laciniae usually fused for half or more of length, often rodlike; chelicerae toothed; large internal sclerites in genital region absent; tarsus I with or without claws. Free living or associated with arthropods.",
+        "advances_to": "Node 4"
+      },
+      "option_b": {
+        "morphology": "Often dark reddish brown in color; strongly sclerotized and with a holodorsal shield; palpgenu with 5-7 setae; gnathotectum usually smooth, with median spur and ventral keel; tritosternal laciniae usually free; chelicerae toothed or edentate; vaginal sclerites or sternovaginal processes often present; tarsus I without claws. Associated with arthropods or reptiles.",
+        "advances_to": "Node 9"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "Adults with a holodorsal shield.",
+        "advances_to": "Node 6"
+      },
+      "option_b": {
+        "morphology": "Adults with separate podonotal and opisthonotal shields.",
+        "advances_to": "Node 5"
+      }
+    },
+    "5": {
+      "option_a": {
+        "morphology": "Dorsal shields with relatively few setae; lateral idiosomal setae on marginal shields, not on platelets in soft cuticle; ventrianal shield fused posteriorly to opisthonotal and marginal shields; tarsus I with or without claws.",
+        "advances_to": "Family: Pyrosejidae"
+      },
+      "option_b": {
+        "morphology": "Dorsal shields strongly hypertrichous; lateral idiosomal setae on platelets in soft cuticle; ventrianal shield free posteriorly; tarsus I without claws.",
+        "advances_to": "Family: Cercomegistidae"
+      }
+    },
+    "6": {
+      "option_a": {
+        "morphology": "Female with separate latigynal and mesogynal shields.",
+        "advances_to": "Node 8"
+      },
+      "option_b": {
+        "morphology": "Latigynal and mesogynal shields fused, contiguous, or coalesced.",
+        "advances_to": "Node 7"
+      }
+    },
+    "7": {
+      "option_a": {
+        "morphology": "Latigynal and mesogynal shields insensibly fused into intercoxal shield; ventrianal shield fused to holodorsal shield posteriorly; plicate ventral cuticle without setae; tarsus I with claws.",
+        "advances_to": "Family: Seiodidae"
+      },
+      "option_b": {
+        "morphology": "Latigynal shields free medially but fused posterolaterally to mesogynal-opisthoventrianal shield, which is free from holodorsal shield posteriorly; plicate ventral cuticle with setae; tarsus I without claws. Associated with crabs.",
+        "advances_to": "Family: Cercomegistidae"
+      }
+    },
+    "8": {
+      "option_a": {
+        "morphology": "Anterior sternal area occupied by sclerotized sternal shield bearing st1 and st2; anal opening in small shield bearing only paranal setae; legs IV hypertrophied, modified for jumping; peritrematic shields with longitudinal groove behind coxae IV.",
+        "advances_to": "Family: Saltiseiidae"
+      },
+      "option_b": {
+        "morphology": "Anterior sternal region desclerotized, fragmented, st1 in soft or lightly sclerotized cuticle; anal opening in large ventrianal shield; legs IV normal; peritrematic shields without longitudinal groove behind coxae IV.",
+        "advances_to": "Family: Asternoseiidae"
+      }
+    },
+    "9": {
+      "option_a": {
+        "morphology": "Chelicerae edentate or with minute serrations or baleenlike comb.",
+        "advances_to": "Node 10"
+      },
+      "option_b": {
+        "morphology": "Chelicerae with well-developed, sclerotized teeth.",
+        "advances_to": "Node 18"
+      }
+    },
+    "10": {
+      "option_a": {
+        "morphology": "Fixed digit of chelicera without excrescence or membranous process; sternal shield with or without internal sternovaginal processes; latigynal shields usually extensively overlapping mesogynal region. Associated with ants.",
+        "advances_to": "Node 14"
+      },
+      "option_b": {
+        "morphology": "Fixed digit with fringed excrescence or distally membranous-denticulate or with row of small teeth; sternal shield without sternovaginal sclerites; latigynal shields various but not overlapping mesogynal shield. Associated with reptiles, beetles, or myriapods.",
+        "advances_to": "Node 11"
+      }
+    },
+    "11": {
+      "option_a": {
+        "morphology": "Fixed digit with dorsal excrescence; anal opening in small shield with 1-3 pairs of setae; mesogynal shield bearing lateral setae. Associated with carabid beetles, centipedes, or millipedes.",
+        "advances_to": "Family: Parantennulidae"
+      },
+      "option_b": {
+        "morphology": "Fixed digit without dorsal excrescence, but terminating distally in denticulate, membranous process; anal opening in large ventral or ventrianal shield with numerous setae; mesogynal shield nude or fused to setose ventral elements. Associated with beetles, myriapods, or reptiles.",
+        "advances_to": "Node 12"
+      }
+    },
+    "12": {
+      "option_a": {
+        "morphology": "Dorsal shield entire; anal opening in large ventral shield; mesogynal shield free or fused to ventral elements; setae av4, pv4 reduced in size, often minute. Associated with beetles, myriapods, or reptiles.",
+        "advances_to": "Node 13"
+      },
+      "option_b": {
+        "morphology": "Dorsal shield divided; anal opening in straplike ventrianal shield; mesogynal shield absent; setae av4, pv4 normally developed. Associated with tenebrionid beetles.",
+        "advances_to": "Family: Philodanidae"
+      }
+    },
+    "13": {
+      "option_a": {
+        "morphology": "Sternal shield entire, bearing st1-st3 and sternal pores 1-2; pregenital shield fusiform and without sternal pores 3 (pseudosternogynum); palpgenu with 6 setae. Associated with carabid or passalid beetles.",
+        "advances_to": "Family: Promegistidae"
+      },
+      "option_b": {
+        "morphology": "Sternal shield variously divided; pregenital shield divided into two subtriangular shields, sometimes narrowly joined medially and bearing sternal pores 3 (sternogynum); palpgenu with 7 setae. Associated with carabid beetles, millipedes, or reptiles.",
+        "advances_to": "Family: Paramegistidae"
+      }
+    },
+    "14": {
+      "option_a": {
+        "morphology": "Sternal shield with a pair of sternovaginal sclerites; ventrianal shield without anterior process.",
+        "advances_to": "Node 15"
+      },
+      "option_b": {
+        "morphology": "Sternal shield without sternovaginal sclerites; ventrianal shield with anterior process.",
+        "advances_to": "Family: Antennophoridae"
+      }
+    },
+    "15": {
+      "option_a": {
+        "morphology": "Latigynal shields subrectangular, with parallel, approximate mesal margins; mesogynal shield obscured or absent.",
+        "advances_to": "Family: Messoracaridae"
+      },
+      "option_b": {
+        "morphology": "Latigynal shields subtriangular, margins diverging posteriorly; mesogynal shield well developed, subtriangular.",
+        "advances_to": "Node 16"
+      }
+    },
+    "16": {
+      "option_a": {
+        "morphology": "Latigynal shields each with 2 pairs of setae; pseudoperitreme present lateral and posterior to true peritreme.",
+        "advances_to": "Family: Aenictequidae"
+      },
+      "option_b": {
+        "morphology": "Latigynal shields each with 10 or more pairs of setae; pseudoperitreme absent.",
+        "advances_to": "Node 17"
+      }
+    },
+    "17": {
+      "option_a": {
+        "morphology": "Setae st1 and associated pores on separate anterior platelets (jugularia).",
+        "advances_to": "Family: Ptochacaridae"
+      },
+      "option_b": {
+        "morphology": "Setae st1-st3 (4) and pores on an entire sternal shield.",
+        "advances_to": "Family: Physalozerconidae"
+      }
+    },
+    "18": {
+      "option_a": {
+        "morphology": "Setae st1 on separate shield from st2-st3; well-developed sternogynum (entire or divided, and sometimes setose) present; movable digit of chelicera without enlarged proximal tooth; movable digit of male without sclerotized process. Associated with passalid beetles (rarely on carabid beetles).",
+        "advances_to": "Node 19"
+      },
+      "option_b": {
+        "morphology": "Setae st1 on same shield as st2-st3; sternogynum absent (free metasternal plates sometimes present); movable digit of chelicera with enlarged proximal tooth; movable digit of male with sclerotized excrescence. Free living or associated with a variety of arthropods or reptiles.",
+        "advances_to": "Node 22"
+      }
+    },
+    "19": {
+      "option_a": {
+        "morphology": "Cheliceral digits short, with moplike mass of long, filamentous, and ribbonlike excrescences; uropodid-like mites often with pedofossae.",
+        "advances_to": "Node 20"
+      },
+      "option_b": {
+        "morphology": "Cheliceral digits robust, with dendritic or brushlike excrescences; very large, long-legged mites without pedofossae.",
+        "advances_to": "Node 21"
+      }
+    },
+    "20": {
+      "option_a": {
+        "morphology": "Latigynal and mesogynal shields well developed; male genital aperture ellipsoidal, between coxae III.",
+        "advances_to": "Family: Klinkowstroemiidae"
+      },
+      "option_b": {
+        "morphology": "Latigynal and mesogynal shields reduced and hidden by ventral plate; male genital aperture subcircular, between coxae II-III.",
+        "advances_to": "Family: Fedrizziidae"
+      }
+    },
+    "21": {
+      "option_a": {
+        "morphology": "Sternogynum narrow, divided; fused latigynal shields free from ventral shield. Neotropical.",
+        "advances_to": "Family: Hoplomegistidae"
+      },
+      "option_b": {
+        "morphology": "Sternogynum broad, divided, or entire and surrounded by straplike, fused sternal-latigynal-ventral shield. Neotropical, African, and Australasian.",
+        "advances_to": "Family: Megisthanidae"
+      }
+    },
+    "22": {
+      "option_a": {
+        "morphology": "Mesogynal shield usually small, triangular, overlapped marginally by latigynals, and free from or fused to ventral plate; latigynal shields well developed and freely hinged to ventral plate.",
+        "advances_to": "Node 23"
+      },
+      "option_b": {
+        "morphology": "Mesogynal shield fused to ventral plate, free from or fused to latigynal elements; latigynals insensibly fused to ventral plate or extended posteriorly to coxae IV and narrowly joined to ventral plate.",
+        "advances_to": "Node 25"
+      }
+    },
+    "23": {
+      "option_a": {
+        "morphology": "Anal opening on small plate separate from ventral plate. Free living or associated with insects or myriapods.",
+        "advances_to": "Node 24"
+      },
+      "option_b": {
+        "morphology": "Anal opening on large ventral plate. Adults associated with arthropods or snakes.",
+        "advances_to": "Family: Diplogyniidae"
+      }
+    },
+    "24": {
+      "option_a": {
+        "morphology": "Free ventromarginal plates present. Free living in soil litter, on bark, in bark beetle galleries, or in the nests of stingless bees; rarely on beetles.",
+        "advances_to": "Family: Triplogyniidae"
+      },
+      "option_b": {
+        "morphology": "Free ventromarginal plates absent. Associated with millipedes.",
+        "advances_to": "Family: Costacaridae"
+      }
+    },
+    "25": {
+      "option_a": {
+        "morphology": "Latigynal-mesogynal complex insensibly fused, with at most a small median notch present on anterior margin of ventral-genital plate; metasternal setae on sternal shield or on well-developed metasternal plates. Free living or associated with bark beetles.",
+        "advances_to": "Node 26"
+      },
+      "option_b": {
+        "morphology": "Latigynal and mesogynal elements free from each other mesally; metasternal setae on sternal shield or on narrow, straplike plate or plates. Associated with a variety of arthropods or snakes.",
+        "advances_to": "Node 27"
+      }
+    },
+    "26": {
+      "option_a": {
+        "morphology": "Setae st4 on large, well-developed metasternal plates; endopodal-peritrematic shields fused to ventral plate. Associated with bark and bark beetles.",
+        "advances_to": "Family: Celaenopsidae"
+      },
+      "option_b": {
+        "morphology": "Setae st4 on sternal shield; endopodal-peritrematic shields fused but free from ventral plate. Free living.",
+        "advances_to": "Family: Megacelaenopsidae"
+      }
+    },
+    "27": {
+      "option_a": {
+        "morphology": "Median separations between mesogynal and latigynal elements not extending past level of coxae III. Associated with passalid beetles and millipedes.",
+        "advances_to": "Family: Euzerconidae"
+      },
+      "option_b": {
+        "morphology": "Latigynal elements elongate, separate from mesogynal element to or beyond level of coxae IV. Associated with beetles or snakes.",
+        "advances_to": "Family: Schizogyniidae"
+      }
+    }
+  },
+  "Key_to_Families_of_Monogynaspida": {
+    "1": {
+      "option_a": {
+        "morphology": "Adult opisthogaster with a pair of distinctive, suckerlike adhesive organs (secondarily lost in some species); tarsus I of adults with acrotarsus; sternal shield of female often fragmented and reduced, represented by lateral remnants that are contiguous with endopodal plates; sternal pores 2-3 usually absent; male chelicerae with sperm transfer process arising on the fixed or the movable digit.",
+        "advances_to": "Node 2"
+      },
+      "option_b": {
+        "morphology": "Adult opisthogaster without adhesive organs; tarsus I of adults usually without acrotarsus; sternal shield of female usually well developed or, if reduced, not as described above; sternal pores 2-3 usually present; male sperm transfer process, when present, always arising on the movable digit.",
+        "advances_to": "Node 3"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Genua III-IV each with 10 setae, including 3 posterodorsals (2 2/1 3/1 1); male with spermatostylus arising on fixed cheliceral digit. Associated with millipedes and snakes.",
+        "advances_to": "Family: Heterozerconidae"
+      },
+      "option_b": {
+        "morphology": "Genua III-IV each with 8-9 setae, including two posterodorsals (2 2/1, 2/1 1 or 2 2/1, 2/1 0); male with spermatodactyl arising on movable cheliceral digit. Associated with scolopendrine centipedes.",
+        "advances_to": "Family: Discozerconidae"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Female and male wormlike, hypertrichous, pseudosegmented, without idiosomatic sclerites; fixed cheliceral digit greatly reduced, male spermatodactyl entirely fused to reduced movable digit. Associated with army ants.",
+        "advances_to": "Family: Larvamimidae"
+      },
+      "option_b": {
+        "morphology": "Females and males without above combination of characters.",
+        "advances_to": "Node 4"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "Female with sternal setae st1-2 and st3-4 on separate shields, or all sternal setae on separate shields; male with sternitigenital shield bearing 4 pairs of sternal setae and a mid-sternal genital opening, and with sternal setae st5 on or near a separate plate between coxae IV, which is rarely fused posteriorly with expansive circumventral shield; idiosomatic dorsum of adults with podonotal, mesonotal, pygidial, and rarely marginal shields. Free living in litter, rotten wood.",
+        "advances_to": "Node 5"
+      },
+      "option_b": {
+        "morphology": "Female with arrangement of sternal setae and shields not as above; male with sternitigenital or holoventral shield usually bearing all 5 or more pairs of sternal setae (rarely without st4) and a presternal or mid-sternal genital opening, or, if sternal setae st5 on or near a separate plate, then genital opening presternal; idiosomatic dorsum of adults with 1-2 shields or, if mesonotal and pygidial elements present, then male with genital opening presternal.",
+        "advances_to": "Node 7"
+      }
+    },
+    "5": {
+      "option_a": {
+        "morphology": "Idiosomatic venter of adult with expansive circumventral shield incorporating ventrianal, peritrematic, and exopodal shields and bearing laterally on either side a dense row of 20-26 ventrolateral setae, 6-9 spoutlike glandular openings, and a sparser row of 12-13 setae above these glands. Idiosomatic dorsum of female covered by large anteromedian shield incorporating podonotal and mesonotal elements and flanked by a marginal plate on either side and 3 pygidial plates posteriorly. Dorsum of male with fused podonotal-marginal shield anteriorly, separate mesonotal and broad marginal shields medially, and 3 pygidial plates posteriorly; stigmata lacking peritremes; legs I with 13 setae on each of femur, genu, and tibia, including 5 dorsals on femur and 6 dorsals on genu and tibia.",
+        "advances_to": "Family: Heatherellidae"
+      },
+      "option_b": {
+        "morphology": "Idiosomatic venter of adult with ventrianal shield surrounded by soft cuticle separating it from peritrematic and expodal shields, without a dense row of ventrolateral setae and spoutlike glandular openings. Idiosomatic dorsum of female and male with podonotal, 1-2 mesonotal shields and 1 pygidial shield, lacking marginal shields; stigmata with peritremes; legs I with 10 setae, including 4 dorsals, on each of femur, genu, and tibia.",
+        "advances_to": "Node 6"
+      }
+    },
+    "6": {
+      "option_a": {
+        "morphology": "Podonotal shield with 16-22 pairs of setae; mesonotal region with 1-2 plates bearing setae; pygidial shield with setae; tarsus I with claws; palpi with 5 free segments, tibia and tarsus separate.",
+        "advances_to": "Family: Microgyniidae"
+      },
+      "option_b": {
+        "morphology": "Podonotal shield with 9-10 pairs of setae; mesonotal region with 4 suboval platelets that lack setae; pygidial shield without setae; tarsus 1 without claws; palpi with 4 free segments, tibia and tarsus fused.",
+        "advances_to": "Family: Nothogyniidae"
+      }
+    },
+    "7": {
+      "option_a": {
+        "morphology": "Epigynal shield of female flask or wedge shaped or subtriangular, often extending into the opisthogastric region and bearing setae st5 or flanked by those setae in the postcoxal region; epigynal shield reduced or obliterated in some endoparasitic groups; shield usually not surrounded by fused sternal-endopodal-ventral elements; adults with 1-2 dorsal shields, lacking marginal shields or their platelets; peritreme typically linear, sometimes reflexed anteriorly or posteriorly, rarely vestigial; tritosternal base cylindrical or flattened, never subrectangular or columnar; femur IV of deutonymph and adult typically with 6 setae.",
+        "advances_to": "Node 8"
+      },
+      "option_b": {
+        "morphology": "Epigynal shield of female oval, subtriangular, or tongue shaped, usually nude and partially or entirely enclosed by fused sternal-endopodal-ventral shielding bearing sternal setae 1-5 (st5 rarely on separate shields that may be partially fused to epigynal shield) and usually confined to the podosomatic region, rarely displaced posteriorly or fused with ventral elements; adults with 1 to several dorsal shields, marginal shields or platelets generally present; peritreme often sinuous, sometimes on hornlike projections, rarely vestigial; tritosternal base often enlarged, subrectangular or columnar; femur IV of deutonymph and adult with 7-8 setae (if only 6 setae are present, then hypostomatic setae h2 and h3 longitudinally aligned).",
+        "advances_to": "Node 44"
+      }
+    },
+    "8": {
+      "option_a": {
+        "morphology": "Genua III and IV each with 10 setae, including 2 posterolaterals on genu III (2 2/1, 2/1 2) and 1 posteroventral on genu IV (2 2/1, 3/1 1); female epigynal shield lacking expanded hyaline rim anteriorly; male lacking cheliceral sperm-transferring appendages and with mid-sternal genital opening; peritremes often short or vestigial on adults.",
+        "advances_to": "Node 9"
+      },
+      "option_b": {
+        "morphology": "Genua III and IV each commonly with 9 or fewer setae, including 1 posterolateral on genu III (2 2/1, 2/1 1) and no posteroventral on genu IV (2 2/1, 3/0 1) but with 10 setae, including 2 posterolaterals on III and a posteroventral on IV, in PARASITIDAE and VEIGAIIDAE; female epigynal shield with hyaline rim usually expanded anteriorly to often reach or overlap posterior edge of sternal shield; male chelicerae with a sperm transfer appendage on movable digit and with presternal genital opening; adult peritremes variously developed, often extending anteriorly to or beyond insertions of coxae II.",
+        "advances_to": "Node 12"
+      }
+    },
+    "9": {
+      "option_a": {
+        "morphology": "Tritosternum with rudimentary laciniae; peritremes vestigial or absent in deutonymph and adult; adult with dorsal shield entire, distinctively tuberculate-reticulate; legs I elongated, their tarsi with several long minutely clubbed setae and lacking ambulacrum and paired claws; peripodomeric suture of tarsi II-IV with or without a dorsal intercalary sclerite bearing 2 setae. Free living, Northern Hemisphere.",
+        "advances_to": "Family: Epicriidae"
+      },
+      "option_b": {
+        "morphology": "Tritosternum with well-developed laciniae; peritremes well developed in deutonymph, often reduced in length in adult; adult with dorsal shield entire or more commonly divided into well-developed podonotal and opisthonotal shields, the latter rarely absent in female; legs I not elongated, without long, minutely clubbed setae, and with or without ambulacrum and paired claws; peripodomeric suture of tarsi II-IV without intercalary sclerite.",
+        "advances_to": "Node 10"
+      }
+    },
+    "10": {
+      "option_a": {
+        "morphology": "Adult dorsal shield abbreviated and leaving posterior one-fourth to one-half of idiosoma uncovered in female but covering entire dorsum in male; female epigynal shield without setae but flanked by 2 pairs of setae in soft integument; male ventrianal shield free caudally from posterior margin of dorsal shield; peritremes well developed in deutonymph and adult, extending to level of bases of legs I or II; palptarsal apotele 3-tined. Free living in high northern latitudes and altitudes.",
+        "advances_to": "Family: Arctacaridae"
+      },
+      "option_b": {
+        "morphology": "Adult with separate, well-developed podonotal and opisthonotal shields, the latter rarely absent in female; female epigynal shield with 1 pair of setae and not flanked by setae in soft integument; male ventrianal shield usually fused caudally with posterior margin of dorsal shield; peritremes well developed in deutonymph, usually reduced in length in adult and usually extending at most to level of bases of legs III, rarely to legs II; palptarsal apotele 2-tined.",
+        "advances_to": "Node 11"
+      }
+    },
+    "11": {
+      "option_a": {
+        "morphology": "Female, male, and deutonymph with podonotal and opisthonotal shields well developed, those of adult ornamented and expanded laterally so as to bear the marginal setae along their usually serrated margins; opisthonotal shield of deutonymph and adult fused caudally with ventrianal shield and often with a transverse row of 4 (sometimes coalesced to 3 or 2) clearly defined fossae near posterior margin. Male genital opening between coxae II-III; female and male with a broad ventrianal shield; adult peritremes often short but rarely reduced to size of stigmata. Free-living predators, Northern Hemisphere.",
+        "advances_to": "Family: Zerconidae"
+      },
+      "option_b": {
+        "morphology": "Female with podonotal shield unornamented, reduced in extent so as not to bear the marginal setae, and lacking shield on opisthonotum, leaving setae inserted on soft cuticle; deutonymph and male with podonotal and opisthonotal shields well developed and ornamented but free caudally from ventral shields, those of male expanded laterally so as to bear the marginal setae along their smooth margins; opisthonotum lacking well-defined muscle-insertion fossae. Male genital opening between coxae II; female with an anal shield and male with a narrow ventrianal shield; adult peritremes reduced to size of stigmata. Cavernicoles.",
+        "advances_to": "Family: Coprozerconidae"
+      }
+    },
+    "12": {
+      "option_a": {
+        "morphology": "Female with sternal setae st4 inserted on large metasternal plates flanking an anteriorly acuminate epigynal shield anterolaterally; female sperm access system opening via an unpaired, usually strongly developed endogynum beneath epigynal shield, often with ancillary sclerotized processes. Male chelicera with a spermatotreme, a sperm-holding process that is coalesced distally with movable digit; males usually with highly developed, sexually dimorphic, spinelike setae, spurs, and apophyses on legs II. Predators, free living or associated with insects.",
+        "advances_to": "Family: Parasitidae"
+      },
+      "option_b": {
+        "morphology": "Female with sternal setae st4 inserted on small metasternal plates or on soft integument or on posterolateral corners of sternal shield; female sperm access system opening by pair of small solenostomes in region of coxae III or IV. Male chelicera with a spermatodactyl, a sperm-holding process that projects distally, usually free from movable digit; males with or without sexually dimorphic structures on legs II.",
+        "advances_to": "Node 13"
+      }
+    },
+    "13": {
+      "option_a": {
+        "morphology": "Palptarsal apotele 3- or 4-tined and with adjacent hyaline scalelike process; hypostome with internal malae typically elaborated, fimbriated, often bilobed, and moustachelike; inguinal area usually with a cluster of gland pores behind posterior margin of legs IV; dorsal subapical sensory field of tarsus I with 2 adjacent sensilla fused basally and inserted together in common alveolus; genu IV with 10 setae, including 2 ventrals. Free-living predators.",
+        "advances_to": "Family: Veigaiidae"
+      },
+      "option_b": {
+        "morphology": "Palptarsal apotele 2- or 3-tined and lacking adjacent hyaline process, or rarely if with such a process, then apotele 2-tined; hypostome with internal malae usually unmodified and lightly fringed; inguinal area with or without a single gland pore behind posterior margin of legs IV; dorsal subapical sensory field of tarsus I lacking fusion of any two adjacent sensilla; genu IV with maximally 9 or rarely 10 setae, including 1 or rarely 2 ventrals.",
+        "advances_to": "Node 14"
+      }
+    },
+    "14": {
+      "option_a": {
+        "morphology": "Female sternal shield usually fused with metasternal plates so as to include 4th pair of sternal setae but with metasternal elements free and with separated endopodal fragments in HALOLAELAPIDAE; female epigynal shield separate from ventrianal or anal shield; male with holoventral shield or separate sternitigenital and ventrianal shields, when separate, anterolateral margins of ventrianal shield often incised or eroded, and posterolateral margins often fused caudally with posterior margin of dorsal shielding; microtrichia of postanal cribrum sometimes extending onto posterior margin of dorsal shield.",
+        "advances_to": "Node 15"
+      },
+      "option_b": {
+        "morphology": "Female sternal shield usually not fused with metasternal plates, leaving 4th pair of sternal setae free on soft integument or on metasternal plates that are free or attached to endopodal plates; if sternal setae st4 on endopodal-metapodal plates that are incorporated with sternal shield (as in PACHYLAELAPIDAE), then epigynal shield expanded into a genitiventral shield; male with holoventral shield or separate sternitigenital and ventrianal shields; when separate, anterolateral margins of ventrianal shield intact, and posterolateral margins free caudally from posterior margin of dorsal shielding; microtrichia of cribrum confined to postanal region of anal or ventrianal shield.",
+        "advances_to": "Node 19"
+      }
+    },
+    "15": {
+      "option_a": {
+        "morphology": "Fixed and movable digits of chelicerae elongate and attenuate, each with 1-3 retrorse teeth; corniculi narrow, acicular; stigmata with vestigial peritremes; palpi 4-segmented, with fused tibia and tarsus; ambulacra of tarsi I-IV without claws; tarsus I with ventrally delineated acrotarsus. Associated with termites.",
+        "advances_to": "Family: Laelaptonyssidae"
+      },
+      "option_b": {
+        "morphology": "Fixed and movable cheliceral digits typically robust, not attenuate, with dentition variable but usually not retrorse; corniculi typically robust, hornlike; stigmata with peritremes usually well developed, rarely reduced; palpi 5-segmented, with separate tibia and tarsus; ambulacra of tarsi I-IV with claws, or leg I with ambulacra and claws reduced or absent; tarsus I without acrotarsus.",
+        "advances_to": "Node 16"
+      }
+    },
+    "16": {
+      "option_a": {
+        "morphology": "Dorsal shield of adults divided, the anterior shield usually with setal pair j2 nearly in transverse alignment with vertical and paravertical pairs j1 and z1, and usually with 2-4 distinctive sclerotic nodules in mid-posterior region (absent in Digamasellus and Longoseius); anterior portion of female sternal shield and of male sternitigenital shield weakly defined, usually carrying sternal setae st1; spermatodactyl of male often recurved basally.",
+        "advances_to": "Node 17"
+      },
+      "option_b": {
+        "morphology": "Dorsal shield of adults divided or entire, the anterior shield with setal pair j2 in usual position well behind vertical and paravertical pairs j1 and z1, and without sclerotic nodules; anterior portion of female sternal shield and male sternitigenital shield undifferentiated from more posterior portions; spermatodactyl of male not recurved basally.",
+        "advances_to": "Node 18"
+      }
+    },
+    "17": {
+      "option_a": {
+        "morphology": "Palptarsal apotele 2-tined; legs IV usually with 7 setae on genu (1 2/1, 2/0 1) and 7 on tibia (1 1/1, 2/1 1); male with sternal setae st5 on separate platelets. Predators, insect associates, and a few fungivores.",
+        "advances_to": "Family: Digamasellidae"
+      },
+      "option_b": {
+        "morphology": "Palptarsal apotele 3-tined; legs IV with 10 setae on genu (2 2/1, 3/1 1) and 10 on tibia (2 1/1, 3/1 2); male with sternal setae st5 on sternitigenital shield. Free-living soil predators.",
+        "advances_to": "Family: Rhodacaridae"
+      }
+    },
+    "18": {
+      "option_a": {
+        "morphology": "Exopodal elements generally distinct as sclerotized strips alongside coxae II-IV, endopodal elements usually present and fused with sternal shield in female and with sternitigenital shield in male; tibia IV typically with 10 setae (2 1/1, 3/1 2); tarsi II-IV without elongate dorsodistal setae. Free-living predators.",
+        "advances_to": "Family: Ologamasidae"
+      },
+      "option_b": {
+        "morphology": "Exopodal elements not developed, and endopodal elements absent or present as small pieces separate from sternal shield in female and from sternitigenital shield in male (except Halodarcia); tibia IV typically with 8 setae (2 1/1, 2/1 1); tarsi II-IV often with a pair of elongate, distally acuminate, dorsodistal setae that extend well beyond tarsal claws. Free-living and arthropod associates.",
+        "advances_to": "Family: Halolaelapidae"
+      }
+    },
+    "19": {
+      "option_a": {
+        "morphology": "Arthrodial envelope at base of movable digit of chelicerae with 1 or 2 plumose or filamentous processes or with a brush and an adjacent fringed coronet; female typically with an epigynal and a ventrianal shield (if anal shield is present, it is widely separated from epigynal shield); male typically with a holoventral shield.",
+        "advances_to": "Node 20"
+      },
+      "option_b": {
+        "morphology": "Arthrodial processes, if present, at base of movable cheliceral digit with at most a fringed coronet but without distinct filamentous or brushlike processes; female with an epigynal and an anal or a ventrianal shield, or rarely with a genitiventral shield narrowly separated from or fused with an anal shield; male with separate sternitigenital and ventrianal or anal shields or with a holoventral shield.",
+        "advances_to": "Node 21"
+      }
+    },
+    "20": {
+      "option_a": {
+        "morphology": "Peritremes generally looped proximally, joining the stigmata posteriorly; genu I usually with 2 ventral setae; tarsus I usually without claws; paired paradactyli of pretarsi II-IV usually broad and extending to apex of claws and divided or deeply serrated distally when observed obliquely; female with a pair of conspicuous accessory sclerites beneath the lateral margins of epigynal shield. Predators, free living or associated with insects.",
+        "advances_to": "Family: Macrochelidae"
+      },
+      "option_b": {
+        "morphology": "Peritremes normal, joining the stigmata anteriorly; genu I usually with 3 ventral setae; tarsus I with or without claws; paired paradactyli of pretarsi II-IV usually setiform, undivided distally; female with lateral accessory sclerites faint or absent beneath the lateral margins of epigynal shield. Free-living predators.",
+        "advances_to": "Family: Parholaspididae"
+      }
+    },
+    "21": {
+      "option_a": {
+        "morphology": "Tarsus II in female and male usually with 1 or 2 of the distal setae enlarged into stout spines; if lacking such spines, female with a genitiventral shield closely bordered by an anal shield or with peritrematic-exopodal shields extending posteriorly beyond coxae IV to fuse with metapodal plates; tibia III and genu and tibia IV each with 1 anterolateral seta. Predators, free living, or associated with insects.",
+        "advances_to": "Family: Pachylaelapidae"
+      },
+      "option_b": {
+        "morphology": "Tarsus II usually without enlarged distal spinose structures in female but sometimes with such attributes dimorphically in male; female with an epigynal shield separate from a ventrianal or anal shield or, rarely, with an expanded genitiventral or genitiventrianal shield in some LAELAPIDAE; female with peritrematic-exopodal shields usually not extending posteriorly to fuse with metapodal plates, but rarely with such extensions in some BLATTISOCIIDAE, LAELAPIDAE, and EVIPHIDIDAE; tibia III and genu and tibia IV each with 1 or more commonly 2 anterolateral setae. Predators, fungivores, nidicoles, insect associates, and ecto- and endoparasites of vertebrates.",
+        "advances_to": "Node 22"
+      }
+    },
+    "22": {
+      "option_a": {
+        "morphology": "Female sternal shield with 1 or typically 2 pairs of setae (sternal setae 1-2); sternal setae 3 often on adjacent platelets or on soft cuticle, rarely on sternal shield; opisthonotum without caudal setae J5 and marginal R setae; posterior row of deutosternal denticles extending laterally beyond insertions of capitular setae; corniculi often divided distally or entire; femur II with 10 setae, including 4 dorsals. Fungal, algal, pollen, or nectar feeders; free living, nidicoles, or associates of insects and birds.",
+        "advances_to": "Family: Ameroseiidae"
+      },
+      "option_b": {
+        "morphology": "Female with 0 to typically 3 pairs of sternal setae on the sternal shield; opisthonotum usually with caudal setae J5 and usually with one or more marginal R setae (R setae absent in PODOCINIDAE, some PHYTOSEIIDAE, and some OTOPHEIDOMENIDAE); posterior row of deutosternal denticles not extending laterally beyond insertions of capitular setae; corniculi usually entire, rarely divided distally; femur II with 10-11 setae, including 5 dorsals.",
+        "advances_to": "Node 23"
+      }
+    },
+    "23": {
+      "option_a": {
+        "morphology": "Female with epigynal shield truncate or weakly convex posteriorly and either narrowly separated from or abutting a ventrianal shield or widely separated from an anal shield that is round or oval but usually not inversely subtriangular; male with sternitigenital shield usually delineated from, though often abutting, a ventrianal shield or separate ventral and anal elements.",
+        "advances_to": "Node 24"
+      },
+      "option_b": {
+        "morphology": "Female with epigynal shield broadly or narrowly rounded posteriorly, usually widely separated from inversely subtriangular anal shield, or epigynal shield expanded into a genitiventral or genitiventrianal shield in some LAELAPIDAE; male with either a consolidated holoventral shield or a sternitigenital shield widely separated from an anal shield.",
+        "advances_to": "Node 29"
+      }
+    },
+    "24": {
+      "option_a": {
+        "morphology": "Deutonymphs and adults with less than 20 pairs of dorsal shield setae (the podocinid species Podocinella plumosa, with 23 pairs, is an exception), setae J absent, and female with less than 4 pairs of marginal setae on soft integument; female with phytoseiid-type sperm access system, including a usually sclerotized calyx and often an associated minor duct. Free living or phoretically associated with, or parasitic on, insects.",
+        "advances_to": "Node 25"
+      },
+      "option_b": {
+        "morphology": "Deutonymphs and adults with more than 20 pairs of dorsal shield setae (the blattisociid genus Aceodromus, with 18-21 pairs, is an exception); setae J present; female usually with more than 4 pairs of marginal setae on soft integument; female with phytoseiid-type or laelapid-type sperm access system, with or without a sclerotized calyx and an associated minor duct. Free living or phoretically associated with arthropods or birds.",
+        "advances_to": "Node 27"
+      }
+    },
+    "25": {
+      "option_a": {
+        "morphology": "Legs I greatly elongated, with genual, tibial, and tarsal segments attenuate, subequal; tarsus I without claws and with 1-2 apical, whiplike setae; tibia II with 10 setae, including 2 anterolaterals and 4 dorsals, and tibia IV with 10 setae, including 2 anterolaterals and 2 ventrals; dorsal shield with a pair of large, distinctive gland pores between setae J3 and Z3. Free living.",
+        "advances_to": "Family: Podocinidae"
+      },
+      "option_b": {
+        "morphology": "Legs I usually not elongated, with genual, tibial, and tarsal segments unequal in length; tarsus I usually with claws and lacking whiplike setae apically; typically, tibia II with 7 setae, including 1 anterolateral and 3 dorsals; tibia IV with 6 setae, including 1 anterolateral and 1 ventral; dorsal shield with porelike structures but without an enlarged pair between the J and Z setal series.",
+        "advances_to": "Node 26"
+      }
+    },
+    "26": {
+      "option_a": {
+        "morphology": "Fixed and movable cheliceral digits normally developed, similar in length and apposed; tritosternum present, with well-developed laciniae; anal opening posteroventral, usually in a ventrianal shield. Free-living predators, fungivores, and pollen feeders in aerial and soil habitats.",
+        "advances_to": "Family: Phytoseiidae"
+      },
+      "option_b": {
+        "morphology": "Fixed cheliceral digit absent or reduced to less than 1/4 the length of the slender, pointed movable digit; tritosternum commonly absent or reduced to a basal remnant; anal opening terminal or occasionally subterminal, usually in an anal shield. Parasites of insects.",
+        "advances_to": "Family: Otopheidomenidae"
+      }
+    },
+    "27": {
+      "option_a": {
+        "morphology": "Female with 3rd pair of sternal poroids on posterolateral corners of sternal shield and with sternal setae st4 usually free on soft cuticle; male with endopodal strips beside coxae III-IV usually free or narrowly connected to sternitigenital shield (except genus Antennoseius); movable cheliceral digit usually bidentate.",
+        "advances_to": "Family: Ascidae"
+      },
+      "option_b": {
+        "morphology": "Female with 3rd pair of sternal poroids off sternal shield and associated with sternal setae st4 usually on metasternal plates or on soft cuticle; male with endopodal strips beside coxae III-IV fully integrated with sternitigenital shield; movable cheliceral digit with 0 to many teeth, often tridentate.",
+        "advances_to": "Node 28"
+      }
+    },
+    "28": {
+      "option_a": {
+        "morphology": "Fixed cheliceral digit with pilus dentilis modified to a hyaline flap; movable cheliceral digit usually with a pointed process (mucro) on its mid-ventral face; peritrematic shield of adults free posteriorly from, or narrowly attached to, exopodal plate beside coxa IV; female with laelapid-type sperm access system, lacking a sclerotized spermathecal calyx and associated minor duct; female with epigynal shield gently rounded posteriorly, and usually with an oval or elliptical anal shield bearing only the 3 anal setae (or rarely expanded to capture the nearest pair of opisthogastric setae).",
+        "advances_to": "Family: Melicharidae"
+      },
+      "option_b": {
+        "morphology": "Fixed cheliceral digit with setiform pilus dentilis; movable cheliceral digit lacking a ventral mucro; peritrematic shield of adults broadly fused posteriorly to exopodal plate curving behind coxa IV; female with phytoseiid-type sperm access system, including a sclerotized calyx and an associated minor duct; female with epigynal shield usually truncate posteriorly, and usually with a ventrianal shield bearing 2-7 of the opisthogastric setae in addition to the anal setae.",
+        "advances_to": "Family: Blattisociidae"
+      }
+    },
+    "29": {
+      "option_a": {
+        "morphology": "Tibia and genu I each with 1 anterolateral seta (1 3/2, 2/1 2 or 1 2/1, 2/1); tectum usually produced into an elongated, lancelike process, rarely multidenticulate; dorsal shield entire; female and male with anal shield. Free living or associated with insects or amphipods.",
+        "advances_to": "Family: Eviphididae"
+      },
+      "option_b": {
+        "morphology": "Tibia and genu I each with 2 anterolateral setae (2 3/2, 2/1 2 or 2 3/2, 3/1 2 or 2 3/1 2/1 2); tectum with smooth or denticulate anterior margin, usually not produced into an elongated process; dorsal shield entire or with lateral incisions or divided; female with anal or, rarely, genitiventrianal shield, male usually with holoventral shield.",
+        "advances_to": "Node 30"
+      }
+    },
+    "30": {
+      "option_a": {
+        "morphology": "Sternal shield over 6 times wider than long at its widest point; epigynal membrane broad, convoluted, with epigynal setae flanking the shield remnant, with separate anal shield. Opisthosoma considerably broader than long, with a fringe of spatulate setae. Parasites of snakes.",
+        "advances_to": "Family: Omentolaelapidae"
+      },
+      "option_b": {
+        "morphology": "Without the above combination of characters.",
+        "advances_to": "Node 31"
+      }
+    },
+    "31": {
+      "option_a": {
+        "morphology": "Chelicerae massive, hooked; with a broad, heavy epistome overlying the gnathosoma. Parasites of Neotropical bats.",
+        "advances_to": "Family: Spelaeorhynchidae"
+      },
+      "option_b": {
+        "morphology": "Chelicerae and epistome not as above.",
+        "advances_to": "Node 32"
+      }
+    },
+    "32": {
+      "option_a": {
+        "morphology": "Peritremes absent or greatly reduced. Respiratory tract parasites of mammals, reptiles, or birds.",
+        "advances_to": "Node 33"
+      },
+      "option_b": {
+        "morphology": "Peritremes rarely absent, occasionally reduced. Free living or ectoparasites of vertebrates or insects.",
+        "advances_to": "Node 35"
+      }
+    },
+    "33": {
+      "option_a": {
+        "morphology": "Epigynal shield absent or rudimentary (distinct in Zumptiella bakeri), sternal shield usually present; stigmata ventral or lateroventral. Respiratory tract parasites of terrestrial and marine mammals.",
+        "advances_to": "Family: Halarachnidae"
+      },
+      "option_b": {
+        "morphology": "Epigynal shield distinct but sometimes reduced, shield setae reduced or absent; sternal shield present or absent, stigmata lateral or dorsal. Parasites of snakes or birds.",
+        "advances_to": "Node 34"
+      }
+    },
+    "34": {
+      "option_a": {
+        "morphology": "Sternal and epigynal shields well developed but often weakly sclerotized, sternal setae minute or absent, stigmata lateral. Respiratory tract parasites of snakes.",
+        "advances_to": "Family: Entonyssidae"
+      },
+      "option_b": {
+        "morphology": "Sternal shield reduced or absent but with distinct, and often distinctive, sternal setae, epigynal shield well developed or reduced, stigmata dorsal. Respiratory tract parasites of birds.",
+        "advances_to": "Family: Rhinonyssidae"
+      }
+    },
+    "35": {
+      "option_a": {
+        "morphology": "Legs I extremely stout, with heavy sessile claws; legs II-IV slender, with long pretarsi and small claws, leg coxae widely separated. Sternal shield absent or barely visible as an interruption in the ventral integumentary striae; opisthogaster with distinctive spurlike or broad flattened setae. Parasites of armadillos.",
+        "advances_to": "Family: Dasyponyssidae"
+      },
+      "option_b": {
+        "morphology": "Legs I-IV of comparable thickness or coxae I-IV contiguous; sternal shield well developed or reduced but distinctly tanned and easily visible. Opisthogaster without spurlike or flattened setae.",
+        "advances_to": "Node 36"
+      }
+    },
+    "36": {
+      "option_a": {
+        "morphology": "Tritosternum absent or represented by tritosternal base remnant (if tritosternal base is well developed, then the peritremes extend only to level of anterior edge of coxae III). Sternal setae inserted at the margins of reduced sternal shield or in integument bordering it; epigynal shield narrowed or otherwise reduced, with or without setae. Parasites of bats.",
+        "advances_to": "Family: Spinturnicidae"
+      },
+      "option_b": {
+        "morphology": "Tritosternum well developed, with laciniae.",
+        "advances_to": "Node 37"
+      }
+    },
+    "37": {
+      "option_a": {
+        "morphology": "Sternal shield subrectangular, reduced laterally, carrying only sternal setae st1 and associated pores, sternal setae st2 and st3 in adjacent integument. Anal shield elongate, narrowly produced posterior to postanal seta; opisthogastric margin with 2 pairs of long, flagellate setae. Parasites of edentates.",
+        "advances_to": "Family: Manitherionyssidae"
+      },
+      "option_b": {
+        "morphology": "Sternal and anal shields variously developed, often reduced or expanded but not as above.",
+        "advances_to": "Node 38"
+      }
+    },
+    "38": {
+      "option_a": {
+        "morphology": "Chelicerae of female whiplike, styliform; cheliceral digits minute, chelate; corniculi membranous, indistinct.",
+        "advances_to": "Node 39"
+      },
+      "option_b": {
+        "morphology": "Chelicerae variously produced but not styliform; corniculi variously developed.",
+        "advances_to": "Node 40"
+      }
+    },
+    "39": {
+      "option_a": {
+        "morphology": "Elongate second cheliceral segment of female far exceeding basal cheliceral segment 1 in length, male chelicerae with second segment of normal length. Idiosoma broadly rounded posteriorly. Parasites of mammals and birds.",
+        "advances_to": "Family: Dermanyssidae"
+      },
+      "option_b": {
+        "morphology": "Second cheliceral segment normally developed, considerably shorter than greatly elongated basal cheliceral segment. Idiosoma with strongly narrowed opisthosoma. Parasites of porcupines and snakes.",
+        "advances_to": "Family: Hystrichonyssidae"
+      }
+    },
+    "40": {
+      "option_a": {
+        "morphology": "Chelicerae elongate, edentate; corniculi membranous, usually lobate. Palptrochanter often with a raised medioventral keel; with a large anterior nonsetigerous spur on leg coxa II (rarely minute or absent), other coxae without spurs but occasionally with small ridges; genu IV typically with 2 ventral setae. Parasites of mammals, birds, and reptiles.",
+        "advances_to": "Family: Macronyssidae"
+      },
+      "option_b": {
+        "morphology": "Chelicerae various, dentate or edentate, corniculi strongly sclerotized or membranous, hornlike, barbed, or lobate. Palptrochanter without raised medioventral keel; generally with more than 1 large, nonsetigerous coxal spur, or coxal spurs absent; genu IV typically with 1 ventral seta.",
+        "advances_to": "Node 41"
+      }
+    },
+    "41": {
+      "option_a": {
+        "morphology": "Corniculi attenuate-acuate, often barbed (barbs absent in Hemilaelaps, Scutanolaelaps, Strandtibbetsia, and Asiatolaelaps); with spurlike setae on coxae II, I-II, or I-III; palptarsal claw greatly reduced, generally with a single tine. External parasites of snakes.",
+        "advances_to": "Family: Ixodorhynchidae"
+      },
+      "option_b": {
+        "morphology": "Corniculi not as above, spurlike setae on coxae present or absent; palptarsal claw normally produced, with 2-3 tines.",
+        "advances_to": "Node 42"
+      }
+    },
+    "42": {
+      "option_a": {
+        "morphology": "Fixed cheliceral digit absent; with only 2 pairs of hypostomatic setae; peritremes of female short, looped medially or apically, confined to level of coxae III or coxae III-IV; males with peritremes very short and crooked or vestigial. Parasites of bees.",
+        "advances_to": "Family: Varroidae"
+      },
+      "option_b": {
+        "morphology": "Fixed cheliceral digit present, chelicerae dentate or edentate; with 3 pairs of hypostomatic setae; peritremes of adults variously produced, typically well developed and elongate, occasionally absent.",
+        "advances_to": "Node 43"
+      }
+    },
+    "43": {
+      "option_a": {
+        "morphology": "Tibia I usually with 1 ventral seta, lacking seta av2; genu IV usually with 1 posterolateral seta, lacking seta pl2; subcapitulum with internal malae usually weakly developed, with nearly smooth lateral margins and shorter than corniculi. Paraphages of chilopods, diplopods, spiders, and crustaceans.",
+        "advances_to": "Family: Iphiopsididae"
+      },
+      "option_b": {
+        "morphology": "Tibia I usually with 2 ventral setae, including av2; genu IV usually with 2 posterolateral setae, including pl2; subcapitulum with internal malae usually well developed, with fimbriate lateral margins, and equal to or longer than corniculi. A heterogenous group comprising free-living forms and facultative and obligate parasites of arthropods, birds, and mammals.",
+        "advances_to": "Family: Laelapidae"
+      }
+    },
+    "44": {
+      "option_a": {
+        "morphology": "Deutonymph and adults with a single dorsal shield that is never flanked by marginal shields; dorsal shield with several pairs of greatly elongated marginal setae, and paranal setae also markedly elongated; palptarsal claw absent, palpgenu with 4 setae; tibiae I-IV with only 1 dorsal seta (1 0/1, 1/1 1); femur IV with 8 setae (1 2/1, 2/1 1). Parasites of passalid beetles.",
+        "advances_to": "Family: Diarthrophallidae"
+      },
+      "option_b": {
+        "morphology": "Deutonymph and adults with more than 1 shield dorsally, adults usually with 1 or more pygidial shields or marginal shields in addition to dorsal shield; dorsal shield without differentiated pairs of greatly elongated marginal setae and paranal setae not elongated, although 1 pair of ventrocaudal setae sometimes so elongated; palptarsal claw present, palpgenu with 5-6 setae; tibiae I-IV with at least 3 dorsal setae (1 1/1, 2/1 1); femur IV with 6 setae in various configurations. Free-living predators, fungivores, and scavengers, or associated with arthropods.",
+        "advances_to": "Node 45"
+      }
+    },
+    "45": {
+      "option_a": {
+        "morphology": "Coxae of legs I narrow, cylindrical, each in its own acetabulum; tritosternum with 2 long, feathered laciniae; female epigynal shield loosely tripartite; chelicerae with lateral slit organs; palpgenu with 6 setae; tibia of leg I with 3 or 4 ventral setae.",
+        "advances_to": "Node 46"
+      },
+      "option_b": {
+        "morphology": "Coxae of legs I inserted together in a gnathopodal cavity and often widened so that the tritosternum is partly covered; tritosternum with variously shaped laciniae; epigynal shield of female usually unipartite, occasionally trigynaspid-like; chelicerae without lateral slit organs; palpgenu usually with 4-5 setae; tibia of leg I with 2 ventral setae.",
+        "advances_to": "Node 47"
+      }
+    },
+    "46": {
+      "option_a": {
+        "morphology": "Peritremes and stigmata dorsal; coxa of legs IV with 2 setae; epistome with a narrow middle spine.",
+        "advances_to": "Family: Thinozerconidae"
+      },
+      "option_b": {
+        "morphology": "Peritremes and stigmata ventrolateral; coxa of legs IV with 1 seta; epistome without differentiated middle spine.",
+        "advances_to": "Family: Protodinychidae"
+      }
+    },
+    "47": {
+      "option_a": {
+        "morphology": "Coxae of legs I normally produced, not covering base of tritosternum, tritosternal base about twice as wide as long; ventral leg cavities (pedofossae) absent.",
+        "advances_to": "Node 48"
+      },
+      "option_b": {
+        "morphology": "Coxae of legs I usually widened and flattened so that the tritosternum is entirely or partially covered; base of the tritosternum usually not wider than long; pedofossae usually well developed, sometimes absent.",
+        "advances_to": "Node 50"
+      }
+    },
+    "48": {
+      "option_a": {
+        "morphology": "Genu I with 2 anterolateral and 2 posterolateral setae; femur IV with 2 ventral setae.",
+        "advances_to": "Node 49"
+      },
+      "option_b": {
+        "morphology": "Genu I usually with 2 anterolateral and 1 posterolateral seta, femur IV with 2 ventral setae (if only 1 is present, then genu I with 2 posterolateral setae).",
+        "advances_to": "Family: Dithinozerconidae"
+      }
+    },
+    "49": {
+      "option_a": {
+        "morphology": "Idiosoma typically elongate, subtriangular, or pyriform, marginal shields entire or fragmented into numerous platelets, pygidial shield entire or variously subdivided. Genu IV with 1 ventral seta.",
+        "advances_to": "Family: Trachytidae"
+      },
+      "option_b": {
+        "morphology": "Idiosoma broadly ovate, marginal shields absent or variously coalesced, pygidial shield entire. Genu IV with 2 ventral setae.",
+        "advances_to": "Family: Polyaspididae"
+      }
+    },
+    "50": {
+      "option_a": {
+        "morphology": "Apex of fixed cheliceral digit with a large flower- or mushroom-shaped sensory organ; corniculi with terminal teeth.",
+        "advances_to": "Family: Uroactiniidae"
+      },
+      "option_b": {
+        "morphology": "Apex of fixed cheliceral digit not as above, corniculi generally smooth terminally.",
+        "advances_to": "Node 51"
+      }
+    },
+    "51": {
+      "option_a": {
+        "morphology": "Chelicerae with a distinctive internal sclerotized node associated with the levator tendon.",
+        "advances_to": "Node 53"
+      },
+      "option_b": {
+        "morphology": "Chelicerae without internal sclerotized node.",
+        "advances_to": "Node 52"
+      }
+    },
+    "52": {
+      "option_a": {
+        "morphology": "Hypostomatic setae h1 short, spiniform; genital shield of female located behind coxae IV. Small mites, with adults under 400 µm in length.",
+        "advances_to": "Family: Metagynuridae"
+      },
+      "option_b": {
+        "morphology": "Hypostomatic setae h1 typically long and setiform; female genital shield located between coxae II-IV. Adults generally over 400 µm in length.",
+        "advances_to": "Family: Uropodidae"
+      }
+    },
+    "53": {
+      "option_a": {
+        "morphology": "Internal malae of hypostome simple, without marginal fimbriations or distal moustachelike excrescences; dorsal shield of adults often notched marginally.",
+        "advances_to": "Family: Trematuridae"
+      },
+      "option_b": {
+        "morphology": "Internal malae with short marginal fimbriations and/or with elaborated distal moustachelike excrescences.",
+        "advances_to": "Node 54"
+      }
+    },
+    "54": {
+      "option_a": {
+        "morphology": "Fixed cheliceral digit typically with a rounded or acuminate apical finger that extends well beyond the movable digit (absent in Caminella). Peritremes well developed and often elaborated to form distinctive serpentine patterns, pygidial shield sometimes present in adults.",
+        "advances_to": "Family: Dinychidae"
+      },
+      "option_b": {
+        "morphology": "Fixed cheliceral digit subequal to or little longer than movable digit, sometimes with short rounded extension. Peritremes variously developed but not as above, pygidial shield absent in adults.",
+        "advances_to": "Node 55"
+      }
+    },
+    "55": {
+      "option_a": {
+        "morphology": "Dorsal shield of adults strongly ornamented with pits and ridges, often with numerous dorsal T-shaped setae. Movable cheliceral digit more than twice the length of its basal width.",
+        "advances_to": "Family: Trachyuropodidae"
+      },
+      "option_b": {
+        "morphology": "Dorsal shield of adults without conspicuous ornamentation or T-shaped dorsal setae. Movable cheliceral digit shorter than twice its basal width.",
+        "advances_to": "Family: Oplitidae"
       }
     }
   }
