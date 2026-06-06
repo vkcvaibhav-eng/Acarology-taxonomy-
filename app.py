@@ -347,7 +347,7 @@ def render_option_images(option: dict) -> None:
         url = image.get("url", "").strip()
         path = image.get("path", "").strip()
         if url:
-            st.image(url, caption=caption, use_column_width=True)
+            st.image(url, caption=caption, use_container_width=True)
         elif path and Path(path).exists():
             st.image(path, caption=caption, use_column_width=True)
         elif path:
@@ -387,7 +387,6 @@ def initialize_state(keys_db: dict) -> None:
     st.session_state.setdefault("final_result", "")
     st.session_state.setdefault("specimen_code", "")
     st.session_state.setdefault("observer_notes", "")
-    st.session_state.setdefault("app_mode", "Identify")
 
     if st.session_state.current_key not in keys_db:
         restart(default_key)
@@ -607,191 +606,157 @@ def main() -> None:
     st.title("Acarology Taxonomy Key")
     st.caption("Interactive dichotomous key for mite identification from morphology.")
 
-   tab1, tab2, tab3 = st.tabs([
-    "Identify",
-    "Admin",
-    "Mind Map"
-])
+    tab1, tab2, tab3 = st.tabs([
+        "Identify",
+        "Admin",
+        "Mind Map",
+    ])
     with st.sidebar:
-        st.radio("Mode", ["Identify", "Admin"], key="app_mode")
-
-        if st.session_state.app_mode == "Admin":
-            st.info("Admin photos are saved to keys.json. GitHub secrets make them permanent on Streamlit Cloud.")
-            if warnings:
-                with st.expander("Data checks"):
-                    for warning in warnings:
-                        st.warning(warning)
-        else:
-            st.header("Specimen")
-            st.text_input("Specimen code", key="specimen_code", placeholder="Slide, vial, or field number")
-            st.text_area(
-                "Morphology notes",
-                key="observer_notes",
-                placeholder="Record visible characters, host plant, mount quality, and uncertainty.",
-                height=140,
-            )
-
-            st.header("Key")
-            selected_key = st.selectbox(
-                "Start or jump to key",
-                options=list(keys_db.keys()),
-                format_func=format_key_name,
-                index=list(keys_db.keys()).index(st.session_state.current_key)
-                if st.session_state.current_key in keys_db
-                else 0,
-            )
-
-            if selected_key != st.session_state.current_key:
-                restart(selected_key)
-                st.rerun()
-
-            col_restart, col_undo = st.columns(2)
-            if col_restart.button("Restart", use_container_width=True):
-                restart(st.session_state.current_key)
-                st.rerun()
-            if col_undo.button("Undo", use_container_width=True, disabled=not st.session_state.history):
-                undo()
-                st.rerun()
-
-            if warnings:
-                with st.expander("Data checks"):
-                    for warning in warnings:
-                        st.warning(warning)
-
-    if st.session_state.app_mode == "Admin":
-        render_admin(keys_db)
-        return
-
-    left, right = st.columns([1.7, 1])
-
-    with right:
-        render_path()
-
-    with left:
-        st.subheader(format_key_name(st.session_state.current_key))
-
-        if st.session_state.diagnosis_complete:
-            st.success("Diagnostic checkpoint reached")
-            st.markdown(f"## {st.session_state.final_result}")
-
-            next_key_names = get_next_key_candidates(st.session_state.final_result, keys_db)
-            if next_key_names:
-                for index, next_key_name in enumerate(next_key_names):
-                    if st.button(
-                        f"Continue to {format_key_name(next_key_name)}",
-                        type="primary" if index == 0 else "secondary",
-                        key=f"continue-{next_key_name}",
-                    ):
-                        restart(next_key_name)
-                        st.rerun()
-            elif parse_result(st.session_state.final_result)[0] in NEXT_TIER_MAP:
-                st.info("A deeper key for this taxon is not loaded yet.")
-
-            record = observation_record()
-            record_json = json.dumps(record, indent=2)
-            col_save, col_download = st.columns(2)
-            if col_save.button("Save record", use_container_width=True):
-                saved_path = save_record(record)
-                st.toast(f"Saved {saved_path.name}")
-            col_download.download_button(
-                "Download record",
-                data=record_json,
-                file_name="mite-identification-record.json",
-                mime="application/json",
-                use_container_width=True,
-            )
-            return
-
-        current_key = keys_db.get(st.session_state.current_key, {})
-        couplet = current_key.get(st.session_state.current_node)
-        if not couplet:
-            st.error("This key is missing the current couplet node. Use Undo or check keys.json.")
-            return
-
-        st.markdown(
-            f"**Couplet {st.session_state.current_node}:** Examine the specimen and choose the matching character state."
+        st.header("Specimen")
+        st.text_input("Specimen code", key="specimen_code", placeholder="Slide, vial, or field number")
+        st.text_area(
+            "Morphology notes",
+            key="observer_notes",
+            placeholder="Record visible characters, host plant, mount quality, and uncertainty.",
+            height=140,
         )
 
-        option_a = couplet.get("option_a", {})
-        option_b = couplet.get("option_b", {})
-        col_a, col_b = st.columns(2)
-
-        with col_a:
-            st.markdown("#### A")
-            st.info(option_a.get("morphology", "Missing morphology text."))
-            render_option_images(option_a)
-            if st.button("Select A", key=f"a-{st.session_state.current_key}-{st.session_state.current_node}", use_container_width=True):
-                advance(
-                    "A",
-                    option_a.get("morphology", ""),
-                    option_a.get("advances_to", ""),
-                    option_images(option_a),
-                )
-                st.rerun()
-
-        with col_b:
-            st.markdown("#### B")
-            st.info(option_b.get("morphology", "Missing morphology text."))
-            render_option_images(option_b)
-            if st.button("Select B", key=f"b-{st.session_state.current_key}-{st.session_state.current_node}", use_container_width=True):
-                advance(
-                    "B",
-                    option_b.get("morphology", ""),
-                    option_b.get("advances_to", ""),
-                    option_images(option_b),
-                )
-                st.rerun()
-
-
-with tab3:
-
-    st.header("Taxonomic Mind Map")
-
-    if st.session_state.history:
-
-        taxonomy = build_taxonomic_path(
-            st.session_state.history,
-            st.session_state.final_result,
+        st.header("Key")
+        selected_key = st.selectbox(
+            "Start or jump to key",
+            options=list(keys_db.keys()),
+            format_func=format_key_name,
+            index=list(keys_db.keys()).index(st.session_state.current_key)
+            if st.session_state.current_key in keys_db
+            else 0,
         )
 
-        graph = create_mind_map(taxonomy)
+        if selected_key != st.session_state.current_key:
+            restart(selected_key)
+            st.rerun()
 
-        st.graphviz_chart(graph)
+        col_restart, col_undo = st.columns(2)
+        if col_restart.button("Restart", use_container_width=True):
+            restart(st.session_state.current_key)
+            st.rerun()
+        if col_undo.button("Undo", use_container_width=True, disabled=not st.session_state.history):
+            undo()
+            st.rerun()
 
-        st.subheader("Hierarchy")
+        if warnings:
+            with st.expander("Data checks"):
+                for warning in warnings:
+                    st.warning(warning)
 
-        rows = []
+    with tab1:
+        left, right = st.columns([1.7, 1])
 
-        for rank in TAXONOMIC_LEVELS:
+        with right:
+            render_path()
 
-            value = taxonomy.get(rank, "")
+        with left:
+            st.subheader(format_key_name(st.session_state.current_key))
 
-            if value:
-                rows.append(
-                    {
-                        "Rank": rank,
-                        "Taxon": value,
-                        "Status": "Available",
-                    }
+            if st.session_state.diagnosis_complete:
+                st.success("Diagnostic checkpoint reached")
+                st.markdown(f"## {st.session_state.final_result}")
+
+                next_key_names = get_next_key_candidates(st.session_state.final_result, keys_db)
+                if next_key_names:
+                    for index, next_key_name in enumerate(next_key_names):
+                        if st.button(
+                            f"Continue to {format_key_name(next_key_name)}",
+                            type="primary" if index == 0 else "secondary",
+                            key=f"continue-{next_key_name}",
+                        ):
+                            restart(next_key_name)
+                            st.rerun()
+                elif parse_result(st.session_state.final_result)[0] in NEXT_TIER_MAP:
+                    st.info("A deeper key for this taxon is not loaded yet.")
+
+                record = observation_record()
+                record_json = json.dumps(record, indent=2)
+                col_save, col_download = st.columns(2)
+                if col_save.button("Save record", use_container_width=True):
+                    saved_path = save_record(record)
+                    st.toast(f"Saved {saved_path.name}")
+                col_download.download_button(
+                    "Download record",
+                    data=record_json,
+                    file_name="mite-identification-record.json",
+                    mime="application/json",
+                    use_container_width=True,
                 )
+
             else:
-                rows.append(
-                    {
-                        "Rank": rank,
-                        "Taxon": "",
-                        "Status": "Missing",
-                    }
-                )
+                current_key = keys_db.get(st.session_state.current_key, {})
+                couplet = current_key.get(st.session_state.current_node)
+                if not couplet:
+                    st.error("This key is missing the current couplet node. Use Undo or check keys.json.")
+                else:
+                    st.markdown(
+                        f"**Couplet {st.session_state.current_node}:** Examine the specimen and choose the matching character state."
+                    )
 
-        st.dataframe(
-            rows,
-            use_container_width=True,
-        )
+                    option_a = couplet.get("option_a", {})
+                    option_b = couplet.get("option_b", {})
+                    col_a, col_b = st.columns(2)
 
-    else:
-        st.info(
-            "Complete an identification first to generate the mind map."
-        )
-    
+                    with col_a:
+                        st.markdown("#### A")
+                        st.info(option_a.get("morphology", "Missing morphology text."))
+                        render_option_images(option_a)
+                        if st.button("Select A", key=f"a-{st.session_state.current_key}-{st.session_state.current_node}", use_container_width=True):
+                            advance(
+                                "A",
+                                option_a.get("morphology", ""),
+                                option_a.get("advances_to", ""),
+                                option_images(option_a),
+                            )
+                            st.rerun()
+
+                    with col_b:
+                        st.markdown("#### B")
+                        st.info(option_b.get("morphology", "Missing morphology text."))
+                        render_option_images(option_b)
+                        if st.button("Select B", key=f"b-{st.session_state.current_key}-{st.session_state.current_node}", use_container_width=True):
+                            advance(
+                                "B",
+                                option_b.get("morphology", ""),
+                                option_b.get("advances_to", ""),
+                                option_images(option_b),
+                            )
+                            st.rerun()
+
+    with tab2:
+        render_admin(keys_db)
+
+    with tab3:
+        st.header("Taxonomic Mind Map")
+
+        if st.session_state.history:
+            taxonomy = build_taxonomic_path(
+                st.session_state.history,
+                st.session_state.final_result,
+            )
+
+            graph = create_mind_map(taxonomy)
+            st.graphviz_chart(graph)
+
+            st.subheader("Hierarchy")
+            rows = []
+            for rank in TAXONOMIC_LEVELS:
+                value = taxonomy.get(rank, "")
+                if value:
+                    rows.append({"Rank": rank, "Taxon": value, "Status": "Available"})
+                else:
+                    rows.append({"Rank": rank, "Taxon": "", "Status": "Missing"})
+
+            st.dataframe(rows, use_container_width=True)
+
+        else:
+            st.info("Complete an identification first to generate the mind map.")
+
+
 if __name__ == "__main__":
     main()
