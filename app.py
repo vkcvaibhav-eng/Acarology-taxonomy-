@@ -86,6 +86,103 @@ def save_keys(keys_db: dict) -> None:
 def format_key_name(key_name: str) -> str:
     return key_name.replace("Key_to_", "").replace("_", " ")
 
+TAXONOMIC_LEVELS = [
+    "Kingdom",
+    "Phylum",
+    "Class",
+    "Subclass",
+    "Superorder",
+    "Order",
+    "Suborder",
+    "Family",
+    "Subfamily",
+    "Tribe",
+    "Genus",
+    "Species",
+]
+
+
+def parse_taxonomic_result(text):
+    """
+    Convert:
+    'Phylum: Arthropoda'
+    to
+    ('Phylum', 'Arthropoda')
+    """
+    if not isinstance(text, str):
+        return None, None
+
+    if ":" not in text:
+        return None, None
+
+    rank, name = text.split(":", 1)
+
+    return rank.strip(), name.strip()
+
+
+def build_taxonomic_path(history, final_result):
+    """
+    Extract taxonomy from diagnostic history.
+    """
+    taxonomy = {}
+
+    for step in history:
+        result = step.get("advanced_to", "")
+        rank, name = parse_taxonomic_result(result)
+
+        if rank and name:
+            taxonomy[rank] = name
+
+    rank, name = parse_taxonomic_result(final_result)
+
+    if rank and name:
+        taxonomy[rank] = name
+
+    return taxonomy
+
+
+def create_mind_map(taxonomy):
+    """
+    Create Graphviz hierarchy.
+    """
+    dot = Digraph()
+
+    dot.attr(rankdir="TB")
+
+    previous_node = None
+
+    for rank in TAXONOMIC_LEVELS:
+
+        value = taxonomy.get(rank, "")
+
+        node_id = rank
+
+        if value:
+
+            dot.node(
+                node_id,
+                f"{rank}\n{value}",
+                style="filled",
+                fillcolor="lightgreen",
+                color="darkgreen",
+            )
+
+        else:
+
+            dot.node(
+                node_id,
+                f"{rank}\n_____",
+                style="filled",
+                fillcolor="lightcoral",
+                color="red",
+            )
+
+        if previous_node:
+            dot.edge(previous_node, node_id)
+
+        previous_node = node_id
+
+    return dot
 
 def parse_result(result: str) -> tuple[str | None, str | None]:
     if ": " not in result:
