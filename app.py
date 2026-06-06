@@ -1,8 +1,173 @@
-{
-  "schema_version": "hierarchical-keybook-v1",
-  "description": "Unified hierarchy-oriented keybook. Wrapper-style key names were removed. Keys are joined by taxonomic parent rank/name; regional, adult, and larval manuals are variants under the same taxon path.",
-  "created_from": "keys (16).json",
-  "rank_order": [
+from __future__ import annotations
+from graphviz import Digraph
+import re
+
+import base64
+import json
+import mimetypes
+from datetime import datetime
+from html import escape
+from pathlib import Path
+from urllib import error, request
+from uuid import uuid4
+
+import streamlit as st
+
+
+APP_DIR = Path(__file__).resolve().parent
+
+
+def resolve_keys_path() -> Path:
+    candidates = [path for path in APP_DIR.glob("keys*.json") if path.is_file()]
+    if not candidates:
+        return APP_DIR / "keys.json"
+    hierarchy_files = []
+    for path in candidates:
+        try:
+            with path.open("r", encoding="utf-8") as file:
+                sample = json.load(file)
+            if isinstance(sample, dict) and sample.get("schema_version") == "hierarchical-keybook-v1":
+                hierarchy_files.append(path)
+        except Exception:
+            continue
+    if hierarchy_files:
+        return max(hierarchy_files, key=lambda path: path.stat().st_mtime_ns)
+    default_path = APP_DIR / "keys.json"
+    return default_path if default_path.exists() else max(candidates, key=lambda path: path.stat().st_mtime_ns)
+
+
+KEYS_PATH = resolve_keys_path()
+OBSERVATION_DIR = APP_DIR / "outputs" / "observations"
+IMAGE_DIR = APP_DIR / "static" / "morphology_images"
+DEFAULT_KEY = "animalia.to.phylum"
+LEGACY_DEFAULT_KEY = "Key_to_Kingdoms_of_Life"
+IMAGE_TYPES = ["png", "jpg", "jpeg", "webp"]
+NEXT_TIER_MAP = {
+    "Kingdom": "Phyla",
+    "Phylum": "Classes",
+    "Class": "Subclasses",
+    "Subclass": "Superorders",
+    "Superorder": "Orders",
+    "Order": "Suborders",
+    "Suborder": "Supercohorts",
+    "Supercohort": "Cohorts",
+    "Cohort": "Subcohorts",
+    "Subcohort": "Superfamilies",
+    "Superfamily": "Families",
+    "Family": "Subfamilies",
+    "Subfamily": "Tribes",
+    "Tribe": "Subtribes",
+    "Subtribe": "Genera",
+    "Genus": "Species",
+}
+TIER_FALLBACKS = {
+    "Kingdom": ["Phyla"],
+    "Phylum": ["Classes"],
+    "Class": ["Subclasses", "Orders"],
+    "Subclass": ["Superorders", "Orders"],
+    "Superorder": ["Orders"],
+    "Order": ["Suborders", "Families"],
+    "Suborder": ["Supercohorts", "Cohorts", "Superfamilies", "Families"],
+    "Supercohort": ["Cohorts", "Subcohorts", "Superfamilies", "Families"],
+    "Cohort": ["Subcohorts", "Superfamilies", "Families"],
+    "Subcohort": ["Superfamilies", "Families"],
+    "Superfamily": ["Families"],
+    "Family": ["Subfamilies", "Genera"],
+    "Subfamily": ["Tribes", "Genera"],
+    "Tribe": ["Subtribes", "Genera"],
+    "Subtribe": ["Genera"],
+    "Genus": ["Species"],
+}
+NEXT_KEY_ALIASES = {
+    "Class: Arachnida": ["Key_to_Subclasses_of_Arachnida", "Key_to_Orders_of_Arachnida"],
+    "Subclass: Acari": ["Key_to_Superorders_of_Acari", "Key_to_Orders_of_Subclass_Acari"],
+    "Suborder: Oribatida (Cohort Astigmatina)": ["Key_to_Families_of_Astigmatina"],
+    "Suborder: Oribatida (excluding Astigmatina)": [
+        "Key_to_Families_of_Oribatida_excluding_Astigmatina"
+    ],
+    "Suborder: Prostigmata": ["Key_to_Families_of_Prostigmata_excluding_Parasitengonina"],
+    "Cohort: Parasitengonina": [
+        "Key_to_Families_of_Parasitengonina_Adults",
+        "Key_to_Families_of_Parasitengonina_Larvae",
+    ],
+}
+
+
+@st.cache_data
+def load_keys(file_mtime_ns: int = 0) -> dict:
+    if not KEYS_PATH.exists():
+        st.error("No keys JSON file was found. Keep keys.json or keys (number).json in the same folder as app.py.")
+        return {}
+
+    try:
+        with KEYS_PATH.open("r", encoding="utf-8") as file:
+            return json.load(file)
+    except json.JSONDecodeError as error:
+        st.error(f"{KEYS_PATH.name} has invalid JSON near line {error.lineno}: {error.msg}")
+        return {}
+
+
+def save_keys(keys_db: dict) -> None:
+    KEYS_PATH.write_text(json.dumps(keys_db, indent=2), encoding="utf-8")
+    load_keys.clear()
+
+
+def is_hierarchy_keybook(keys_db: dict) -> bool:
+    return (
+        isinstance(keys_db, dict)
+        and keys_db.get("schema_version") == "hierarchical-keybook-v1"
+        and isinstance(keys_db.get("keys"), dict)
+        and isinstance(keys_db.get("hierarchy"), dict)
+    )
+
+
+def key_ids(keys_db: dict) -> list[str]:
+    if is_hierarchy_keybook(keys_db):
+        return list(keys_db["keys"].keys())
+    return list(keys_db.keys())
+
+
+def key_exists(keys_db: dict, key_name: str) -> bool:
+    if is_hierarchy_keybook(keys_db):
+        return key_name in keys_db["keys"]
+    return key_name in keys_db
+
+
+def key_record(keys_db: dict, key_name: str) -> dict:
+    if is_hierarchy_keybook(keys_db):
+        return keys_db["keys"].get(key_name, {})
+    return {}
+
+
+def key_couplets(keys_db: dict, key_name: str) -> dict:
+    if is_hierarchy_keybook(keys_db):
+        return key_record(keys_db, key_name).get("couplets", {})
+    return keys_db.get(key_name, {})
+
+
+def iter_key_couplets(keys_db: dict):
+    if is_hierarchy_keybook(keys_db):
+        for key_name, record in keys_db["keys"].items():
+            yield key_name, record.get("couplets", {})
+    else:
+        yield from keys_db.items()
+
+
+def format_key_name(key_name: str, keys_db: dict | None = None) -> str:
+    if keys_db is not None and is_hierarchy_keybook(keys_db):
+        title = key_record(keys_db, key_name).get("title", "")
+        if title:
+            return title
+    if "Key_to_" in key_name:
+        return key_name.replace("Key_to_", "").replace("_", " ")
+    if ".to." in key_name:
+        parent, target = key_name.split(".to.", 1)
+        parent_label = parent.replace("-", " ").title()
+        target_label = target.split(".")[0].replace("-", ", ").title()
+        return f"{target_label} under {parent_label}"
+    return key_name.replace("_", " ").replace(".", " ").title()
+
+TAXONOMIC_LEVELS = [
     "Kingdom",
     "Phylum",
     "Class",
@@ -19,15368 +184,1567 @@
     "Tribe",
     "Subtribe",
     "Genus",
-    "Species"
-  ],
-  "rank_suffixes": {
-    "Superfamily": "-oidea",
-    "Family": "-idae",
-    "Subfamily": "-inae",
-    "Tribe": "-ini",
-    "Subtribe": "-ina"
-  },
-  "keys": {
-    "acari.to.order": {
-      "title": "Order under Acari",
-      "parent": {
-        "rank": "Subclass",
-        "name": "Acari"
-      },
-      "identifies": [
-        "Order"
-      ],
-      "endpoint_ranks": [
-        "Order"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Superorder Parasitiformes: Stigmata present lateral to coxae II-IV and usually associated with elongated peritremes; coxae of legs free, distinct, and movable; subcapitulum with a pairs of corniculi.",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Superorder Acariformes: Stigmata absent posterior to coxae II; if stigmata are present, they open at the base of the chelicerae or on the prodorsum; coxae integrated with the venter of the podosoma, forming rigid coxisterna; corniculi absent.",
-            "advances_to": "Node 3"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Order Mesostigmata: Hypostome not modified into a piercing organ with recurved teeth; macrostigmata lateral to coxae II-IV with distinct tube-like peritremes; tarsus I usually without a large sensory pit.",
-            "advances_to": "Order: Mesostigmata"
-          },
-          "option_b": {
-            "morphology": "Order Ixodida (Ticks): Hypostome modified into a specialized, prominent piercing organ armed with backward-projecting recurved teeth; peritremes located on plate-like spiracular shields posterior to coxae IV; tarsus I always with a distinct dorsal sensory pit (Haller's organ).",
-            "advances_to": "Order: Ixodida"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Order Trombidiformes: Chelicerae typically modified into piercing stylets or fused with the gnathosoma, rarely chelate; palpi often modified into a distinct thumb-claw complex or raptorial organ; peritremes or respiratory stigmata, when present, open at the base of chelicerae or on the prodorsum (Prostigmata).",
-            "advances_to": "Order: Trombidiformes"
-          },
-          "option_b": {
-            "morphology": "Order Sarcoptiformes: Chelicerae typically robust, adapted for pinching and chewing (chelate-dentate), not modified into piercing stylets; palpi simple and filiform; specialized respiratory peritremes absent; true stigmata absent, respiration primarily cutaneous or via specialized apodemes/tracheae.",
-            "advances_to": "Order: Sarcoptiformes"
-          }
-        }
-      }
-    },
-    "acari.to.superorder": {
-      "title": "Superorder under Acari",
-      "parent": {
-        "rank": "Subclass",
-        "name": "Acari"
-      },
-      "identifies": [
-        "Superorder"
-      ],
-      "endpoint_ranks": [
-        "Superorder"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Coxae I–IV fused to podosomatic body wall so that the first completely free leg segment is the trochanter; tarsi of legs entire, without fissures.",
-            "advances_to": "Superorder: Acariformes"
-          },
-          "option_b": {
-            "morphology": "Coxae of legs partially or completely articulated to body wall; tarsi II–IV each with a peripodomeric fissure separating the proximal basitarsus from a distal telotarsus.",
-            "advances_to": "Superorder: Parasitiformes"
-          }
-        }
-      }
-    },
-    "acariformes.to.order": {
-      "title": "Order under Acariformes",
-      "parent": {
-        "rank": "Superorder",
-        "name": "Acariformes"
-      },
-      "identifies": [
-        "Order"
-      ],
-      "endpoint_ranks": [
-        "Order"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Chelicerae rarely chelate, fixed digit often regressed and movable digit usually a hook, knife, needle or stylet-like structure; cheliceral bases sometimes fused medially; palpi simple or modified into a thumb-claw process, sometimes reduced; subcapitulum without rutella; ambulacra of at least legs II and III usually with 2 lateral claws and with or rarely without a median empodium; opisthosoma lacking paired lateral glands; tracheal system with 1 pair of stigmata opening between bases of chelicerae or on anterior prodorsum usually present.",
-            "advances_to": "Order: Trombidiformes"
-          },
-          "option_b": {
-            "morphology": "Chelicerae typically chelate, usually dentate, rarely attenuate or styletlike; cheliceral bases always separate; palpi simple, never with thumb-claw process; subcapitulum usually with rutella or pseudorutella; ambulacra of legs I-IV usually with 1 or 3 claws, empodium clawlike or suckerlike; opisthosoma usually with a pair of lateral glands; tracheal system absent or, when present, arising from bases of legs or as brachytracheae; stigmata and peritremes never present between cheliceral bases or on prodorsum.",
-            "advances_to": "Order: Sarcoptiformes"
-          }
-        }
-      }
-    },
-    "animalia.to.phylum": {
-      "title": "Phylum under Animalia",
-      "parent": {
-        "rank": "Kingdom",
-        "name": "Animalia"
-      },
-      "identifies": [
-        "Phylum"
-      ],
-      "endpoint_ranks": [
-        "Phylum"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Animals possessing a rigid, jointed exoskeleton made of chitin, a segmented body, and paired, jointed appendages.",
-            "advances_to": "Phylum: Arthropoda"
-          },
-          "option_b": {
-            "morphology": "Animals lacking a jointed exoskeleton or jointed appendages (e.g., soft-bodied, internal calcified skeleton, or shells).",
-            "advances_to": "Other Phyla"
-          }
-        }
-      }
-    },
-    "arachnida.to.subclass-order": {
-      "title": "Subclass, Order under Arachnida",
-      "parent": {
-        "rank": "Class",
-        "name": "Arachnida"
-      },
-      "identifies": [
-        "Subclass",
-        "Order"
-      ],
-      "endpoint_ranks": [
-        "Subclass",
-        "Order"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Opisthosomatic spinnerets absent.",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Somatic segments X and XI with 1–4 pairs of ventral spinnerets.",
-            "advances_to": "Order: Araneae"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "With conspicuous primary somatic segmentation marked by sclerotized tergites.",
-            "advances_to": "Node 3"
-          },
-          "option_b": {
-            "morphology": "Without conspicuous primary segmentation or segmentally arranged tergites.",
-            "advances_to": "Subclass: Acari"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "With a terminal spine or a compact or whiplike flagellum, posterior 3–5 somatic segments distinctly narrowed.",
-            "advances_to": "Order: Scorpiones, Uropygi, Palpigradi, Schizomida"
-          },
-          "option_b": {
-            "morphology": "Without a terminal spine or a flagellum, posterior somatic segments normally developed.",
-            "advances_to": "Node 4"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Palpi chelate.",
-            "advances_to": "Order: Ricinulei, Pseudoscorpionida"
-          },
-          "option_b": {
-            "morphology": "Palpi simple or raptorial.",
-            "advances_to": "Order: Amblypygi, Solifugae, Opiliones"
-          }
-        }
-      }
-    },
-    "argasidae.to.genus": {
-      "title": "Genus under Argasidae",
-      "parent": {
-        "rank": "Family",
-        "name": "Argasidae"
-      },
-      "identifies": [
-        "Genus"
-      ],
-      "endpoint_ranks": [
-        "Genus"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "With an obvious marginal sutural line separating dorsal and ventral body surfaces.",
-            "advances_to": "Genus: Argas"
-          },
-          "option_b": {
-            "morphology": "Without an obvious marginal sutural line separating dorsal and ventral body surfaces.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Anterior portion of dorsal surface covered by smooth, leathery integument.",
-            "advances_to": "Genus: Nothoaspis"
-          },
-          "option_b": {
-            "morphology": "Anterior portion of dorsal surface tuberculated, mammillated or granular, not smooth, leathery.",
-            "advances_to": "Node 3"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Nymphs with dorsal integument beset with spines; adults with granular integument and vestigial hypostomes (adults nonparasitic and infrequently collected).",
-            "advances_to": "Genus: Otobius"
-          },
-          "option_b": {
-            "morphology": "Integument of nymphs and adults similar; hypostome of various shapes but not vestigial.",
-            "advances_to": "Node 4"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Dorsal integument tuberculated; hypostome scooplike. Associated with bats and bat caves.",
-            "advances_to": "Genus: Antricola"
-          },
-          "option_b": {
-            "morphology": "Dorsal integument mammillated; hypostome usually with teeth but never scooplike. Associated with various animals, including bats.",
-            "advances_to": "Genus: Ornithodoros"
-          }
-        }
-      }
-    },
-    "arthropoda.to.class": {
-      "title": "Class under Arthropoda",
-      "parent": {
-        "rank": "Phylum",
-        "name": "Arthropoda"
-      },
-      "identifies": [
-        "Class"
-      ],
-      "endpoint_ranks": [
-        "Class"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Body divided into a cephalothorax and abdomen; bearing chelicerae and pedipalps; antennae absent; adults typically with four pairs of walking legs.",
-            "advances_to": "Class: Arachnida"
-          },
-          "option_b": {
-            "morphology": "Body segmentation varies (e.g., distinct head, thorax, and abdomen); bearing mandibles and at least one pair of antennae; three or more pairs of walking legs.",
-            "advances_to": "Other Classes"
-          }
-        }
-      }
-    },
-    "astigmatina.to.family": {
-      "title": "Family under Astigmatina",
-      "parent": {
-        "rank": "Cohort",
-        "name": "Astigmatina"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Body cuticle usually at least partially striate; genital papillae greatly reduced or absent; tibiae I-II with a dorsal solenidion and 1 (v') or rarely 0 ventral setae; unguinal setae absent from all tarsi; pretarsi often enlarged, with ambulacral stalk and disc well developed, empodial claws usually reduced or incorporated into ambulacral disc as central sclerite. Parasites of birds or mammals, rarely insects (some EPIDERMOPTIDAE) with a few free-living in nests, stored products/house dust (some PYROGLYPHIDAE).",
-            "advances_to": "Node 28"
-          },
-          "option_b": {
-            "morphology": "Without all of the above characteristics; body cuticle smooth or striate; genital papillae normal in form, strongly enlarged and ringlike (Histiostomatidae) or reduced; tibiae I-II with dorsal solenidion and 0-2 ventral setae; unguinal setae present or absent; pretarsi variously formed. Free living, parasites of insects or crustaceans, rarely parasites or external commensals of mammals.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Chelicerae laterally compressed, often attenuate, usually with numerous finely divided teeth, nonchelate; palpi with a terminal solenidion and usually at least 1 elongate, eupathidial seta, normal setae strongly reduced, palp usually reflexed outward; female genital valves fused to body posteriorly, open anteriorly forming a transverse oviporus; genital papillae of both sexes often in the form of large rings on ventral body surface.",
-            "advances_to": "Node 3"
-          },
-          "option_b": {
-            "morphology": "Chelicerae usually chelate, with few teeth, rarely chelicerae vestigial or fixed digit absent; palpi reflexed inward, usually bearing 3 filiform setae and terminal solenidion; female oviporus longitudinal with genital valves fused to body anteriorly, free posteriorly; genital papillae always associated with genital opening and never in the form of large rings.",
-            "advances_to": "Node 4"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Genital papillae small, arising from a common furrow on either side of genital opening or apparently absent in males; body strongly sclerotized, dorsoventrally flattened and with legs laterally positioned; very small species. In bat guano; Afrotropical, Neotropical.",
-            "advances_to": "Family: Guanolichidae"
-          },
-          "option_b": {
-            "morphology": "Genital papillae ringlike, usually large, not arising from a common furrow and not directly associated with the genital opening. In a wide variety of wet habitats; cosmopolitan.",
-            "advances_to": "Family: Histiostomatidae"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Pretarsal ambulacra usually greatly expanded; legs laterally positioned. Commensals or parasites of adult insects or myriapods, or nidicoles in social insect nests.",
-            "advances_to": "Node 5"
-          },
-          "option_b": {
-            "morphology": "Pretarsal ambulacra not greatly expanded; legs ventrally positioned or rarely dorsal or lateral; not associated with adult insects in all instars (Linobia coccinellae, a hemisarcoprid parasite of chrysomelid beetles is exceptional; this genus has reduced ambulacra and lacks the fixed cheliceral digit).",
-            "advances_to": "Node 9"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Dorsum almost entirely covered by 1-2 large sclerites.",
-            "advances_to": "Node 6"
-          },
-          "option_b": {
-            "morphology": "Dorsum with only a rectangular propodosomatic sclerite; supracoxal sclerites and rarely a small, median, opisthosomatic sclerite.",
-            "advances_to": "Node 7"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Body rounded, dorsum bearing a large domed sclerite with deep punctations; legs tapering; tarsi with proral setae foliate, partially fused to pretarsal ambulacrum. Monogeneric, in ant nests; Holarctic.",
-            "advances_to": "Family: Lemanniellidae"
-          },
-          "option_b": {
-            "morphology": "Body flattened, dorsum with 1-2 large sclerites, smooth or with linear or transverse grooves, never with deep punctations; legs cylindrical; tarsi with proral setae simple or absent. External commensals or parasites of Coleoptera; Afrotropical, Oriental, Australian, Nearctic, Neotropical.",
-            "advances_to": "Family: Heterocoptidae"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Supracoxal seta of legs I displaced laterally away from supracoxal gland opening; tibiae I-II with 0-1 ventral seta (rarely 2), femur IV usually without setae. Associates of many beetle families; cosmopolitan (except Nearctic).",
-            "advances_to": "Family: Canestriniidae"
-          },
-          "option_b": {
-            "morphology": "Supracoxal seta of legs I closely associated with supracoxal gland opening; tibiae I-II usually with 2 ventral setae; femur IV usually with 1 ventral seta.",
-            "advances_to": "Node 8"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Body cuticle smooth, striate or scaly; solenidion w2 of tarsus I apical or absent; male without paranal suckers or suckerlike setae on tarsus IV. Associates of Blattaria, Dermaptera, and possibly Diplopoda; Afrotropical, Neotropical, Nearctic.",
-            "advances_to": "Family: Rosensteiniidae"
-          },
-          "option_b": {
-            "morphology": "Body cuticle mammillate, at least in female; solenidion w2 of tarsus I basal in position; male with paranal suckers and suckerlike setae on tarsus IV. Associates of Diplopoda; Afrotropical.",
-            "advances_to": "Family: Chetochelacaridae"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Prodorsum with lamellar (le) setae absent; pretarsi with long, thin condylophores or condylophores fused or absent; empodial claws present or absent; dorsal setae may be elongate, but never heavily barbed; males without paranal suckers or suckerlike setae on tarsus IV.",
-            "advances_to": "Node 22"
-          },
-          "option_b": {
-            "morphology": "Prodorsum with lamellar (le) setae present, or if absent, then pretarsi with short, strong condylophores, or some dorsal setae long and heavily barbed, or empodial claws absent and opisthosoma bilobed posteriorly; males with or without paranal suckers and suckerlike setae on tarsus IV.",
-            "advances_to": "Node 10"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "Anus positioned directly behind genital opening, displaced from the posterior edge of the body by a distance greater than the length of the anus; without ventral ridges on subcapitulum; male with paranal suckers vestigial or absent.",
-            "advances_to": "Node 11"
-          },
-          "option_b": {
-            "morphology": "Anus positioned near posterior margin of body, or if more anterior, then subcapitulum with a distinct pattern of ventral ridges; male with or without paranal suckers.",
-            "advances_to": "Node 12"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Dorsal setae relatively short, heavily barbed; leg segments with strong ridges; female with copulatory opening surrounded by a large, round sclerite; male with a pair of modified, suckerlike setae on tarsus IV; male with 4 pairs of setae in anal region (3 p, 1 ad); Monobasic (Scatoglyphus), in bird nests; Holarctic.",
-            "advances_to": "Family: Scatoglyphidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal setae very long and barbed or short and nude; female copulatory opening not surrounded by a large sclerite; male without suckerlike setae on tarsus IV and with only 3 pairs of setae in anal region (3 p). In bird nests and house dust; Holarctic, Afrotropical.",
-            "advances_to": "Family: Euglycyphagidae"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Female and sometimes male with empodial claws bifurcate; male with legs III enlarged, terminating in a large, straight, empodial claw and an enlarged, straight spinelike seta similar in length and form to empodial claw; male with paranal suckers and suckerlike setae on tarsus IV. In vertebrate nests, carrion, and stored products; cosmopolitan.",
-            "advances_to": "Family: Lardoglyphidae"
-          },
-          "option_b": {
-            "morphology": "Both sexes with empodial claws simple or absent; male with legs III similar to legs IV, or if legs III enlarged, then empodial claw shorter and curved and without an enlarged seta similar in form to empodial claw.",
-            "advances_to": "Node 13"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Ventral subcapitulum with a prominent pattern of external transverse and oblique ridges not to be confused with internal pharyngeal sclerotization (ridges reduced in heavily sclerotized Fusacarus); empodial claws small or absent; condylophores very thin or absent; female usually with an epigynal apodeme and often with an external copulatory tube; male without paranal suckers or modified setae on tarsus IV. In nests of vertebrates, stored products, house dust, or occasionally in soil, litter, or plant foliage; cosmopolitan.",
-            "advances_to": "Family: Glycyphagidae"
-          },
-          "option_b": {
-            "morphology": "Ventral subcapitulum without external ridges; other characters variable.",
-            "advances_to": "Node 14"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "Body cuticle at least partially striated, often in dorsal propodosomatic region or posteroventrally, or with a pattern of striations broken into scalelike structures; if striations or scales absent, then with all dorsal setae elongate and heavily barbed except c1, which is long and nude; solenidion w2 of tarsus I more distal than w1; tarsus IV of both sexes with rectal setae absent.",
-            "advances_to": "Node 15"
-          },
-          "option_b": {
-            "morphology": "Body cuticle without striations; small rounded protuberances or small triangular microtrichia may be present; solenidion ω2 variable in position, usually more basal than ω1; rectal setae present on all tarsi or one member of pair may be absent on all tarsi.",
-            "advances_to": "Node 16"
-          }
-        },
-        "15": {
-          "option_a": {
-            "morphology": "Opisthosoma with a row of small, closely spaced microtrichia extending between the bases of most lateral body setae; most dorsal setae elongate and heavily barbed; pretarsal ambulacra short, relatively simple; empodial claws reduced or absent. In bat roosts, vertebrate nests, stored products, house dust; cosmopolitan.",
-            "advances_to": "Family: Aeroglyphidae"
-          },
-          "option_b": {
-            "morphology": "Opisthosoma without microtrichia running between the bases of lateral body setae; body often ornamented with scalelike protuberances; dorsal setae often highly modified, rarely elongate and heavily barbed; gnathosoma usually with a pair of enlarged rutellar processes; pretarsal ambulacrum usually large, divided into 3 distinct regions; empodial claws well developed. In bat roosts or in fur of bats; cosmopolitan.",
-            "advances_to": "Family: Rosensteiniidae (pars)"
-          }
-        },
-        "16": {
-          "option_a": {
-            "morphology": "Discrete coxal apodemes III and sometimes IV absent; discrete propodosomatic sclerite absent.",
-            "advances_to": "Node 17"
-          },
-          "option_b": {
-            "morphology": "Discrete coxal apodemes III-IV present, projecting obliquely from bases of trochanters; propodosomatic sclerite usually present.",
-            "advances_to": "Node 18"
-          }
-        },
-        "17": {
-          "option_a": {
-            "morphology": "Body cuticle covered by small microtrichia; male without paranal suckers or modified suckerlike setae on tarsus IV. In nests of mammals, stored products, and house dust; Australian, Nearctic, Neotropical.",
-            "advances_to": "Family: Echimyopodidae"
-          },
-          "option_b": {
-            "morphology": "Body without microtrichia; male with paranal suckers and often with suckerlike setae on tarsus IV. In nests of mammals, stored products, and house dust; Afrotropical, Oriental, Australian, Nearctic.",
-            "advances_to": "Family: Chortoglyphidae"
-          }
-        },
-        "18": {
-          "option_a": {
-            "morphology": "Tarsi with tectal setae asymmetrical, with tc\" usually spinelike, rarely filiform; unguinal setae usually larger and stouter than proral setae.",
-            "advances_to": "Node 21"
-          },
-          "option_b": {
-            "morphology": "Tarsi with both tectal setae filiform, similar in length; proral setae spinelike or enlarged and clawlike; unguinal setae spinelike, reduced or absent, never distinctly larger than proral setae.",
-            "advances_to": "Node 19"
-          }
-        },
-        "19": {
-          "option_a": {
-            "morphology": "Propodosoma with lamellar (le) setae absent; empodial claws absent, tibiae I and II with two ventral setae; body cuticle usually smooth or with scalelike ornamentation; opisthosoma usually bilobed posteriorly, if rounded, then chelicerae vestigial or greatly enlarged (Hypodectes). In nests of birds or, rarely, mammals; cosmopolitan.",
-            "advances_to": "Family: Hypoderatidae"
-          },
-          "option_b": {
-            "morphology": "Propodosoma with lamellar (le) setae present, or if absent, then pretarsi with short, strong condylophores (some ACARIDAE), or some dorsal setae long and heavily barbed (some GLYCYPHAGIDAE), or empodial claws absent and opisthosoma bilobed posteriorly (HYPODERATIDAE).",
-            "advances_to": "Node 20"
-          }
-        },
-        "20": {
-          "option_a": {
-            "morphology": "Body outline round, length similar to width; some dorsal setae often heavily pectinate or plumose, occasionally all short and simple (Platyglyphus); tarsi with proral and unguinal setae similar in form. In nests of social bees; Holarctic, Neotropical, Oriental.",
-            "advances_to": "Family: Gaudiellidae"
-          },
-          "option_b": {
-            "morphology": "Body distinctly longer than wide; dorsal setae filiform, unbarbed; tarsi with proral setae enlarged and clawlike, unguinal setae reduced or absent. In vertebrate or insect nests, stored products, house dust, rarely in soil; cosmopolitan.",
-            "advances_to": "Family: Suidasidae"
-          }
-        },
-        "21": {
-          "option_a": {
-            "morphology": "Prodorsal sclerotization in the form of 2 thin, elongate, parallel sclerites; dorsal setae elongate and heavily barbed; cuticle ornamented with small, triangular microtrichia; male with legs III much larger than legs IV but otherwise unmodified. Monobasic (Glycacarus), in bird nests; subantarctic islands.",
-            "advances_to": "Family: Glycacaridae"
-          },
-          "option_b": {
-            "morphology": "Prodorsal sclerotization in the form of a rectangular shield that may be incised posteriorly, or prodorsal sclerotization absent; dorsal setae variable but not usually both elongate and heavily barbed; cuticle smooth or rarely with small rounded protuberances; male with legs III similar to legs IV, or legs III enlarged and bearing a large empodial claw and reduced tarsal setation. In a wide variety of habitats; cosmopolitan.",
-            "advances_to": "Family: Acaridae"
-          }
-        },
-        "22": {
-          "option_a": {
-            "morphology": "Tarsi I-II very short, bearing a greatly enlarged, apical, clawlike seta; pretarsi I-II elongate, bearing a very small empodial claw; pretarsi III-IV shorter, empodial claws very large; supracoxal setae greatly elongate and heavily barbed; with a pair of lyriform organs posterior to the prodorsal sclerite. Marine intertidal to subtidal, cosmopolitan in coastal areas.",
-            "advances_to": "Family: Hyadesiidae"
-          },
-          "option_b": {
-            "morphology": "Tarsi I-II more elongate, without a greatly enlarged apical seta; pretarsi variable in form but similar on all legs; supracoxal setae short; without lyriform organs on prodorsum although ocelli may be present.",
-            "advances_to": "Node 23"
-          }
-        },
-        "23": {
-          "option_a": {
-            "morphology": "Supracoxal gland opening on, or adjacent to, a large, sclerotized region directly above legs I.",
-            "advances_to": "Node 24"
-          },
-          "option_b": {
-            "morphology": "Supracoxal gland opening not associated with a large sclerotized region.",
-            "advances_to": "Node 25"
-          }
-        },
-        "24": {
-          "option_a": {
-            "morphology": "Supracoxal gland opening on an elongate, oval, sclerotized region, restricted to dorsal area above legs I; female pretarsus with paired elongate condylophores; male with condylophores fused along their length and emerging ventrobasally as a hooklike structure in the base of the pretarsus. In bee nests; cosmopolitan.",
-            "advances_to": "Family: Chaetodactylidae"
-          },
-          "option_b": {
-            "morphology": "Supracoxal gland opening hidden by a large, straplike sclerotized region (axillary organ) that usually extends ventrally between legs I-II and may extend posteriorly over ventral surface; condylophores normally developed or absent in both sexes. In sap fluxes, phytotelmata, or fully aquatic habitats; Holarctic, Neotropical, Oriental, subantarctic islands.",
-            "advances_to": "Family: Algophagidae"
-          }
-        },
-        "25": {
-          "option_a": {
-            "morphology": "Prodorsal sclerite absent; rostral (ro) setae situated about halfway between anterior edge of propodosoma and interlamellar (in) setae; with a pair of large ocelli in propodosomatic region; coxal apodemes I fused medially with coxal apodemes II closing coxal fields I in both sexes; condylophores elongate and separate in female, asymmetrical in male; male with genital setae (g) and coxal setae 4b present. Monogeneric (Carpoglyphus), in stored products, vertebrate nests, bee nests, flowers; cosmopolitan.",
-            "advances_to": "Family: Carpoglyphidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsal sclerite well developed; rostral (ro) setae at anterior edge of propodosoma or absent; ocelli present or absent; apodemes I not fused medially with apodemes II, coxal fields I open; condylophores fused to each other or absent; male with genital setae vestigial or absent, setae 4b filiform, or absent but with alveoli modified into a sucker.",
-            "advances_to": "Node 26"
-          }
-        },
-        "26": {
-          "option_a": {
-            "morphology": "Empodial claws present; condylophores usually fused into a V-shaped sclerite or a more elongate sclerite in base of ambulacral stalk; tibiae I-II with 1-2 ventral setae; male with all traces of genital setae and coxal setae 4b absent; male usually with pretarsal ambulacra I-II arising from ventral apex of tarsus, often modified as a sucker. In a wide variety of habitats; cosmopolitan.",
-            "advances_to": "Family: Winterschmidtiidae"
-          },
-          "option_b": {
-            "morphology": "Empodial claws absent, condylophores apparently absent; tibiae I-II with 0-1 ventral seta.",
-            "advances_to": "Node 27"
-          }
-        },
-        "27": {
-          "option_a": {
-            "morphology": "Both sexes with genital opening between or posterior to coxal fields IV, female oviporus often confluent with anal opening; male with alveoli of setae 4b fused medially forming a sucker anterior to aedeagus. In a variety of habitats; cosmopolitan.",
-            "advances_to": "Family: Hemisarcoptidae"
-          },
-          "option_b": {
-            "morphology": "Both sexes with genital opening between coxal fields III-IV; male with setae 4b filiform, alveoli not fused to form a sucker. In nests of stingless bees (Apidae: Meliponini), Neotropical, Oriental.",
-            "advances_to": "Family: Meliponocoptidae"
-          }
-        },
-        "28": {
-          "option_a": {
-            "morphology": "Parasitic or paraphagic on or in mammals; genu I with 0-1 solenidion (2 in Hyracoptes parasitic on hyraxes).",
-            "advances_to": "Node 29"
-          },
-          "option_b": {
-            "morphology": "Parasitic or paraphagic on birds, hyperparasitic on hippoboscid flies or lice (some EPIDERMOPTIDAE), nidicolous or free living (some PYROGLYPHIDAE); genu I with 0-2 solenidia.",
-            "advances_to": "Node 40"
-          }
-        },
-        "29": {
-          "option_a": {
-            "morphology": "Dorsal hysterosoma with at least 1 pair of setae between interlamellar (in) setae and posterior terminus, or if setae absent, then subcapitulum and palpi greatly enlarged. External parasites, on hair or skin or in hair follicles, subcutaneous tissues, mouth, or ears.",
-            "advances_to": "Node 32"
-          },
-          "option_b": {
-            "morphology": "Interlamellar and/or exobothridial setae and posterior terminal setae h2 may be present, other dorsal hysterosomatic setae absent; palpi not greatly enlarged. Endoparasites in respiratory tracts of Chiroptera, Rodentia, and Primates or in stomach or eye orbits of Chiroptera.",
-            "advances_to": "Node 30"
-          }
-        },
-        "30": {
-          "option_a": {
-            "morphology": "Dorsal hysterosoma without sclerites, although scales may be present; tarsi very short, equal in length or shorter than tibiae. In nasal passages of Chiroptera and Rodentia or eye orbits or stomach of Chiroptera; cosmopolitan.",
-            "advances_to": "Family: Gastronyssidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal hysterosoma with one or more sclerites; tarsi usually longer than tibiae.",
-            "advances_to": "Node 31"
-          }
-        },
-        "31": {
-          "option_a": {
-            "morphology": "Body rounded; legs IV inserted in posterior 1/4 of body; opisthosoma covered by a single large dorsal sclerite. In lungs of Rodentia (Sciuridae, Muridae); Holarctic.",
-            "advances_to": "Family: Pneumocoptidae"
-          },
-          "option_b": {
-            "morphology": "Body very elongate; legs IV inserted more anteriorly; opisthosoma with 1-3 dorsal sclerites and a distinct posterior ventral sclerite. In nasal passages of Primates (Galagonidae, Cebidae); Afrotropical, Neotropical.",
-            "advances_to": "Family: Lemurnyssidae"
-          }
-        },
-        "32": {
-          "option_a": {
-            "morphology": "Female with oviporus in the form of a transverse slit situated between coxal fields II-III; genital apodemes very small or absent; idiosoma globular or elongate, anus usually dorsal; all legs very short. In skin of many mammalian orders; cosmopolitan.",
-            "advances_to": "Family: Sarcoptidae"
-          },
-          "option_b": {
-            "morphology": "Female with oviporus in the form of an inverted U or V, rarely transverse (if transverse, then legs I-II elongate or oviporus situated between coxal fields III-IV).",
-            "advances_to": "Node 33"
-          }
-        },
-        "33": {
-          "option_a": {
-            "morphology": "Females with pretarsal ambulacral stalks I-II elongate, usually longer than the tarsi, pretarsi III-IV absent; legs III-IV of female short, with reduced segmentation; both sexes usually with gnathosoma elongate, bearing retrorse spines on subcapitulum and/or palpi. In hair follicles of Paucituberculata (Caenolestidae), Primates (Cercopithecidae), Carnivora (Ursidae, Procyonidae), and Rodentia (Hystricidae); Afrotropical, Neotropical, Nearctic.",
-            "advances_to": "Family: Rhyncoptidae"
-          },
-          "option_b": {
-            "morphology": "Female with pretarsal ambulacral stalks of all legs similar, or tarsi III and/or IV without pretarsi but bearing more than 1 long seta; gnathosoma with at most 1 pair of retrorse spines on subcapitulum, none on palpi. On skin or hair or in ears.",
-            "advances_to": "Node 34"
-          }
-        },
-        "34": {
-          "option_a": {
-            "morphology": "Gnathosoma greatly enlarged, strongly sclerotized; palpi pointed, unsegmented, forming a holdfast apparatus with chelicerae; dorsal hysterosoma with at most 1 pair of setae. Monogeneric (Chirorhynchobia), on wings of Chiroptera (Phyllostomidae); Neotropical.",
-            "advances_to": "Family: Chirorhynchobiidae"
-          },
-          "option_b": {
-            "morphology": "Gnathosoma not greatly enlarged; dorsal hysterosoma with more than 1 pair of setae.",
-            "advances_to": "Node 35"
-          }
-        },
-        "35": {
-          "option_a": {
-            "morphology": "At least 1 pair of legs modified for clasping hair or skin; body usually cylindrical or laterally flattened, occasionally dorsoventrally flattened; on hairs of hosts.",
-            "advances_to": "Node 37"
-          },
-          "option_b": {
-            "morphology": "Legs not modified for clasping hairs; body globose or dorsoventrally flattened; on skin or hairs.",
-            "advances_to": "Node 36"
-          }
-        },
-        "36": {
-          "option_a": {
-            "morphology": "Anterior apodemes of coxal fields I fused to form a sternum; opisthosoma elongate, bilobed posteriorly. On hairs of Xenarthra (Bradypodidae) and Rodentia (Echimyidae); Neotropical.",
-            "advances_to": "Family: Lobalgidae"
-          },
-          "option_b": {
-            "morphology": "Anterior apodemes of coxal fields I not fused to form a sternum; body rounded; female opisthosoma rarely bilobed, male with or without bilobed opisthosoma. On skin or in ears of many mammal orders.",
-            "advances_to": "Family: Psoroptidae"
-          }
-        },
-        "37": {
-          "option_a": {
-            "morphology": "Legs III-IV of female and III of male strongly modified for clasping hairs, rarely legs IV of female reduced; body usually dorsoventrally flattened, occasionally females cylindrical (Trichoecius). Parasites of Didelphimorphia, Paucituberculata, Microbiotheria, and Rodentia.",
-            "advances_to": "Family: Myocoptidae"
-          },
-          "option_b": {
-            "morphology": "Legs III-IV not modified for clasping hairs.",
-            "advances_to": "Node 38"
-          }
-        },
-        "38": {
-          "option_a": {
-            "morphology": "Legs I-II terminating in flat, platelike attachment organs, or entire legs I-II flattened and platelike; pretarsal elements absent from legs I-II. Parasites of Primates, Afrosoricida, Eulipotyphla, Carnivora (Mustelidae), Rodentia (Castoridae), and most species of Chiroptera.",
-            "advances_to": "Family: Chirodiscidae"
-          },
-          "option_b": {
-            "morphology": "Legs I-II not terminating in platelike attachment organs; pretarsi present.",
-            "advances_to": "Node 39"
-          }
-        },
-        "39": {
-          "option_a": {
-            "morphology": "Gnathosoma covered dorsally by a projecting tegmen; tibiae-tarsi III-IV freely articulated. Parasites of many mammalian orders.",
-            "advances_to": "Family: Listrophoridae"
-          },
-          "option_b": {
-            "morphology": "Gnathosoma not covered by a projecting tegmen; tibiae-tarsi III-IV completely fused. Parasites of many mammalian orders; primarily Southern Hemisphere.",
-            "advances_to": "Family: Atopomelidae"
-          }
-        },
-        "40": {
-          "option_a": {
-            "morphology": "Pretarsal ambulacral discs well developed, without condylophore guide; tarsus IV with 3 ventral setae (s present); all tarsi with proral setae usually present, typically flattened and bifurcate apically, rarely filiform or absent.",
-            "advances_to": "Node 41"
-          },
-          "option_b": {
-            "morphology": "Pretarsal ambulacral discs variously formed, if large, then condylophore guide present; rarely pretarsi absent; tarsus IV with fewer than 3 ventral setae (s always absent); proral setae always absent.",
-            "advances_to": "Node 58"
-          }
-        },
-        "41": {
-          "option_a": {
-            "morphology": "Tarsus III with 1 ventral seta (s).",
-            "advances_to": "Node 42"
-          },
-          "option_b": {
-            "morphology": "Tarsus III with 3 ventral setae.",
-            "advances_to": "Node 43"
-          }
-        },
-        "42": {
-          "option_a": {
-            "morphology": "Tarsi with proral setae present; 4 ventral setae on tarsi I-II positioned in middle of segment. Parasites of Ciconiiformes, Strigiformes.",
-            "advances_to": "Family: Kramerellidae"
-          },
-          "option_b": {
-            "morphology": "Tarsi with proral setae absent; 2 ventral setae on tarsi I-II, both positioned subapically. Parasites of Coraciiformes (Bucerotidae) or, rarely, Passeriformes (Emberizidae).",
-            "advances_to": "Family: Vexillariidae"
-          }
-        },
-        "43": {
-          "option_a": {
-            "morphology": "Proral setae present on all tarsi, flattened and typically bifurcate apically; condylophores L shaped.",
-            "advances_to": "Node 45"
-          },
-          "option_b": {
-            "morphology": "Proral setae filiform, spinelike or absent on some or all tarsi; condylophores flattened and pointed apically, not L shaped.",
-            "advances_to": "Node 44"
-          }
-        },
-        "44": {
-          "option_a": {
-            "morphology": "Prodorsum with a single rostral (ro) seta; posterior legs inserted marginally. Parasites of Ciconiiformes (Threskiornithidae).",
-            "advances_to": "Family: Caudiferidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum with 2 rostral setae or none; posterior legs ventrally inserted. Parasites of many orders of aquatic birds.",
-            "advances_to": "Family: Freyanidae"
-          }
-        },
-        "45": {
-          "option_a": {
-            "morphology": "Trochanters I-III without setae; no seta on tarsus I longer than solenidion w3.",
-            "advances_to": "Node 46"
-          },
-          "option_b": {
-            "morphology": "Trochanters I-III with 1 seta each, or if setae absent, then 2 setae on tarsus I longer than solenidion w3.",
-            "advances_to": "Node 47"
-          }
-        },
-        "46": {
-          "option_a": {
-            "morphology": "Solenidia absent from genua I-III; genital setae (g) present. Parasites of Passeriformes (Alaudidae, Sylviidae); Afrotropical.",
-            "advances_to": "Family: Ochrolichidae"
-          },
-          "option_b": {
-            "morphology": "Solenidia present on genua I-III; genital setae (g) absent. Parasites of Apodiformes (Apodidae).",
-            "advances_to": "Family: Eustathiidae"
-          }
-        },
-        "47": {
-          "option_a": {
-            "morphology": "Female oviporus in the form of a longitudinal slit; ambulacral disc with long point in axis of disc. Parasites of Anseriformes (Anatidae).",
-            "advances_to": "Family: Rectijanuidae"
-          },
-          "option_b": {
-            "morphology": "Oviporus in the form of an inverted U, V, or Y, or transverse; ambulacral discs otherwise.",
-            "advances_to": "Node 48"
-          }
-        },
-        "48": {
-          "option_a": {
-            "morphology": "Female with genital papillae posterior to genital setae (g); genital papillae of male relatively distant from aedeagus that originates posterior to bases of legs IV; tibia IV without seta v'; male anterior coxal apodemes I ending freely, not fused into a V shape. On many bird orders.",
-            "advances_to": "Family: Gabuciniidae"
-          },
-          "option_b": {
-            "morphology": "Female with genital papillae anterior to genital setae (g); tibia IV with seta v' usually present (if v' absent, males with coxal apodemes I V shaped or male genital papillae very close to aedeagus).",
-            "advances_to": "Node 49"
-          }
-        },
-        "49": {
-          "option_a": {
-            "morphology": "Female with external median copulatory tube at least as long as 1/2 length of tarsus IV; male with femur and genu IV fused and/or aedeagus positioned between coxal apodemes I.",
-            "advances_to": "Node 50"
-          },
-          "option_b": {
-            "morphology": "Female with external median copulatory tube small or absent; male with femur and genu IV freely articulated and with aedeagus positioned posterior to coxal apodemes I.",
-            "advances_to": "Node 51"
-          }
-        },
-        "50": {
-          "option_a": {
-            "morphology": "Female copulatory tube rigid, heavily sclerotized, and very thick. Parasites of Galliformes (Megapodiidae); Oriental, Australian.",
-            "advances_to": "Family: Thoracosathesidae"
-          },
-          "option_b": {
-            "morphology": "Female copulatory tube thin, flexible, length variable. Parasites of Tinamiformes (Tinamidae); Neotropical.",
-            "advances_to": "Family: Crypturoptidae"
-          }
-        },
-        "51": {
-          "option_a": {
-            "morphology": "Propodosoma with interlamellar (in) setae distant from each other and inserted posteromesal to exobothridial (ex) setae; lines drawn through in and ex of each side will connect at the meson in a right angle posterior to these setae.",
-            "advances_to": "Node 52"
-          },
-          "option_b": {
-            "morphology": "Setae in inserted closer to ex; lines drawn through setae on each side will connect in a more oblique angle.",
-            "advances_to": "Node 53"
-          }
-        },
-        "52": {
-          "option_a": {
-            "morphology": "Dorsal idiosoma largely covered by well-developed propodosomatic and hysterosomatic shields; female with 3 p and 1 ad setae in paraproctal region. External parasites of Podicipediformes, Charadriiformes, and Ciconiiformes (Phoenicopteridae).",
-            "advances_to": "Family: Ptiloxenidae"
-          },
-          "option_b": {
-            "morphology": "Propodosomatic shield small and narrow; dorsal hysterosoma without shield; paraproctal region of female with 2 p and 0 ad setae. In quills of Strigiformes (Strigidae); Oriental.",
-            "advances_to": "Family: Oconnoriidae"
-          }
-        },
-        "53": {
-          "option_a": {
-            "morphology": "Posterior legs inserted ventrally; seta 13 filiform; male with well-sclerotized coxal fields; female with 3 p and 1 ad seta in paraproctal region. In feather quills.",
-            "advances_to": "Node 54"
-          },
-          "option_b": {
-            "morphology": "Posterior legs inserted laterally, rarely ventrally (CHEYLABIDIDAE); seta 13 typically spinelike, rarely filiform (FALCULIFERI DAE); female typically with 2-3 p and 0 ad setae (2 ad present in CHEYLABIDIDAE). On feather vanes.",
-            "advances_to": "Node 56"
-          }
-        },
-        "54": {
-          "option_a": {
-            "morphology": "Coxal apodemes I ending freely or fused in a V shape; female oviporus in the form of an inverted Y, with sclerotized lateral borders; female idiosoma globose, body often longer than 1 mm. In quills of Psittaciformes, Falconiformes, Galliformes, Apodiformes, Caprimulgiformes, Piciformes, and Passeriformes.",
-            "advances_to": "Family: Ascouracaridae"
-          },
-          "option_b": {
-            "morphology": "Coxal apodemes fused in a Y shape forming a sternum; female oviporus Y shaped, with anterolateral border strongly folded; idiosoma elongate.",
-            "advances_to": "Node 55"
-          }
-        },
-        "55": {
-          "option_a": {
-            "morphology": "Dorsal hysterosoma with a single, undivided shield. In quills or rarely externally on feathers of Charadriiformes; cosmopolitan.",
-            "advances_to": "Family: Syringobiidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal hysterosoma with 2 longitudinal shields in female; shields of male fused, but with obvious suture line medially. Monogeneric (Kiwilichus), in quills of Apterygiformes; New Zealand.",
-            "advances_to": "Family: Kiwilichidae"
-          }
-        },
-        "56": {
-          "option_a": {
-            "morphology": "Female without epigynal apodeme; oviporus in the form of an inverted U or a transverse slit; setae c3 long, filiform. On feathers of Columbiformes and Psittaciformes; cosmopolitan.",
-            "advances_to": "Family: Falculiferidae"
-          },
-          "option_b": {
-            "morphology": "Female with epigynal apodeme present, or if absent, then oviporus an inverted Y and setae 13 short and bladelike.",
-            "advances_to": "Node 57"
-          }
-        },
-        "57": {
-          "option_a": {
-            "morphology": "Posterior legs inserted ventrally; anterior tarsi 2 times longer than corresponding tibiae, female with 3 p and 2 ad setae in paraproctal region. On feathers of Falconiformes, Afrotropical.",
-            "advances_to": "Family: Cheylabididae"
-          },
-          "option_b": {
-            "morphology": "Female with either legs inserted laterally, or anterior tarsi less than twice the length of tibiae; female without ad setae. On feathers of many bird orders; cosmopolitan.",
-            "advances_to": "Family: Psoroptoididae"
-          }
-        },
-        "58": {
-          "option_a": {
-            "morphology": "Chelicerae with fixed digit absent or entire chelicerae vestigial; leg and body setae highly reduced. In respiratory passages, lungs, and air sacs of numerous avian orders.",
-            "advances_to": "Family: Cytoditidae"
-          },
-          "option_b": {
-            "morphology": "Chelicerae well developed; leg and body setae variously formed. In a variety of microhabitats, including respiratory passages.",
-            "advances_to": "Node 59"
-          }
-        },
-        "59": {
-          "option_a": {
-            "morphology": "Body saclike or elongate; prodorsal sclerite with a strongly developed internal apodeme on each side; all legs very short, similar in form; in feather follicles or skin lesions of numerous avian orders.",
-            "advances_to": "Family: Epidermoptidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Body variously formed; prodorsal sclerite without lateral apodemes, or if apodemes present, then legs III-IV different in form from legs I-II.",
-            "advances_to": "Node 60"
-          }
-        },
-        "60": {
-          "option_a": {
-            "morphology": "Pretarsal ambulacral stalks I-II as long as or longer than the tarsi; rostral (ro) setae absent. Endoparasites in respiratory passages, feather follicles, quill walls, or subcutaneous tissues.",
-            "advances_to": "Node 76"
-          },
-          "option_b": {
-            "morphology": "Pretarsal ambulacral stalks I-II shorter than the tarsi; rostral (ro) setae present or absent. On feathers or skin or in lumen of quills.",
-            "advances_to": "Node 61"
-          }
-        },
-        "61": {
-          "option_a": {
-            "morphology": "Tarsus IV with only 1 seta or legs IV absent. In quills of several avian orders, associated with syringophilid mites.",
-            "advances_to": "Family: Apionacaridae"
-          },
-          "option_b": {
-            "morphology": "Tarsus IV with more than 1 seta.",
-            "advances_to": "Node 62"
-          }
-        },
-        "62": {
-          "option_a": {
-            "morphology": "Tibia IV without ventral seta.",
-            "advances_to": "Node 63"
-          },
-          "option_b": {
-            "morphology": "Tibia IV with 1 ventral seta.",
-            "advances_to": "Node 67"
-          }
-        },
-        "63": {
-          "option_a": {
-            "morphology": "Genu II without dorsal solenidion sigma. Parasites of Passeriformes (Alaudidae, Sylviidae); Afrotropical.",
-            "advances_to": "Family: Proctophyllodidae"
-          },
-          "option_b": {
-            "morphology": "Genu II with a dorsal solenidion sigma.",
-            "advances_to": "Node 64"
-          }
-        },
-        "64": {
-          "option_a": {
-            "morphology": "Genua and femora fused in all legs.",
-            "advances_to": "Node 65"
-          },
-          "option_b": {
-            "morphology": "Genua and femora of legs I-II not fused. On many host groups.",
-            "advances_to": "Family: Trouessartiidae"
-          }
-        },
-        "65": {
-          "option_a": {
-            "morphology": "Rostral setae (ro) always absent; tibia III with seta v' present, generally elongate; males with setae h2 simple, never dilated; female with hysterosomatic sclerite always interrupted anterior to posterior terminus of body. On many bird groups, usually on body feathers.",
-            "advances_to": "Family: Xolalgidae"
-          },
-          "option_b": {
-            "morphology": "Rostral setae present or absent; tibia III with seta v' very reduced or absent (if present, 1 ro setae present or males with setae h2 leaflike); female with hysterosomatic sclerite entire, not interrupted anterior to posterior terminus.",
-            "advances_to": "Node 66"
-          }
-        },
-        "66": {
-          "option_a": {
-            "morphology": "Female with opisthosomatic lobes each prolonged by bipectinate appendage bearing an apical seta; male with 2 pairs of setae (g, p3) immediately anterior to paranal suckers and well posterior to aedeagus in most species. Monogeneric (Thysanocercus), on wings of Apodiformes.",
-            "advances_to": "Family: Thysanocercidae"
-          },
-          "option_b": {
-            "morphology": "Female terminal appendages variable in form or absent but without apical seta; male with seta p3 immediately anterior to paranal suckers, genital setae always closer to aedeagus than to paranal suckers. On aquatic birds.",
-            "advances_to": "Family: Alloptidae"
-          }
-        },
-        "67": {
-          "option_a": {
-            "morphology": "Genu III with solenidion sigma absent. On skin and in feather follicles.",
-            "advances_to": "Node 68"
-          },
-          "option_b": {
-            "morphology": "Genu III with solenidion sigma present.",
-            "advances_to": "Node 69"
-          }
-        },
-        "68": {
-          "option_a": {
-            "morphology": "Anterior legs conical with short tarsi bearing apicodorsal clawlike process. Parasites of many avian orders or hyperparasites of Hippoboscidae.",
-            "advances_to": "Family: Epidermoptidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Anterior legs cylindrical; tarsi without apicodorsal clawlike process. Parasites of several avian orders.",
-            "advances_to": "Family: Dermationidae"
-          }
-        },
-        "69": {
-          "option_a": {
-            "morphology": "Tarsus I with solenidion ω1 inserted subapically, very near solenidion ω3.",
-            "advances_to": "Node 70"
-          },
-          "option_b": {
-            "morphology": "Tarsus I with solenidion ω1 inserted basally.",
-            "advances_to": "Node 71"
-          }
-        },
-        "70": {
-          "option_a": {
-            "morphology": "Tarsus II with solenidion ω1 inserted subapically. In quills of Apodiformes (Trochilidae).",
-            "advances_to": "Family: Ptyssalgidae"
-          },
-          "option_b": {
-            "morphology": "Tarsus II with solenidion ω1 inserted in basal half of the segment. On feathers and skin or in quills of many avian orders, bird or mammal nests, house dust, or stored food products; cosmopolitan.",
-            "advances_to": "Family: Pyroglyphidae"
-          }
-        },
-        "71": {
-          "option_a": {
-            "morphology": "Pretarsal ambulacral stalks I-II thickened, asymmetrical, with ventral surface convex, distally rounded at point of contact with ambulacral disc, arising ventrally from tarsal apex.",
-            "advances_to": "Node 72"
-          },
-          "option_b": {
-            "morphology": "Ambulacral stalk with parallel sides, arising from apex of tarsus; stalk subdivided, with basal portion apically truncated, spherical distally.",
-            "advances_to": "Node 73"
-          }
-        },
-        "72": {
-          "option_a": {
-            "morphology": "Both sexes with legs III and IV ventrally inserted; female without epigynum. In quills of many avian orders.",
-            "advances_to": "Family: Dermoglyphidae"
-          },
-          "option_b": {
-            "morphology": "Legs III and IV inserted laterally or, if ventrally, then an epigynum is present in females. Usually on body feathers of many avian orders.",
-            "advances_to": "Family: Analgidae"
-          }
-        },
-        "73": {
-          "option_a": {
-            "morphology": "Pretarsi with ambulacral discs narrowing apically, with central sclerite almost as wide as disc. On wing or tail feather vanes.",
-            "advances_to": "Node 74"
-          },
-          "option_b": {
-            "morphology": "Ambulacral discs rounded or convex apically, central sclerite narrow. On feather vanes, plumaceous feathers or in quills.",
-            "advances_to": "Node 75"
-          }
-        },
-        "74": {
-          "option_a": {
-            "morphology": "Ventral surface of tarsi I-II with extensive unsclerotized longitudinal membrane; lateral sclerites of ambulacral disc with distinct clear areas (lacunae). On Coraciiformes, Piciformes, and Passeriformes.",
-            "advances_to": "Family: Pteronyssidae"
-          },
-          "option_b": {
-            "morphology": "Ventral surface of tarsi I-II completely sclerotized; lateral sclerites of ambulacral disc evenly sclerotized, without lacunae. On aquatic birds and osprey.",
-            "advances_to": "Family: Avenzoariidae"
-          }
-        },
-        "75": {
-          "option_a": {
-            "morphology": "Posterior legs ventrally inserted; female oviporus transverse. In quills of Galliformes (Phasianidae).",
-            "advances_to": "Family: Gaudoglyphidae"
-          },
-          "option_b": {
-            "morphology": "Posterior legs laterally inserted; female oviporus shaped like an inverted Y. On downy feathers of many avian orders.",
-            "advances_to": "Family: Psoroptoididae"
-          }
-        },
-        "76": {
-          "option_a": {
-            "morphology": "Body elongate and flattened, often with elongate lateral processes; some lateral body setae very elongate; tarsi without large, hooked processes; male without paranal suckers. In feather follicles, quill walls, or subcutaneous cysts of many avian orders.",
-            "advances_to": "Family: Laminosioptidae"
-          },
-          "option_b": {
-            "morphology": "Body rounded; lateral body setae very short; tarsi usually with large, hooked processes; male with paranal suckers. In nasal passages of many avian orders.",
-            "advances_to": "Family: Turbinoptidae"
-          }
-        }
-      }
-    },
-    "diptilomiopidae.to.subfamily": {
-      "title": "Subfamily under Diptilomiopidae",
-      "parent": {
-        "rank": "Family",
-        "name": "Diptilomiopidae"
-      },
-      "identifies": [
-        "Subfamily"
-      ],
-      "endpoint_ranks": [
-        "Subfamily"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Tarsal empodium divided.",
-            "advances_to": "Subfamily: Diptilomiopinae"
-          },
-          "option_b": {
-            "morphology": "Tarsal empodium entire.",
-            "advances_to": "Subfamily: Rhyncaphytoptinae"
-          }
-        }
-      }
-    },
-    "endeostigmata.to.family": {
-      "title": "Family under Endeostigmata",
-      "parent": {
-        "rank": "Suborder",
-        "name": "Endeostigmata"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Prodorsum with 1-2 pairs of trichobothria (bothridial setae), one of which may be clavate or capitate; body shape various but never wormlike; lateral and/or median eyes present or absent.",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Prodorsum without bothridia or clavate-capitate setae; body shape elongate, often wormlike; eyes absent.",
-            "advances_to": "Node 8"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Prodorsum with 2 pairs of trichobothria, one of which may be clavate or capitate; naso absent or weakly developed and nude; rutella present or absent.",
-            "advances_to": "Node 3"
-          },
-          "option_b": {
-            "morphology": "Prodorsum with 1 pair of filiform trichobothria (bo); naso well developed and bearing setiform setae ro; rutella present and dentate.",
-            "advances_to": "Node 5"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Chelicerae slender, weakly chelate-dentate, needlelike or with short movable digit; opisthosomatic chaetome usually hypertrichous.",
-            "advances_to": "Node 4"
-          },
-          "option_b": {
-            "morphology": "Chelicerae massive, chelate-serrulate, and much larger than prodorsum; opisthosomatic chaetome hypotrichous.",
-            "advances_to": "Family: Proterorhagiidae"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "All tarsi with paired claws and rayed empodium; coxae IV not modified for jumping; chelicera chelate or needlelike.",
-            "advances_to": "Family: Alycidae"
-          },
-          "option_b": {
-            "morphology": "Tarsi with only rayed empodium, lateral claws absent; coxae IV modified for jumping; chelicera chelate.",
-            "advances_to": "Family: Nanorchestidae"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Pretarsi II-IV with paired claws and empodium; each chelicera with 2 setae; 3 pairs of genital papillae in adult; body setae simple, dendritic, globose, rodlike, or leaflike.",
-            "advances_to": "Node 6"
-          },
-          "option_b": {
-            "morphology": "All pretarsi with a single, simple, clawlike empodium and without lateral claws; each chelicera with 1 seta; 2 or 3 pairs of genital papillae in adult; body setae simple or branched-plumose.",
-            "advances_to": "Family: Alicorhagiidae"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Prodorsum with 5 pairs of setae (including bo), external bothridial seta exp absent; tarsus I without lateral claws, with or without an empodium.",
-            "advances_to": "Node 7"
-          },
-          "option_b": {
-            "morphology": "Prodorsum with 6 pairs of setae, external bothridial seta exp present; tarsus I with both claws and empodium.",
-            "advances_to": "Family: Terpnacaridae"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Tarsus I ending in small, clawlike empodium; without pilose flagellum (distal, daggerlike seta sometimes present).",
-            "advances_to": "Family: Oehserchestidae"
-          },
-          "option_b": {
-            "morphology": "Tarsus I without claws or empodium but with a pilose flagellum several times longer than the tarsus.",
-            "advances_to": "Family: Grandjeanicidae"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Body elongate but not wormlike; rutella present; genital and anal openings situated near each other; prodorsum with naso and 11-12 setae (posterior pairs may be minute); eyes present or absent.",
-            "advances_to": "Node 9"
-          },
-          "option_b": {
-            "morphology": "Body wormlike, > 10x as long as wide; rutella absent; genital and anal openings widely separated; prodorsum without naso and with ≤ 7 setae; eyes absent.",
-            "advances_to": "Family: Nematalycidae"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Prodorsal seta ro paired; eyes absent; chelicerae massive.",
-            "advances_to": "Family: Micropsammidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsal seta ro unpaired; eyes present; chelicerae not hypertrophied.",
-            "advances_to": "Family: Proteonematalycidae"
-          }
-        }
-      }
-    },
-    "eriophyidae.to.subfamily": {
-      "title": "Subfamily under Eriophyidae",
-      "parent": {
-        "rank": "Family",
-        "name": "Eriophyidae"
-      },
-      "identifies": [
-        "Subfamily"
-      ],
-      "endpoint_ranks": [
-        "Subfamily"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Tibiae reduced or completely fused with tarsi; tibial setae absent.",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Tibiae distinct from tarsi; tibial setae present.",
-            "advances_to": "Node 3"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Tarsi with spatulate or shovel-shaped projections; legs very short with combined segments; empodia large with many rays.",
-            "advances_to": "Subfamily: Aberoptinae"
-          },
-          "option_b": {
-            "morphology": "Tarsi without spatulate or shovel-shaped projections; coxae of leg I fused across the central line; coxal setae 1b absent; empodia comparatively small.",
-            "advances_to": "Subfamily: Nothopodinae"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Prodorsal shield small and lacking tubercles; scapular setae (sc) small on lateral margins and directed laterally; coxae widely separated; ventral setae d and e absent; female genitalia at the base of coxa II; coverflaps lack ridges.",
-            "advances_to": "Subfamily: Ashieldopinae"
-          },
-          "option_b": {
-            "morphology": "Prodorsal shield and opisthosomal setation not as above.",
-            "advances_to": "Node 4"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Female genital apodeme bent upward, shortened, and with a heavy transverse ventral line; female genital coverflap with two uneven ranks of ridges; female genitalia close between coxa II; scapular setae (sc) absent.",
-            "advances_to": "Subfamily: Cecidophyinae"
-          },
-          "option_b": {
-            "morphology": "Female genital apodeme extends normally forward and lacks heavy transverse marks; female coverflap with variable ridges; female genitalia not close between coxa II.",
-            "advances_to": "Node 5"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Vermiform body; annuli subequal dorsoventrally up to half or two-thirds of the opisthosoma; prodorsal shield lacks frontal lobe or has only a slight projection over the gnathosomal base; frontal lobe, if present, short and flexible with narrow annuli.",
-            "advances_to": "Subfamily: Eriophyinae"
-          },
-          "option_b": {
-            "morphology": "Fusiform body; broad prodorsal shield with a strong frontal lobe over the gnathosomal base; opisthosomal annuli broad and stout.",
-            "advances_to": "Subfamily: Phyllocoptinae"
-          }
-        }
-      }
-    },
-    "eriophyoidea.to.family": {
-      "title": "Family under Eriophyoidea",
-      "parent": {
-        "rank": "Superfamily",
-        "name": "Eriophyoidea"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Prodorsal shield with one to five setae, always with anterior setae present (paired or unpaired vi or paired ve); legs with all setae and apicolateral or apicoventral solenidion on tibiae of legs. Opisthosoma with subdorsal setae (c1); accessory setae often long (h1); female genital coverflap without ridges.",
-            "advances_to": "Family: Phytoptidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsal shield without anterior setae (vi and ve); no tibial solenidion; opisthosoma without subdorsal setae (c1); accessory setae often small or minute (h1); female genital coverflap with ridges.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Gnathosoma large compared with body; cheliceral stylets comparatively long and suddenly bent downward near base; pedipalps attenuate and enfold long-form oral stylets; empodium divided or entire; female genital coverflap without ridges.",
-            "advances_to": "Family: Diptilomiopidae"
-          },
-          "option_b": {
-            "morphology": "Gnathosoma small compared with body; cheliceral stylets comparatively long, straight or slightly curved; pedipalps terminally truncate and enfold short-form oral stylets; accessory setae often minute or absent (h1); female genital coverflap with ridges.",
-            "advances_to": "Family: Eriophyidae"
-          }
-        }
-      }
-    },
-    "ixodida.to.family": {
-      "title": "Family under Ixodida",
-      "parent": {
-        "rank": "Order",
-        "name": "Ixodida"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Capitulum situated anteriorly in all known active stages, visible when viewed from above; a scutum or pseudoscutum present. Paired spiracular plates present in postlarval stages, situated dorsolaterally posterior to coxa IV.",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Capitulum situated anteriorly in larva only, situated ventrally and not visible from above in postlarval stages, dorsal plate present or absent in larvae; leathery pseudoscutum rarely present in nymphs and adults. Paired spiracular plates situated dorsolaterally between coxae III-IV.",
-            "advances_to": "Family: Argasidae"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "With a leathery papillate podonotal pseudoscutum. Palpi apparently consisting of 3 segments; hypostome short with few denticles. Known only from a few nymphs and adults from South Africa, Namibia, and Tanzania (monotypic).",
-            "advances_to": "Family: Nuttalliellidae"
-          },
-          "option_b": {
-            "morphology": "With a podonotal scutum present in larval and nymphal stages and in the adult female. A holonotal scutum is present in males. Scutal ornamentation present or absent. Palpi 4-segmented; in most species the 4th segment inserted into a pit ventrally on segment III. Hypostome usually well armed with denticles and usually with a specific dental formula. Larva often with large wax glands (absent in Ixodes).",
-            "advances_to": "Family: Ixodidae"
-          }
-        }
-      }
-    },
-    "ixodidae.to.genus": {
-      "title": "Genus under Ixodidae",
-      "parent": {
-        "rank": "Family",
-        "name": "Ixodidae"
-      },
-      "identifies": [
-        "Genus"
-      ],
-      "endpoint_ranks": [
-        "Genus"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Festoons and eyes absent; anal groove distinct, extending anteriorly around anus.",
-            "advances_to": "Genus: Ixodes"
-          },
-          "option_b": {
-            "morphology": "Festoons usually present, eyes present or absent; anal groove usually present and posterior to anus, may be indistinct or absent.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Eyes absent.",
-            "advances_to": "Node 3"
-          },
-          "option_b": {
-            "morphology": "Eyes present but difficult to see in Dermacentor (Anocentor) nitens Neumann and some Boophilus species. Ornate or inornate ticks.",
-            "advances_to": "Node 6"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Inornate ticks.",
-            "advances_to": "Node 4"
-          },
-          "option_b": {
-            "morphology": "Ornate ticks.",
-            "advances_to": "Node 5"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Palpi short, with segment II as broad as long and usually much broader than long, obviously extended laterally, basis capituli dorsally rectangular. Primarily Old World in distribution. Three species in New World, common.",
-            "advances_to": "Genus: Haemaphysalis"
-          },
-          "option_b": {
-            "morphology": "Palpi elongate, with segment II twice as long as broad and never extended laterally. Found in Nepal, China, and Russia. Three very rare species.",
-            "advances_to": "Genus: Anomalohimalaya"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Hypostomatic dentition 2/2 or 3/3, inner file of denticles reduced in size, bright iridescent ornamentation absent. Australasia, on reptiles and edentate mammals.",
-            "advances_to": "Genus: Bothriocroton"
-          },
-          "option_b": {
-            "morphology": "Hypostomatic dentition usually 3/3 or higher, internal file of denticles not reduced in size; bright iridescent ornamentation usually present. Primarily Southeast Asia and Africa, on reptiles.",
-            "advances_to": "Genus: Amblyomma (formerly Aponomma)"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Festoons absent.",
-            "advances_to": "Node 7"
-          },
-          "option_b": {
-            "morphology": "Festoons present.",
-            "advances_to": "Node 8"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Legs IV of males greatly enlarged. Africa, three uncommon species.",
-            "advances_to": "Genus: Margaropus"
-          },
-          "option_b": {
-            "morphology": "Legs IV of males not greatly enlarged. Cosmopolitan, on cattle and goats.",
-            "advances_to": "Genus: Rhipicephalus (Subgenus Boophilus)"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Basis capituli hexagonal dorsally, usually inornate species.",
-            "advances_to": "Node 9"
-          },
-          "option_b": {
-            "morphology": "Basis capituli rectangular or quadrangular, ornate or inornate species.",
-            "advances_to": "Node 10"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Inornate, males without ventral plates. Africa, uncommon.",
-            "advances_to": "Genus: Rhipicentor"
-          },
-          "option_b": {
-            "morphology": "Usually inornate (4 ornate species), males with ventral plates. Cosmopolitan, but most species in Africa, common.",
-            "advances_to": "Genus: Rhipicephalus"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "With 9 festoons, spiracular plate and dorsum of basis capituli ornamented in ivory coloration. Africa, rare (monotypic).",
-            "advances_to": "Genus: Cosmiomma"
-          },
-          "option_b": {
-            "morphology": "Festoons of various numbers, but not 9, spiracular plate and dorsum of basis capituli not ornamented.",
-            "advances_to": "Node 11"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Palpi much longer than basis capituli, palpal segment II at least twice as long as broad.",
-            "advances_to": "Node 12"
-          },
-          "option_b": {
-            "morphology": "Palpi about as long as basis capituli, palpal segment II about as broad as long.",
-            "advances_to": "Node 14"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Scutum and palpi ornamented, palpal segment II with a dorsal and ventral flange, male with ventral plates. India, uncommon (monotypic).",
-            "advances_to": "Genus: Nosomma"
-          },
-          "option_b": {
-            "morphology": "Scutum ornate or inornate, palpi unornamented, palpal segment II without a dorsal and ventral flange, male with or without ventral plates.",
-            "advances_to": "Node 13"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Scutum usually ornate, males without ventral plates, with 11 festoons, not coalesced, eyes usually flat or slightly raised, not bulging upward from distinct, deep sockets. Circumglobal in tropics and subtropics but rare in Palearctic; common.",
-            "advances_to": "Genus: Amblyomma (pars)"
-          },
-          "option_b": {
-            "morphology": "Scutum inornate, males with ventral plates, with 7-11 festoons, partially coalesced. Eyes large, bulging upward from distinct, deep sockets. Southern Europe, Africa, Middle East to India, common.",
-            "advances_to": "Genus: Hyalomma"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "With 11 festoons, ornate. Cosmopolitan, common.",
-            "advances_to": "Genus: Dermacentor"
-          },
-          "option_b": {
-            "morphology": "With 7 festoons, inornate. Neotropics into southern United States, relatively common.",
-            "advances_to": "Genus: Dermacentor (Subgenus Anocentor)"
-          }
-        }
-      }
-    },
-    "mesostigmata.to.family": {
-      "title": "Family under Mesostigmata",
-      "parent": {
-        "rank": "Order",
-        "name": "Mesostigmata"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Oviporus covered by a single large shield usually bearing 6 to many setae (rarely 2 or 4 setae in some Sejus) or by a complex of 2-3 genital shields or their remnants; tarsus of leg IV of deutonymphs and adults with a minimum of 20 setae, setae av4 and pv4 present, usually on a ventral intercalary sclerite between the basitarsus and telotarsus.",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Oviporus covered by a single shield, with 0-1 pair of setae (sometimes expanded and with 4-5 pairs), or shield absent; tarsus of leg IV of deutonymphs and adults with a maximum of 18 setae but lacking setae av4 and pv4 and ventral intercalary sclerite. A highly diverse, primarily free-living assemblage.",
-            "advances_to": "Node 32"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Oviporus covered by a single large epigynal shield bearing 6 (rarely 2-4) to many setae and often notched or excavated anteriorly; chelicerae without excrescences; femur IV with 7 setae. Found in diverse soil/litter and forest habitats, deutonymphs phoretic on beetles.",
-            "advances_to": "Node 3"
-          },
-          "option_b": {
-            "morphology": "Oviporus covered by 2-3 shields (2 latigynal and 1 mesogynal) that may be variously coalesced or reduced; median element (mesogynal shield) nude, subtriangular but often reduced or insensibly fused to other elements, latigynal shields each with 1 to many setae; movable cheliceral digit with medial or terminal dendritic, brushlike, or filamentous ventral excrescences; femur IV with 4-11 setae.",
-            "advances_to": "Node 5"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Corniculi large, bifurcate; chelicerae massive, with few coarse teeth and lacking pilus dentilis; idiosomatic shields with scalelike ornamentation; anal opening enlarged.",
-            "advances_to": "Family: Ichthyostomatogasteridae"
-          },
-          "option_b": {
-            "morphology": "Corniculi small, horn shaped; chelicerae moderate in size, denticulate, and with setiform pilus dentilis; idiosomatic shields tuberculate to coarsely reticulate; anal opening small.",
-            "advances_to": "Node 4"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Apex of podonotum produced into a spiky knob; cheliceral digits with few teeth; female epigynal shield subrectangular, with numerous setae irregularly inserted over most of surface; opisthonotum of female with a pair of lateral shields and a pygidial shield that extends onto the mesonotal region and lacking hornlike processes posteriorly.",
-            "advances_to": "Family: Uropodellidae"
-          },
-          "option_b": {
-            "morphology": "Apex of podonotum without spiky knob; cheliceral digits serrate; female epigynal shield with 1-6 pairs of setae inserted laterally; opisthonotum of female without lateral shields but with 1 or more mesonotal shields and a pygidial shield that often has a pair of posterior, hornlike processes bearing setae.",
-            "advances_to": "Family: Sejidae"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Adult female with separate podonotal, mesonotal, and pygidial shields (sometimes obscured by leathery, secondary sclerotization).",
-            "advances_to": "Node 6"
-          },
-          "option_b": {
-            "morphology": "Adult female with holonotal (entire) shield or with separate podonotal and opisthonotal shields.",
-            "advances_to": "Node 7"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Mesonotum with a single, large shield; pygidial shield small, on tail-like posterior process; metapodal shields and peritremes absent; female with well-developed and tapering vaginal sclerites. On Neotropical millipedes.",
-            "advances_to": "Family: Neotenogyniidae"
-          },
-          "option_b": {
-            "morphology": "With a pair of mesonotal shields and a well-developed pygidial shield; free metapodal shields present, distinct in teneral or lightly sclerotized adults but often obscured by secondary leathery cuticle; peritremes present and well developed; female with a pair of straplike internal genital plates with numerous large pores. Free living.",
-            "advances_to": "Family: Davacaridae"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Often yellowish to light brown in color; weakly to strongly sclerotized and with a holodorsal shield or separate podonotal and opisthonotal shields; palpgenu with 6 setae; gnathotectum denticulate, usually not coming to point and without median keel; tritosternal laciniae usually fused for half or more of length, often rodlike; chelicerae toothed; large internal sclerites in genital region absent; tarsus I with or without claws. Free living or associated with arthropods.",
-            "advances_to": "Node 8"
-          },
-          "option_b": {
-            "morphology": "Often dark reddish brown in color; strongly sclerotized and with a holodorsal shield; palpgenu with 5-7 setae; gnathotectum usually smooth, with median spur and ventral keel; tritosternal laciniae usually free; chelicerae toothed or edentate; vaginal sclerites or sternovaginal processes often present; tarsus I without claws. Associated with arthropods or reptiles.",
-            "advances_to": "Node 13"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Adults with a holodorsal shield.",
-            "advances_to": "Node 10"
-          },
-          "option_b": {
-            "morphology": "Adults with separate podonotal and opisthonotal shields.",
-            "advances_to": "Node 9"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Dorsal shields with relatively few setae; lateral idiosomal setae on marginal shields, not on platelets in soft cuticle; ventrianal shield fused posteriorly to opisthonotal and marginal shields; tarsus I with or without claws.",
-            "advances_to": "Family: Pyrosejidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal shields strongly hypertrichous; lateral idiosomal setae on platelets in soft cuticle; ventrianal shield free posteriorly; tarsus I without claws.",
-            "advances_to": "Family: Cercomegistidae"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "Female with separate latigynal and mesogynal shields.",
-            "advances_to": "Node 12"
-          },
-          "option_b": {
-            "morphology": "Latigynal and mesogynal shields fused, contiguous, or coalesced.",
-            "advances_to": "Node 11"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Latigynal and mesogynal shields insensibly fused into intercoxal shield; ventrianal shield fused to holodorsal shield posteriorly; plicate ventral cuticle without setae; tarsus I with claws.",
-            "advances_to": "Family: Seiodidae"
-          },
-          "option_b": {
-            "morphology": "Latigynal shields free medially but fused posterolaterally to mesogynal-opisthoventrianal shield, which is free from holodorsal shield posteriorly; plicate ventral cuticle with setae; tarsus I without claws. Associated with crabs.",
-            "advances_to": "Family: Cercomegistidae"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Anterior sternal area occupied by sclerotized sternal shield bearing st1 and st2; anal opening in small shield bearing only paranal setae; legs IV hypertrophied, modified for jumping; peritrematic shields with longitudinal groove behind coxae IV.",
-            "advances_to": "Family: Saltiseiidae"
-          },
-          "option_b": {
-            "morphology": "Anterior sternal region desclerotized, fragmented, st1 in soft or lightly sclerotized cuticle; anal opening in large ventrianal shield; legs IV normal; peritrematic shields without longitudinal groove behind coxae IV.",
-            "advances_to": "Family: Asternoseiidae"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Chelicerae edentate or with minute serrations or baleenlike comb.",
-            "advances_to": "Node 14"
-          },
-          "option_b": {
-            "morphology": "Chelicerae with well-developed, sclerotized teeth.",
-            "advances_to": "Node 22"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "Fixed digit of chelicera without excrescence or membranous process; sternal shield with or without internal sternovaginal processes; latigynal shields usually extensively overlapping mesogynal region. Associated with ants.",
-            "advances_to": "Node 18"
-          },
-          "option_b": {
-            "morphology": "Fixed digit with fringed excrescence or distally membranous-denticulate or with row of small teeth; sternal shield without sternovaginal sclerites; latigynal shields various but not overlapping mesogynal shield. Associated with reptiles, beetles, or myriapods.",
-            "advances_to": "Node 15"
-          }
-        },
-        "15": {
-          "option_a": {
-            "morphology": "Fixed digit with dorsal excrescence; anal opening in small shield with 1-3 pairs of setae; mesogynal shield bearing lateral setae. Associated with carabid beetles, centipedes, or millipedes.",
-            "advances_to": "Family: Parantennulidae"
-          },
-          "option_b": {
-            "morphology": "Fixed digit without dorsal excrescence, but terminating distally in denticulate, membranous process; anal opening in large ventral or ventrianal shield with numerous setae; mesogynal shield nude or fused to setose ventral elements. Associated with beetles, myriapods, or reptiles.",
-            "advances_to": "Node 16"
-          }
-        },
-        "16": {
-          "option_a": {
-            "morphology": "Dorsal shield entire; anal opening in large ventral shield; mesogynal shield free or fused to ventral elements; setae av4, pv4 reduced in size, often minute. Associated with beetles, myriapods, or reptiles.",
-            "advances_to": "Node 17"
-          },
-          "option_b": {
-            "morphology": "Dorsal shield divided; anal opening in straplike ventrianal shield; mesogynal shield absent; setae av4, pv4 normally developed. Associated with tenebrionid beetles.",
-            "advances_to": "Family: Philodanidae"
-          }
-        },
-        "17": {
-          "option_a": {
-            "morphology": "Sternal shield entire, bearing st1-st3 and sternal pores 1-2; pregenital shield fusiform and without sternal pores 3 (pseudosternogynum); palpgenu with 6 setae. Associated with carabid or passalid beetles.",
-            "advances_to": "Family: Promegistidae"
-          },
-          "option_b": {
-            "morphology": "Sternal shield variously divided; pregenital shield divided into two subtriangular shields, sometimes narrowly joined medially and bearing sternal pores 3 (sternogynum); palpgenu with 7 setae. Associated with carabid beetles, millipedes, or reptiles.",
-            "advances_to": "Family: Paramegistidae"
-          }
-        },
-        "18": {
-          "option_a": {
-            "morphology": "Sternal shield with a pair of sternovaginal sclerites; ventrianal shield without anterior process.",
-            "advances_to": "Node 19"
-          },
-          "option_b": {
-            "morphology": "Sternal shield without sternovaginal sclerites; ventrianal shield with anterior process.",
-            "advances_to": "Family: Antennophoridae"
-          }
-        },
-        "19": {
-          "option_a": {
-            "morphology": "Latigynal shields subrectangular, with parallel, approximate mesal margins; mesogynal shield obscured or absent.",
-            "advances_to": "Family: Messoracaridae"
-          },
-          "option_b": {
-            "morphology": "Latigynal shields subtriangular, margins diverging posteriorly; mesogynal shield well developed, subtriangular.",
-            "advances_to": "Node 20"
-          }
-        },
-        "20": {
-          "option_a": {
-            "morphology": "Latigynal shields each with 2 pairs of setae; pseudoperitreme present lateral and posterior to true peritreme.",
-            "advances_to": "Family: Aenictequidae"
-          },
-          "option_b": {
-            "morphology": "Latigynal shields each with 10 or more pairs of setae; pseudoperitreme absent.",
-            "advances_to": "Node 21"
-          }
-        },
-        "21": {
-          "option_a": {
-            "morphology": "Setae st1 and associated pores on separate anterior platelets (jugularia).",
-            "advances_to": "Family: Ptochacaridae"
-          },
-          "option_b": {
-            "morphology": "Setae st1-st3 (4) and pores on an entire sternal shield.",
-            "advances_to": "Family: Physalozerconidae"
-          }
-        },
-        "22": {
-          "option_a": {
-            "morphology": "Setae st1 on separate shield from st2-st3; well-developed sternogynum (entire or divided, and sometimes setose) present; movable digit of chelicera without enlarged proximal tooth; movable digit of male without sclerotized process. Associated with passalid beetles (rarely on carabid beetles).",
-            "advances_to": "Node 23"
-          },
-          "option_b": {
-            "morphology": "Setae st1 on same shield as st2-st3; sternogynum absent (free metasternal plates sometimes present); movable digit of chelicera with enlarged proximal tooth; movable digit of male with sclerotized excrescence. Free living or associated with a variety of arthropods or reptiles.",
-            "advances_to": "Node 26"
-          }
-        },
-        "23": {
-          "option_a": {
-            "morphology": "Cheliceral digits short, with moplike mass of long, filamentous, and ribbonlike excrescences; uropodid-like mites often with pedofossae.",
-            "advances_to": "Node 24"
-          },
-          "option_b": {
-            "morphology": "Cheliceral digits robust, with dendritic or brushlike excrescences; very large, long-legged mites without pedofossae.",
-            "advances_to": "Node 25"
-          }
-        },
-        "24": {
-          "option_a": {
-            "morphology": "Latigynal and mesogynal shields well developed; male genital aperture ellipsoidal, between coxae III.",
-            "advances_to": "Family: Klinkowstroemiidae"
-          },
-          "option_b": {
-            "morphology": "Latigynal and mesogynal shields reduced and hidden by ventral plate; male genital aperture subcircular, between coxae II-III.",
-            "advances_to": "Family: Fedrizziidae"
-          }
-        },
-        "25": {
-          "option_a": {
-            "morphology": "Sternogynum narrow, divided; fused latigynal shields free from ventral shield. Neotropical.",
-            "advances_to": "Family: Hoplomegistidae"
-          },
-          "option_b": {
-            "morphology": "Sternogynum broad, divided, or entire and surrounded by straplike, fused sternal-latigynal-ventral shield. Neotropical, African, and Australasian.",
-            "advances_to": "Family: Megisthanidae"
-          }
-        },
-        "26": {
-          "option_a": {
-            "morphology": "Mesogynal shield usually small, triangular, overlapped marginally by latigynals, and free from or fused to ventral plate; latigynal shields well developed and freely hinged to ventral plate.",
-            "advances_to": "Node 27"
-          },
-          "option_b": {
-            "morphology": "Mesogynal shield fused to ventral plate, free from or fused to latigynal elements; latigynals insensibly fused to ventral plate or extended posteriorly to coxae IV and narrowly joined to ventral plate.",
-            "advances_to": "Node 29"
-          }
-        },
-        "27": {
-          "option_a": {
-            "morphology": "Anal opening on small plate separate from ventral plate. Free living or associated with insects or myriapods.",
-            "advances_to": "Node 28"
-          },
-          "option_b": {
-            "morphology": "Anal opening on large ventral plate. Adults associated with arthropods or snakes.",
-            "advances_to": "Family: Diplogyniidae"
-          }
-        },
-        "28": {
-          "option_a": {
-            "morphology": "Free ventromarginal plates present. Free living in soil litter, on bark, in bark beetle galleries, or in the nests of stingless bees; rarely on beetles.",
-            "advances_to": "Family: Triplogyniidae"
-          },
-          "option_b": {
-            "morphology": "Free ventromarginal plates absent. Associated with millipedes.",
-            "advances_to": "Family: Costacaridae"
-          }
-        },
-        "29": {
-          "option_a": {
-            "morphology": "Latigynal-mesogynal complex insensibly fused, with at most a small median notch present on anterior margin of ventral-genital plate; metasternal setae on sternal shield or on well-developed metasternal plates. Free living or associated with bark beetles.",
-            "advances_to": "Node 30"
-          },
-          "option_b": {
-            "morphology": "Latigynal and mesogynal elements free from each other mesally; metasternal setae on sternal shield or on narrow, straplike plate or plates. Associated with a variety of arthropods or snakes.",
-            "advances_to": "Node 31"
-          }
-        },
-        "30": {
-          "option_a": {
-            "morphology": "Setae st4 on large, well-developed metasternal plates; endopodal-peritrematic shields fused to ventral plate. Associated with bark and bark beetles.",
-            "advances_to": "Family: Celaenopsidae"
-          },
-          "option_b": {
-            "morphology": "Setae st4 on sternal shield; endopodal-peritrematic shields fused but free from ventral plate. Free living.",
-            "advances_to": "Family: Megacelaenopsidae"
-          }
-        },
-        "31": {
-          "option_a": {
-            "morphology": "Median separations between mesogynal and latigynal elements not extending past level of coxae III. Associated with passalid beetles and millipedes.",
-            "advances_to": "Family: Euzerconidae"
-          },
-          "option_b": {
-            "morphology": "Latigynal elements elongate, separate from mesogynal element to or beyond level of coxae IV. Associated with beetles or snakes.",
-            "advances_to": "Family: Schizogyniidae"
-          }
-        },
-        "32": {
-          "option_a": {
-            "morphology": "Adult opisthogaster with a pair of distinctive, suckerlike adhesive organs (secondarily lost in some species); tarsus I of adults with acrotarsus; sternal shield of female often fragmented and reduced, represented by lateral remnants that are contiguous with endopodal plates; sternal pores 2-3 usually absent; male chelicerae with sperm transfer process arising on the fixed or the movable digit.",
-            "advances_to": "Node 33"
-          },
-          "option_b": {
-            "morphology": "Adult opisthogaster without adhesive organs; tarsus I of adults usually without acrotarsus; sternal shield of female usually well developed or, if reduced, not as described above; sternal pores 2-3 usually present; male sperm transfer process, when present, always arising on the movable digit.",
-            "advances_to": "Node 34"
-          }
-        },
-        "33": {
-          "option_a": {
-            "morphology": "Genua III-IV each with 10 setae, including 3 posterodorsals (2 2/1 3/1 1); male with spermatostylus arising on fixed cheliceral digit. Associated with millipedes and snakes.",
-            "advances_to": "Family: Heterozerconidae"
-          },
-          "option_b": {
-            "morphology": "Genua III-IV each with 8-9 setae, including two posterodorsals (2 2/1, 2/1 1 or 2 2/1, 2/1 0); male with spermatodactyl arising on movable cheliceral digit. Associated with scolopendrine centipedes.",
-            "advances_to": "Family: Discozerconidae"
-          }
-        },
-        "34": {
-          "option_a": {
-            "morphology": "Female and male wormlike, hypertrichous, pseudosegmented, without idiosomatic sclerites; fixed cheliceral digit greatly reduced, male spermatodactyl entirely fused to reduced movable digit. Associated with army ants.",
-            "advances_to": "Family: Larvamimidae"
-          },
-          "option_b": {
-            "morphology": "Females and males without above combination of characters.",
-            "advances_to": "Node 35"
-          }
-        },
-        "35": {
-          "option_a": {
-            "morphology": "Female with sternal setae st1-2 and st3-4 on separate shields, or all sternal setae on separate shields; male with sternitigenital shield bearing 4 pairs of sternal setae and a mid-sternal genital opening, and with sternal setae st5 on or near a separate plate between coxae IV, which is rarely fused posteriorly with expansive circumventral shield; idiosomatic dorsum of adults with podonotal, mesonotal, pygidial, and rarely marginal shields. Free living in litter, rotten wood.",
-            "advances_to": "Node 36"
-          },
-          "option_b": {
-            "morphology": "Female with arrangement of sternal setae and shields not as above; male with sternitigenital or holoventral shield usually bearing all 5 or more pairs of sternal setae (rarely without st4) and a presternal or mid-sternal genital opening, or, if sternal setae st5 on or near a separate plate, then genital opening presternal; idiosomatic dorsum of adults with 1-2 shields or, if mesonotal and pygidial elements present, then male with genital opening presternal.",
-            "advances_to": "Node 38"
-          }
-        },
-        "36": {
-          "option_a": {
-            "morphology": "Idiosomatic venter of adult with expansive circumventral shield incorporating ventrianal, peritrematic, and exopodal shields and bearing laterally on either side a dense row of 20-26 ventrolateral setae, 6-9 spoutlike glandular openings, and a sparser row of 12-13 setae above these glands. Idiosomatic dorsum of female covered by large anteromedian shield incorporating podonotal and mesonotal elements and flanked by a marginal plate on either side and 3 pygidial plates posteriorly. Dorsum of male with fused podonotal-marginal shield anteriorly, separate mesonotal and broad marginal shields medially, and 3 pygidial plates posteriorly; stigmata lacking peritremes; legs I with 13 setae on each of femur, genu, and tibia, including 5 dorsals on femur and 6 dorsals on genu and tibia.",
-            "advances_to": "Family: Heatherellidae"
-          },
-          "option_b": {
-            "morphology": "Idiosomatic venter of adult with ventrianal shield surrounded by soft cuticle separating it from peritrematic and expodal shields, without a dense row of ventrolateral setae and spoutlike glandular openings. Idiosomatic dorsum of female and male with podonotal, 1-2 mesonotal shields and 1 pygidial shield, lacking marginal shields; stigmata with peritremes; legs I with 10 setae, including 4 dorsals, on each of femur, genu, and tibia.",
-            "advances_to": "Node 37"
-          }
-        },
-        "37": {
-          "option_a": {
-            "morphology": "Podonotal shield with 16-22 pairs of setae; mesonotal region with 1-2 plates bearing setae; pygidial shield with setae; tarsus I with claws; palpi with 5 free segments, tibia and tarsus separate.",
-            "advances_to": "Family: Microgyniidae"
-          },
-          "option_b": {
-            "morphology": "Podonotal shield with 9-10 pairs of setae; mesonotal region with 4 suboval platelets that lack setae; pygidial shield without setae; tarsus 1 without claws; palpi with 4 free segments, tibia and tarsus fused.",
-            "advances_to": "Family: Nothogyniidae"
-          }
-        },
-        "38": {
-          "option_a": {
-            "morphology": "Epigynal shield of female flask or wedge shaped or subtriangular, often extending into the opisthogastric region and bearing setae st5 or flanked by those setae in the postcoxal region; epigynal shield reduced or obliterated in some endoparasitic groups; shield usually not surrounded by fused sternal-endopodal-ventral elements; adults with 1-2 dorsal shields, lacking marginal shields or their platelets; peritreme typically linear, sometimes reflexed anteriorly or posteriorly, rarely vestigial; tritosternal base cylindrical or flattened, never subrectangular or columnar; femur IV of deutonymph and adult typically with 6 setae.",
-            "advances_to": "Node 39"
-          },
-          "option_b": {
-            "morphology": "Epigynal shield of female oval, subtriangular, or tongue shaped, usually nude and partially or entirely enclosed by fused sternal-endopodal-ventral shielding bearing sternal setae 1-5 (st5 rarely on separate shields that may be partially fused to epigynal shield) and usually confined to the podosomatic region, rarely displaced posteriorly or fused with ventral elements; adults with 1 to several dorsal shields, marginal shields or platelets generally present; peritreme often sinuous, sometimes on hornlike projections, rarely vestigial; tritosternal base often enlarged, subrectangular or columnar; femur IV of deutonymph and adult with 7-8 setae (if only 6 setae are present, then hypostomatic setae h2 and h3 longitudinally aligned).",
-            "advances_to": "Node 75"
-          }
-        },
-        "39": {
-          "option_a": {
-            "morphology": "Genua III and IV each with 10 setae, including 2 posterolaterals on genu III (2 2/1, 2/1 2) and 1 posteroventral on genu IV (2 2/1, 3/1 1); female epigynal shield lacking expanded hyaline rim anteriorly; male lacking cheliceral sperm-transferring appendages and with mid-sternal genital opening; peritremes often short or vestigial on adults.",
-            "advances_to": "Node 40"
-          },
-          "option_b": {
-            "morphology": "Genua III and IV each commonly with 9 or fewer setae, including 1 posterolateral on genu III (2 2/1, 2/1 1) and no posteroventral on genu IV (2 2/1, 3/0 1) but with 10 setae, including 2 posterolaterals on III and a posteroventral on IV, in PARASITIDAE and VEIGAIIDAE; female epigynal shield with hyaline rim usually expanded anteriorly to often reach or overlap posterior edge of sternal shield; male chelicerae with a sperm transfer appendage on movable digit and with presternal genital opening; adult peritremes variously developed, often extending anteriorly to or beyond insertions of coxae II.",
-            "advances_to": "Node 43"
-          }
-        },
-        "40": {
-          "option_a": {
-            "morphology": "Tritosternum with rudimentary laciniae; peritremes vestigial or absent in deutonymph and adult; adult with dorsal shield entire, distinctively tuberculate-reticulate; legs I elongated, their tarsi with several long minutely clubbed setae and lacking ambulacrum and paired claws; peripodomeric suture of tarsi II-IV with or without a dorsal intercalary sclerite bearing 2 setae. Free living, Northern Hemisphere.",
-            "advances_to": "Family: Epicriidae"
-          },
-          "option_b": {
-            "morphology": "Tritosternum with well-developed laciniae; peritremes well developed in deutonymph, often reduced in length in adult; adult with dorsal shield entire or more commonly divided into well-developed podonotal and opisthonotal shields, the latter rarely absent in female; legs I not elongated, without long, minutely clubbed setae, and with or without ambulacrum and paired claws; peripodomeric suture of tarsi II-IV without intercalary sclerite.",
-            "advances_to": "Node 41"
-          }
-        },
-        "41": {
-          "option_a": {
-            "morphology": "Adult dorsal shield abbreviated and leaving posterior one-fourth to one-half of idiosoma uncovered in female but covering entire dorsum in male; female epigynal shield without setae but flanked by 2 pairs of setae in soft integument; male ventrianal shield free caudally from posterior margin of dorsal shield; peritremes well developed in deutonymph and adult, extending to level of bases of legs I or II; palptarsal apotele 3-tined. Free living in high northern latitudes and altitudes.",
-            "advances_to": "Family: Arctacaridae"
-          },
-          "option_b": {
-            "morphology": "Adult with separate, well-developed podonotal and opisthonotal shields, the latter rarely absent in female; female epigynal shield with 1 pair of setae and not flanked by setae in soft integument; male ventrianal shield usually fused caudally with posterior margin of dorsal shield; peritremes well developed in deutonymph, usually reduced in length in adult and usually extending at most to level of bases of legs III, rarely to legs II; palptarsal apotele 2-tined.",
-            "advances_to": "Node 42"
-          }
-        },
-        "42": {
-          "option_a": {
-            "morphology": "Female, male, and deutonymph with podonotal and opisthonotal shields well developed, those of adult ornamented and expanded laterally so as to bear the marginal setae along their usually serrated margins; opisthonotal shield of deutonymph and adult fused caudally with ventrianal shield and often with a transverse row of 4 (sometimes coalesced to 3 or 2) clearly defined fossae near posterior margin. Male genital opening between coxae II-III; female and male with a broad ventrianal shield; adult peritremes often short but rarely reduced to size of stigmata. Free-living predators, Northern Hemisphere.",
-            "advances_to": "Family: Zerconidae"
-          },
-          "option_b": {
-            "morphology": "Female with podonotal shield unornamented, reduced in extent so as not to bear the marginal setae, and lacking shield on opisthonotum, leaving setae inserted on soft cuticle; deutonymph and male with podonotal and opisthonotal shields well developed and ornamented but free caudally from ventral shields, those of male expanded laterally so as to bear the marginal setae along their smooth margins; opisthonotum lacking well-defined muscle-insertion fossae. Male genital opening between coxae II; female with an anal shield and male with a narrow ventrianal shield; adult peritremes reduced to size of stigmata. Cavernicoles.",
-            "advances_to": "Family: Coprozerconidae"
-          }
-        },
-        "43": {
-          "option_a": {
-            "morphology": "Female with sternal setae st4 inserted on large metasternal plates flanking an anteriorly acuminate epigynal shield anterolaterally; female sperm access system opening via an unpaired, usually strongly developed endogynum beneath epigynal shield, often with ancillary sclerotized processes. Male chelicera with a spermatotreme, a sperm-holding process that is coalesced distally with movable digit; males usually with highly developed, sexually dimorphic, spinelike setae, spurs, and apophyses on legs II. Predators, free living or associated with insects.",
-            "advances_to": "Family: Parasitidae"
-          },
-          "option_b": {
-            "morphology": "Female with sternal setae st4 inserted on small metasternal plates or on soft integument or on posterolateral corners of sternal shield; female sperm access system opening by pair of small solenostomes in region of coxae III or IV. Male chelicera with a spermatodactyl, a sperm-holding process that projects distally, usually free from movable digit; males with or without sexually dimorphic structures on legs II.",
-            "advances_to": "Node 44"
-          }
-        },
-        "44": {
-          "option_a": {
-            "morphology": "Palptarsal apotele 3- or 4-tined and with adjacent hyaline scalelike process; hypostome with internal malae typically elaborated, fimbriated, often bilobed, and moustachelike; inguinal area usually with a cluster of gland pores behind posterior margin of legs IV; dorsal subapical sensory field of tarsus I with 2 adjacent sensilla fused basally and inserted together in common alveolus; genu IV with 10 setae, including 2 ventrals. Free-living predators.",
-            "advances_to": "Family: Veigaiidae"
-          },
-          "option_b": {
-            "morphology": "Palptarsal apotele 2- or 3-tined and lacking adjacent hyaline process, or rarely if with such a process, then apotele 2-tined; hypostome with internal malae usually unmodified and lightly fringed; inguinal area with or without a single gland pore behind posterior margin of legs IV; dorsal subapical sensory field of tarsus I lacking fusion of any two adjacent sensilla; genu IV with maximally 9 or rarely 10 setae, including 1 or rarely 2 ventrals.",
-            "advances_to": "Node 45"
-          }
-        },
-        "45": {
-          "option_a": {
-            "morphology": "Female sternal shield usually fused with metasternal plates so as to include 4th pair of sternal setae but with metasternal elements free and with separated endopodal fragments in HALOLAELAPIDAE; female epigynal shield separate from ventrianal or anal shield; male with holoventral shield or separate sternitigenital and ventrianal shields, when separate, anterolateral margins of ventrianal shield often incised or eroded, and posterolateral margins often fused caudally with posterior margin of dorsal shielding; microtrichia of postanal cribrum sometimes extending onto posterior margin of dorsal shield.",
-            "advances_to": "Node 46"
-          },
-          "option_b": {
-            "morphology": "Female sternal shield usually not fused with metasternal plates, leaving 4th pair of sternal setae free on soft integument or on metasternal plates that are free or attached to endopodal plates; if sternal setae st4 on endopodal-metapodal plates that are incorporated with sternal shield (as in PACHYLAELAPIDAE), then epigynal shield expanded into a genitiventral shield; male with holoventral shield or separate sternitigenital and ventrianal shields; when separate, anterolateral margins of ventrianal shield intact, and posterolateral margins free caudally from posterior margin of dorsal shielding; microtrichia of cribrum confined to postanal region of anal or ventrianal shield.",
-            "advances_to": "Node 50"
-          }
-        },
-        "46": {
-          "option_a": {
-            "morphology": "Fixed and movable digits of chelicerae elongate and attenuate, each with 1-3 retrorse teeth; corniculi narrow, acicular; stigmata with vestigial peritremes; palpi 4-segmented, with fused tibia and tarsus; ambulacra of tarsi I-IV without claws; tarsus I with ventrally delineated acrotarsus. Associated with termites.",
-            "advances_to": "Family: Laelaptonyssidae"
-          },
-          "option_b": {
-            "morphology": "Fixed and movable cheliceral digits typically robust, not attenuate, with dentition variable but usually not retrorse; corniculi typically robust, hornlike; stigmata with peritremes usually well developed, rarely reduced; palpi 5-segmented, with separate tibia and tarsus; ambulacra of tarsi I-IV with claws, or leg I with ambulacra and claws reduced or absent; tarsus I without acrotarsus.",
-            "advances_to": "Node 47"
-          }
-        },
-        "47": {
-          "option_a": {
-            "morphology": "Dorsal shield of adults divided, the anterior shield usually with setal pair j2 nearly in transverse alignment with vertical and paravertical pairs j1 and z1, and usually with 2-4 distinctive sclerotic nodules in mid-posterior region (absent in Digamasellus and Longoseius); anterior portion of female sternal shield and of male sternitigenital shield weakly defined, usually carrying sternal setae st1; spermatodactyl of male often recurved basally.",
-            "advances_to": "Node 48"
-          },
-          "option_b": {
-            "morphology": "Dorsal shield of adults divided or entire, the anterior shield with setal pair j2 in usual position well behind vertical and paravertical pairs j1 and z1, and without sclerotic nodules; anterior portion of female sternal shield and male sternitigenital shield undifferentiated from more posterior portions; spermatodactyl of male not recurved basally.",
-            "advances_to": "Node 49"
-          }
-        },
-        "48": {
-          "option_a": {
-            "morphology": "Palptarsal apotele 2-tined; legs IV usually with 7 setae on genu (1 2/1, 2/0 1) and 7 on tibia (1 1/1, 2/1 1); male with sternal setae st5 on separate platelets. Predators, insect associates, and a few fungivores.",
-            "advances_to": "Family: Digamasellidae"
-          },
-          "option_b": {
-            "morphology": "Palptarsal apotele 3-tined; legs IV with 10 setae on genu (2 2/1, 3/1 1) and 10 on tibia (2 1/1, 3/1 2); male with sternal setae st5 on sternitigenital shield. Free-living soil predators.",
-            "advances_to": "Family: Rhodacaridae"
-          }
-        },
-        "49": {
-          "option_a": {
-            "morphology": "Exopodal elements generally distinct as sclerotized strips alongside coxae II-IV, endopodal elements usually present and fused with sternal shield in female and with sternitigenital shield in male; tibia IV typically with 10 setae (2 1/1, 3/1 2); tarsi II-IV without elongate dorsodistal setae. Free-living predators.",
-            "advances_to": "Family: Ologamasidae"
-          },
-          "option_b": {
-            "morphology": "Exopodal elements not developed, and endopodal elements absent or present as small pieces separate from sternal shield in female and from sternitigenital shield in male (except Halodarcia); tibia IV typically with 8 setae (2 1/1, 2/1 1); tarsi II-IV often with a pair of elongate, distally acuminate, dorsodistal setae that extend well beyond tarsal claws. Free-living and arthropod associates.",
-            "advances_to": "Family: Halolaelapidae"
-          }
-        },
-        "50": {
-          "option_a": {
-            "morphology": "Arthrodial envelope at base of movable digit of chelicerae with 1 or 2 plumose or filamentous processes or with a brush and an adjacent fringed coronet; female typically with an epigynal and a ventrianal shield (if anal shield is present, it is widely separated from epigynal shield); male typically with a holoventral shield.",
-            "advances_to": "Node 51"
-          },
-          "option_b": {
-            "morphology": "Arthrodial processes, if present, at base of movable cheliceral digit with at most a fringed coronet but without distinct filamentous or brushlike processes; female with an epigynal and an anal or a ventrianal shield, or rarely with a genitiventral shield narrowly separated from or fused with an anal shield; male with separate sternitigenital and ventrianal or anal shields or with a holoventral shield.",
-            "advances_to": "Node 52"
-          }
-        },
-        "51": {
-          "option_a": {
-            "morphology": "Peritremes generally looped proximally, joining the stigmata posteriorly; genu I usually with 2 ventral setae; tarsus I usually without claws; paired paradactyli of pretarsi II-IV usually broad and extending to apex of claws and divided or deeply serrated distally when observed obliquely; female with a pair of conspicuous accessory sclerites beneath the lateral margins of epigynal shield. Predators, free living or associated with insects.",
-            "advances_to": "Family: Macrochelidae"
-          },
-          "option_b": {
-            "morphology": "Peritremes normal, joining the stigmata anteriorly; genu I usually with 3 ventral setae; tarsus I with or without claws; paired paradactyli of pretarsi II-IV usually setiform, undivided distally; female with lateral accessory sclerites faint or absent beneath the lateral margins of epigynal shield. Free-living predators.",
-            "advances_to": "Family: Parholaspididae"
-          }
-        },
-        "52": {
-          "option_a": {
-            "morphology": "Tarsus II in female and male usually with 1 or 2 of the distal setae enlarged into stout spines; if lacking such spines, female with a genitiventral shield closely bordered by an anal shield or with peritrematic-exopodal shields extending posteriorly beyond coxae IV to fuse with metapodal plates; tibia III and genu and tibia IV each with 1 anterolateral seta. Predators, free living, or associated with insects.",
-            "advances_to": "Family: Pachylaelapidae"
-          },
-          "option_b": {
-            "morphology": "Tarsus II usually without enlarged distal spinose structures in female but sometimes with such attributes dimorphically in male; female with an epigynal shield separate from a ventrianal or anal shield or, rarely, with an expanded genitiventral or genitiventrianal shield in some LAELAPIDAE; female with peritrematic-exopodal shields usually not extending posteriorly to fuse with metapodal plates, but rarely with such extensions in some BLATTISOCIIDAE, LAELAPIDAE, and EVIPHIDIDAE; tibia III and genu and tibia IV each with 1 or more commonly 2 anterolateral setae. Predators, fungivores, nidicoles, insect associates, and ecto- and endoparasites of vertebrates.",
-            "advances_to": "Node 53"
-          }
-        },
-        "53": {
-          "option_a": {
-            "morphology": "Female sternal shield with 1 or typically 2 pairs of setae (sternal setae 1-2); sternal setae 3 often on adjacent platelets or on soft cuticle, rarely on sternal shield; opisthonotum without caudal setae J5 and marginal R setae; posterior row of deutosternal denticles extending laterally beyond insertions of capitular setae; corniculi often divided distally or entire; femur II with 10 setae, including 4 dorsals. Fungal, algal, pollen, or nectar feeders; free living, nidicoles, or associates of insects and birds.",
-            "advances_to": "Family: Ameroseiidae"
-          },
-          "option_b": {
-            "morphology": "Female with 0 to typically 3 pairs of sternal setae on the sternal shield; opisthonotum usually with caudal setae J5 and usually with one or more marginal R setae (R setae absent in PODOCINIDAE, some PHYTOSEIIDAE, and some OTOPHEIDOMENIDAE); posterior row of deutosternal denticles not extending laterally beyond insertions of capitular setae; corniculi usually entire, rarely divided distally; femur II with 10-11 setae, including 5 dorsals.",
-            "advances_to": "Node 54"
-          }
-        },
-        "54": {
-          "option_a": {
-            "morphology": "Female with epigynal shield truncate or weakly convex posteriorly and either narrowly separated from or abutting a ventrianal shield or widely separated from an anal shield that is round or oval but usually not inversely subtriangular; male with sternitigenital shield usually delineated from, though often abutting, a ventrianal shield or separate ventral and anal elements.",
-            "advances_to": "Node 55"
-          },
-          "option_b": {
-            "morphology": "Female with epigynal shield broadly or narrowly rounded posteriorly, usually widely separated from inversely subtriangular anal shield, or epigynal shield expanded into a genitiventral or genitiventrianal shield in some LAELAPIDAE; male with either a consolidated holoventral shield or a sternitigenital shield widely separated from an anal shield.",
-            "advances_to": "Node 60"
-          }
-        },
-        "55": {
-          "option_a": {
-            "morphology": "Deutonymphs and adults with less than 20 pairs of dorsal shield setae (the podocinid species Podocinella plumosa, with 23 pairs, is an exception), setae J absent, and female with less than 4 pairs of marginal setae on soft integument; female with phytoseiid-type sperm access system, including a usually sclerotized calyx and often an associated minor duct. Free living or phoretically associated with, or parasitic on, insects.",
-            "advances_to": "Node 56"
-          },
-          "option_b": {
-            "morphology": "Deutonymphs and adults with more than 20 pairs of dorsal shield setae (the blattisociid genus Aceodromus, with 18-21 pairs, is an exception); setae J present; female usually with more than 4 pairs of marginal setae on soft integument; female with phytoseiid-type or laelapid-type sperm access system, with or without a sclerotized calyx and an associated minor duct. Free living or phoretically associated with arthropods or birds.",
-            "advances_to": "Node 58"
-          }
-        },
-        "56": {
-          "option_a": {
-            "morphology": "Legs I greatly elongated, with genual, tibial, and tarsal segments attenuate, subequal; tarsus I without claws and with 1-2 apical, whiplike setae; tibia II with 10 setae, including 2 anterolaterals and 4 dorsals, and tibia IV with 10 setae, including 2 anterolaterals and 2 ventrals; dorsal shield with a pair of large, distinctive gland pores between setae J3 and Z3. Free living.",
-            "advances_to": "Family: Podocinidae"
-          },
-          "option_b": {
-            "morphology": "Legs I usually not elongated, with genual, tibial, and tarsal segments unequal in length; tarsus I usually with claws and lacking whiplike setae apically; typically, tibia II with 7 setae, including 1 anterolateral and 3 dorsals; tibia IV with 6 setae, including 1 anterolateral and 1 ventral; dorsal shield with porelike structures but without an enlarged pair between the J and Z setal series.",
-            "advances_to": "Node 57"
-          }
-        },
-        "57": {
-          "option_a": {
-            "morphology": "Fixed and movable cheliceral digits normally developed, similar in length and apposed; tritosternum present, with well-developed laciniae; anal opening posteroventral, usually in a ventrianal shield. Free-living predators, fungivores, and pollen feeders in aerial and soil habitats.",
-            "advances_to": "Family: Phytoseiidae"
-          },
-          "option_b": {
-            "morphology": "Fixed cheliceral digit absent or reduced to less than 1/4 the length of the slender, pointed movable digit; tritosternum commonly absent or reduced to a basal remnant; anal opening terminal or occasionally subterminal, usually in an anal shield. Parasites of insects.",
-            "advances_to": "Family: Otopheidomenidae"
-          }
-        },
-        "58": {
-          "option_a": {
-            "morphology": "Female with 3rd pair of sternal poroids on posterolateral corners of sternal shield and with sternal setae st4 usually free on soft cuticle; male with endopodal strips beside coxae III-IV usually free or narrowly connected to sternitigenital shield (except genus Antennoseius); movable cheliceral digit usually bidentate.",
-            "advances_to": "Family: Ascidae"
-          },
-          "option_b": {
-            "morphology": "Female with 3rd pair of sternal poroids off sternal shield and associated with sternal setae st4 usually on metasternal plates or on soft cuticle; male with endopodal strips beside coxae III-IV fully integrated with sternitigenital shield; movable cheliceral digit with 0 to many teeth, often tridentate.",
-            "advances_to": "Node 59"
-          }
-        },
-        "59": {
-          "option_a": {
-            "morphology": "Fixed cheliceral digit with pilus dentilis modified to a hyaline flap; movable cheliceral digit usually with a pointed process (mucro) on its mid-ventral face; peritrematic shield of adults free posteriorly from, or narrowly attached to, exopodal plate beside coxa IV; female with laelapid-type sperm access system, lacking a sclerotized spermathecal calyx and associated minor duct; female with epigynal shield gently rounded posteriorly, and usually with an oval or elliptical anal shield bearing only the 3 anal setae (or rarely expanded to capture the nearest pair of opisthogastric setae).",
-            "advances_to": "Family: Melicharidae"
-          },
-          "option_b": {
-            "morphology": "Fixed cheliceral digit with setiform pilus dentilis; movable cheliceral digit lacking a ventral mucro; peritrematic shield of adults broadly fused posteriorly to exopodal plate curving behind coxa IV; female with phytoseiid-type sperm access system, including a sclerotized calyx and an associated minor duct; female with epigynal shield usually truncate posteriorly, and usually with a ventrianal shield bearing 2-7 of the opisthogastric setae in addition to the anal setae.",
-            "advances_to": "Family: Blattisociidae"
-          }
-        },
-        "60": {
-          "option_a": {
-            "morphology": "Tibia and genu I each with 1 anterolateral seta (1 3/2, 2/1 2 or 1 2/1, 2/1); tectum usually produced into an elongated, lancelike process, rarely multidenticulate; dorsal shield entire; female and male with anal shield. Free living or associated with insects or amphipods.",
-            "advances_to": "Family: Eviphididae"
-          },
-          "option_b": {
-            "morphology": "Tibia and genu I each with 2 anterolateral setae (2 3/2, 2/1 2 or 2 3/2, 3/1 2 or 2 3/1 2/1 2); tectum with smooth or denticulate anterior margin, usually not produced into an elongated process; dorsal shield entire or with lateral incisions or divided; female with anal or, rarely, genitiventrianal shield, male usually with holoventral shield.",
-            "advances_to": "Node 61"
-          }
-        },
-        "61": {
-          "option_a": {
-            "morphology": "Sternal shield over 6 times wider than long at its widest point; epigynal membrane broad, convoluted, with epigynal setae flanking the shield remnant, with separate anal shield. Opisthosoma considerably broader than long, with a fringe of spatulate setae. Parasites of snakes.",
-            "advances_to": "Family: Omentolaelapidae"
-          },
-          "option_b": {
-            "morphology": "Without the above combination of characters.",
-            "advances_to": "Node 62"
-          }
-        },
-        "62": {
-          "option_a": {
-            "morphology": "Chelicerae massive, hooked; with a broad, heavy epistome overlying the gnathosoma. Parasites of Neotropical bats.",
-            "advances_to": "Family: Spelaeorhynchidae"
-          },
-          "option_b": {
-            "morphology": "Chelicerae and epistome not as above.",
-            "advances_to": "Node 63"
-          }
-        },
-        "63": {
-          "option_a": {
-            "morphology": "Peritremes absent or greatly reduced. Respiratory tract parasites of mammals, reptiles, or birds.",
-            "advances_to": "Node 64"
-          },
-          "option_b": {
-            "morphology": "Peritremes rarely absent, occasionally reduced. Free living or ectoparasites of vertebrates or insects.",
-            "advances_to": "Node 66"
-          }
-        },
-        "64": {
-          "option_a": {
-            "morphology": "Epigynal shield absent or rudimentary (distinct in Zumptiella bakeri), sternal shield usually present; stigmata ventral or lateroventral. Respiratory tract parasites of terrestrial and marine mammals.",
-            "advances_to": "Family: Halarachnidae"
-          },
-          "option_b": {
-            "morphology": "Epigynal shield distinct but sometimes reduced, shield setae reduced or absent; sternal shield present or absent, stigmata lateral or dorsal. Parasites of snakes or birds.",
-            "advances_to": "Node 65"
-          }
-        },
-        "65": {
-          "option_a": {
-            "morphology": "Sternal and epigynal shields well developed but often weakly sclerotized, sternal setae minute or absent, stigmata lateral. Respiratory tract parasites of snakes.",
-            "advances_to": "Family: Entonyssidae"
-          },
-          "option_b": {
-            "morphology": "Sternal shield reduced or absent but with distinct, and often distinctive, sternal setae, epigynal shield well developed or reduced, stigmata dorsal. Respiratory tract parasites of birds.",
-            "advances_to": "Family: Rhinonyssidae"
-          }
-        },
-        "66": {
-          "option_a": {
-            "morphology": "Legs I extremely stout, with heavy sessile claws; legs II-IV slender, with long pretarsi and small claws, leg coxae widely separated. Sternal shield absent or barely visible as an interruption in the ventral integumentary striae; opisthogaster with distinctive spurlike or broad flattened setae. Parasites of armadillos.",
-            "advances_to": "Family: Dasyponyssidae"
-          },
-          "option_b": {
-            "morphology": "Legs I-IV of comparable thickness or coxae I-IV contiguous; sternal shield well developed or reduced but distinctly tanned and easily visible. Opisthogaster without spurlike or flattened setae.",
-            "advances_to": "Node 67"
-          }
-        },
-        "67": {
-          "option_a": {
-            "morphology": "Tritosternum absent or represented by tritosternal base remnant (if tritosternal base is well developed, then the peritremes extend only to level of anterior edge of coxae III). Sternal setae inserted at the margins of reduced sternal shield or in integument bordering it; epigynal shield narrowed or otherwise reduced, with or without setae. Parasites of bats.",
-            "advances_to": "Family: Spinturnicidae"
-          },
-          "option_b": {
-            "morphology": "Tritosternum well developed, with laciniae.",
-            "advances_to": "Node 68"
-          }
-        },
-        "68": {
-          "option_a": {
-            "morphology": "Sternal shield subrectangular, reduced laterally, carrying only sternal setae st1 and associated pores, sternal setae st2 and st3 in adjacent integument. Anal shield elongate, narrowly produced posterior to postanal seta; opisthogastric margin with 2 pairs of long, flagellate setae. Parasites of edentates.",
-            "advances_to": "Family: Manitherionyssidae"
-          },
-          "option_b": {
-            "morphology": "Sternal and anal shields variously developed, often reduced or expanded but not as above.",
-            "advances_to": "Node 69"
-          }
-        },
-        "69": {
-          "option_a": {
-            "morphology": "Chelicerae of female whiplike, styliform; cheliceral digits minute, chelate; corniculi membranous, indistinct.",
-            "advances_to": "Node 70"
-          },
-          "option_b": {
-            "morphology": "Chelicerae variously produced but not styliform; corniculi variously developed.",
-            "advances_to": "Node 71"
-          }
-        },
-        "70": {
-          "option_a": {
-            "morphology": "Elongate second cheliceral segment of female far exceeding basal cheliceral segment 1 in length, male chelicerae with second segment of normal length. Idiosoma broadly rounded posteriorly. Parasites of mammals and birds.",
-            "advances_to": "Family: Dermanyssidae"
-          },
-          "option_b": {
-            "morphology": "Second cheliceral segment normally developed, considerably shorter than greatly elongated basal cheliceral segment. Idiosoma with strongly narrowed opisthosoma. Parasites of porcupines and snakes.",
-            "advances_to": "Family: Hystrichonyssidae"
-          }
-        },
-        "71": {
-          "option_a": {
-            "morphology": "Chelicerae elongate, edentate; corniculi membranous, usually lobate. Palptrochanter often with a raised medioventral keel; with a large anterior nonsetigerous spur on leg coxa II (rarely minute or absent), other coxae without spurs but occasionally with small ridges; genu IV typically with 2 ventral setae. Parasites of mammals, birds, and reptiles.",
-            "advances_to": "Family: Macronyssidae"
-          },
-          "option_b": {
-            "morphology": "Chelicerae various, dentate or edentate, corniculi strongly sclerotized or membranous, hornlike, barbed, or lobate. Palptrochanter without raised medioventral keel; generally with more than 1 large, nonsetigerous coxal spur, or coxal spurs absent; genu IV typically with 1 ventral seta.",
-            "advances_to": "Node 72"
-          }
-        },
-        "72": {
-          "option_a": {
-            "morphology": "Corniculi attenuate-acuate, often barbed (barbs absent in Hemilaelaps, Scutanolaelaps, Strandtibbetsia, and Asiatolaelaps); with spurlike setae on coxae II, I-II, or I-III; palptarsal claw greatly reduced, generally with a single tine. External parasites of snakes.",
-            "advances_to": "Family: Ixodorhynchidae"
-          },
-          "option_b": {
-            "morphology": "Corniculi not as above, spurlike setae on coxae present or absent; palptarsal claw normally produced, with 2-3 tines.",
-            "advances_to": "Node 73"
-          }
-        },
-        "73": {
-          "option_a": {
-            "morphology": "Fixed cheliceral digit absent; with only 2 pairs of hypostomatic setae; peritremes of female short, looped medially or apically, confined to level of coxae III or coxae III-IV; males with peritremes very short and crooked or vestigial. Parasites of bees.",
-            "advances_to": "Family: Varroidae"
-          },
-          "option_b": {
-            "morphology": "Fixed cheliceral digit present, chelicerae dentate or edentate; with 3 pairs of hypostomatic setae; peritremes of adults variously produced, typically well developed and elongate, occasionally absent.",
-            "advances_to": "Node 74"
-          }
-        },
-        "74": {
-          "option_a": {
-            "morphology": "Tibia I usually with 1 ventral seta, lacking seta av2; genu IV usually with 1 posterolateral seta, lacking seta pl2; subcapitulum with internal malae usually weakly developed, with nearly smooth lateral margins and shorter than corniculi. Paraphages of chilopods, diplopods, spiders, and crustaceans.",
-            "advances_to": "Family: Iphiopsididae"
-          },
-          "option_b": {
-            "morphology": "Tibia I usually with 2 ventral setae, including av2; genu IV usually with 2 posterolateral setae, including pl2; subcapitulum with internal malae usually well developed, with fimbriate lateral margins, and equal to or longer than corniculi. A heterogenous group comprising free-living forms and facultative and obligate parasites of arthropods, birds, and mammals.",
-            "advances_to": "Family: Laelapidae"
-          }
-        },
-        "75": {
-          "option_a": {
-            "morphology": "Deutonymph and adults with a single dorsal shield that is never flanked by marginal shields; dorsal shield with several pairs of greatly elongated marginal setae, and paranal setae also markedly elongated; palptarsal claw absent, palpgenu with 4 setae; tibiae I-IV with only 1 dorsal seta (1 0/1, 1/1 1); femur IV with 8 setae (1 2/1, 2/1 1). Parasites of passalid beetles.",
-            "advances_to": "Family: Diarthrophallidae"
-          },
-          "option_b": {
-            "morphology": "Deutonymph and adults with more than 1 shield dorsally, adults usually with 1 or more pygidial shields or marginal shields in addition to dorsal shield; dorsal shield without differentiated pairs of greatly elongated marginal setae and paranal setae not elongated, although 1 pair of ventrocaudal setae sometimes so elongated; palptarsal claw present, palpgenu with 5-6 setae; tibiae I-IV with at least 3 dorsal setae (1 1/1, 2/1 1); femur IV with 6 setae in various configurations. Free-living predators, fungivores, and scavengers, or associated with arthropods.",
-            "advances_to": "Node 76"
-          }
-        },
-        "76": {
-          "option_a": {
-            "morphology": "Coxae of legs I narrow, cylindrical, each in its own acetabulum; tritosternum with 2 long, feathered laciniae; female epigynal shield loosely tripartite; chelicerae with lateral slit organs; palpgenu with 6 setae; tibia of leg I with 3 or 4 ventral setae.",
-            "advances_to": "Node 77"
-          },
-          "option_b": {
-            "morphology": "Coxae of legs I inserted together in a gnathopodal cavity and often widened so that the tritosternum is partly covered; tritosternum with variously shaped laciniae; epigynal shield of female usually unipartite, occasionally trigynaspid-like; chelicerae without lateral slit organs; palpgenu usually with 4-5 setae; tibia of leg I with 2 ventral setae.",
-            "advances_to": "Node 78"
-          }
-        },
-        "77": {
-          "option_a": {
-            "morphology": "Peritremes and stigmata dorsal; coxa of legs IV with 2 setae; epistome with a narrow middle spine.",
-            "advances_to": "Family: Thinozerconidae"
-          },
-          "option_b": {
-            "morphology": "Peritremes and stigmata ventrolateral; coxa of legs IV with 1 seta; epistome without differentiated middle spine.",
-            "advances_to": "Family: Protodinychidae"
-          }
-        },
-        "78": {
-          "option_a": {
-            "morphology": "Coxae of legs I normally produced, not covering base of tritosternum, tritosternal base about twice as wide as long; ventral leg cavities (pedofossae) absent.",
-            "advances_to": "Node 79"
-          },
-          "option_b": {
-            "morphology": "Coxae of legs I usually widened and flattened so that the tritosternum is entirely or partially covered; base of the tritosternum usually not wider than long; pedofossae usually well developed, sometimes absent.",
-            "advances_to": "Node 81"
-          }
-        },
-        "79": {
-          "option_a": {
-            "morphology": "Genu I with 2 anterolateral and 2 posterolateral setae; femur IV with 2 ventral setae.",
-            "advances_to": "Node 80"
-          },
-          "option_b": {
-            "morphology": "Genu I usually with 2 anterolateral and 1 posterolateral seta, femur IV with 2 ventral setae (if only 1 is present, then genu I with 2 posterolateral setae).",
-            "advances_to": "Family: Dithinozerconidae"
-          }
-        },
-        "80": {
-          "option_a": {
-            "morphology": "Idiosoma typically elongate, subtriangular, or pyriform, marginal shields entire or fragmented into numerous platelets, pygidial shield entire or variously subdivided. Genu IV with 1 ventral seta.",
-            "advances_to": "Family: Trachytidae"
-          },
-          "option_b": {
-            "morphology": "Idiosoma broadly ovate, marginal shields absent or variously coalesced, pygidial shield entire. Genu IV with 2 ventral setae.",
-            "advances_to": "Family: Polyaspididae"
-          }
-        },
-        "81": {
-          "option_a": {
-            "morphology": "Apex of fixed cheliceral digit with a large flower- or mushroom-shaped sensory organ; corniculi with terminal teeth.",
-            "advances_to": "Family: Uroactiniidae"
-          },
-          "option_b": {
-            "morphology": "Apex of fixed cheliceral digit not as above, corniculi generally smooth terminally.",
-            "advances_to": "Node 82"
-          }
-        },
-        "82": {
-          "option_a": {
-            "morphology": "Chelicerae with a distinctive internal sclerotized node associated with the levator tendon.",
-            "advances_to": "Node 84"
-          },
-          "option_b": {
-            "morphology": "Chelicerae without internal sclerotized node.",
-            "advances_to": "Node 83"
-          }
-        },
-        "83": {
-          "option_a": {
-            "morphology": "Hypostomatic setae h1 short, spiniform; genital shield of female located behind coxae IV. Small mites, with adults under 400 µm in length.",
-            "advances_to": "Family: Metagynuridae"
-          },
-          "option_b": {
-            "morphology": "Hypostomatic setae h1 typically long and setiform; female genital shield located between coxae II-IV. Adults generally over 400 µm in length.",
-            "advances_to": "Family: Uropodidae"
-          }
-        },
-        "84": {
-          "option_a": {
-            "morphology": "Internal malae of hypostome simple, without marginal fimbriations or distal moustachelike excrescences; dorsal shield of adults often notched marginally.",
-            "advances_to": "Family: Trematuridae"
-          },
-          "option_b": {
-            "morphology": "Internal malae with short marginal fimbriations and/or with elaborated distal moustachelike excrescences.",
-            "advances_to": "Node 85"
-          }
-        },
-        "85": {
-          "option_a": {
-            "morphology": "Fixed cheliceral digit typically with a rounded or acuminate apical finger that extends well beyond the movable digit (absent in Caminella). Peritremes well developed and often elaborated to form distinctive serpentine patterns, pygidial shield sometimes present in adults.",
-            "advances_to": "Family: Dinychidae"
-          },
-          "option_b": {
-            "morphology": "Fixed cheliceral digit subequal to or little longer than movable digit, sometimes with short rounded extension. Peritremes variously developed but not as above, pygidial shield absent in adults.",
-            "advances_to": "Node 86"
-          }
-        },
-        "86": {
-          "option_a": {
-            "morphology": "Dorsal shield of adults strongly ornamented with pits and ridges, often with numerous dorsal T-shaped setae. Movable cheliceral digit more than twice the length of its basal width.",
-            "advances_to": "Family: Trachyuropodidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal shield of adults without conspicuous ornamentation or T-shaped dorsal setae. Movable cheliceral digit shorter than twice its basal width.",
-            "advances_to": "Family: Oplitidae"
-          }
-        }
-      }
-    },
-    "mesostigmata.to.suborder": {
-      "title": "Suborder under Mesostigmata",
-      "parent": {
-        "rank": "Order",
-        "name": "Mesostigmata"
-      },
-      "identifies": [
-        "Suborder"
-      ],
-      "endpoint_ranks": [
-        "Suborder"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Oviporus covered by a single plate (epigynal shield) with 0-1 pair of setae (rarely with 4 or 5 setae); tarsus of leg IV of deutonymphs and adults with a maximum of 18 setae, lacking setae av4 and pv4 and ventral intercalary sclerite.",
-            "advances_to": "Suborder: Monogynaspida"
-          },
-          "option_b": {
-            "morphology": "Oviporus covered by a single large shield (epigynal shield) usually bearing 6 to many setae (rarely 2 or 4 setae in some Sejus) or by a complex of 2-4 genital shields or their remnants; tarsus of leg IV of deutonymphs and adults with a minimum of 20 setae, setae av4 and pv4 present, usually on a ventral intercalary sclerite between the basitarsus and telotarsus.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Oviporus covered by a single large shield (epigynal shield) bearing 6 (rarely 2-4) to many setae and often notched or excavated anteriorly; chelicerae without excrescences.",
-            "advances_to": "Suborder: Sejida"
-          },
-          "option_b": {
-            "morphology": "Oviporus covered by 2-4 shields (2 latigynals, a mesogynal, and rarely a sternogynal shield) that may be variously coalesced or reduced; mesogynal shield nude, usually subtriangular but often reduced or insensibly fused to other elements; latigynal shields each with one to many setae, free or fused posteriorly to ventral elements and/or medially to each other; movable cheliceral digit with medial or terminal dendritic, brushlike, or filamentous ventral excrescences.",
-            "advances_to": "Suborder: Trigynaspida"
-          }
-        }
-      }
-    },
-    "monogynaspida.to.family": {
-      "title": "Family under Monogynaspida",
-      "parent": {
-        "rank": "Suborder",
-        "name": "Monogynaspida"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Adult opisthogaster with a pair of distinctive, suckerlike adhesive organs (secondarily lost in some species); tarsus I of adults with acrotarsus; sternal shield of female often fragmented and reduced, represented by lateral remnants that are contiguous with endopodal plates; sternal pores 2-3 usually absent; male chelicerae with sperm transfer process arising on the fixed or the movable digit.",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Adult opisthogaster without adhesive organs; tarsus I of adults usually without acrotarsus; sternal shield of female usually well developed or, if reduced, not as described above; sternal pores 2-3 usually present; male sperm transfer process, when present, always arising on the movable digit.",
-            "advances_to": "Node 3"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Genua III-IV each with 10 setae, including 3 posterodorsals (2 2/1 3/1 1); male with spermatostylus arising on fixed cheliceral digit. Associated with millipedes and snakes.",
-            "advances_to": "Family: Heterozerconidae"
-          },
-          "option_b": {
-            "morphology": "Genua III-IV each with 8-9 setae, including two posterodorsals (2 2/1, 2/1 1 or 2 2/1, 2/1 0); male with spermatodactyl arising on movable cheliceral digit. Associated with scolopendrine centipedes.",
-            "advances_to": "Family: Discozerconidae"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Female and male wormlike, hypertrichous, pseudosegmented, without idiosomatic sclerites; fixed cheliceral digit greatly reduced, male spermatodactyl entirely fused to reduced movable digit. Associated with army ants.",
-            "advances_to": "Family: Larvamimidae"
-          },
-          "option_b": {
-            "morphology": "Females and males without above combination of characters.",
-            "advances_to": "Node 4"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Female with sternal setae st1-2 and st3-4 on separate shields, or all sternal setae on separate shields; male with sternitigenital shield bearing 4 pairs of sternal setae and a mid-sternal genital opening, and with sternal setae st5 on or near a separate plate between coxae IV, which is rarely fused posteriorly with expansive circumventral shield; idiosomatic dorsum of adults with podonotal, mesonotal, pygidial, and rarely marginal shields. Free living in litter, rotten wood.",
-            "advances_to": "Node 5"
-          },
-          "option_b": {
-            "morphology": "Female with arrangement of sternal setae and shields not as above; male with sternitigenital or holoventral shield usually bearing all 5 or more pairs of sternal setae (rarely without st4) and a presternal or mid-sternal genital opening, or, if sternal setae st5 on or near a separate plate, then genital opening presternal; idiosomatic dorsum of adults with 1-2 shields or, if mesonotal and pygidial elements present, then male with genital opening presternal.",
-            "advances_to": "Node 7"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Idiosomatic venter of adult with expansive circumventral shield incorporating ventrianal, peritrematic, and exopodal shields and bearing laterally on either side a dense row of 20-26 ventrolateral setae, 6-9 spoutlike glandular openings, and a sparser row of 12-13 setae above these glands. Idiosomatic dorsum of female covered by large anteromedian shield incorporating podonotal and mesonotal elements and flanked by a marginal plate on either side and 3 pygidial plates posteriorly. Dorsum of male with fused podonotal-marginal shield anteriorly, separate mesonotal and broad marginal shields medially, and 3 pygidial plates posteriorly; stigmata lacking peritremes; legs I with 13 setae on each of femur, genu, and tibia, including 5 dorsals on femur and 6 dorsals on genu and tibia.",
-            "advances_to": "Family: Heatherellidae"
-          },
-          "option_b": {
-            "morphology": "Idiosomatic venter of adult with ventrianal shield surrounded by soft cuticle separating it from peritrematic and expodal shields, without a dense row of ventrolateral setae and spoutlike glandular openings. Idiosomatic dorsum of female and male with podonotal, 1-2 mesonotal shields and 1 pygidial shield, lacking marginal shields; stigmata with peritremes; legs I with 10 setae, including 4 dorsals, on each of femur, genu, and tibia.",
-            "advances_to": "Node 6"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Podonotal shield with 16-22 pairs of setae; mesonotal region with 1-2 plates bearing setae; pygidial shield with setae; tarsus I with claws; palpi with 5 free segments, tibia and tarsus separate.",
-            "advances_to": "Family: Microgyniidae"
-          },
-          "option_b": {
-            "morphology": "Podonotal shield with 9-10 pairs of setae; mesonotal region with 4 suboval platelets that lack setae; pygidial shield without setae; tarsus 1 without claws; palpi with 4 free segments, tibia and tarsus fused.",
-            "advances_to": "Family: Nothogyniidae"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Epigynal shield of female flask or wedge shaped or subtriangular, often extending into the opisthogastric region and bearing setae st5 or flanked by those setae in the postcoxal region; epigynal shield reduced or obliterated in some endoparasitic groups; shield usually not surrounded by fused sternal-endopodal-ventral elements; adults with 1-2 dorsal shields, lacking marginal shields or their platelets; peritreme typically linear, sometimes reflexed anteriorly or posteriorly, rarely vestigial; tritosternal base cylindrical or flattened, never subrectangular or columnar; femur IV of deutonymph and adult typically with 6 setae.",
-            "advances_to": "Node 8"
-          },
-          "option_b": {
-            "morphology": "Epigynal shield of female oval, subtriangular, or tongue shaped, usually nude and partially or entirely enclosed by fused sternal-endopodal-ventral shielding bearing sternal setae 1-5 (st5 rarely on separate shields that may be partially fused to epigynal shield) and usually confined to the podosomatic region, rarely displaced posteriorly or fused with ventral elements; adults with 1 to several dorsal shields, marginal shields or platelets generally present; peritreme often sinuous, sometimes on hornlike projections, rarely vestigial; tritosternal base often enlarged, subrectangular or columnar; femur IV of deutonymph and adult with 7-8 setae (if only 6 setae are present, then hypostomatic setae h2 and h3 longitudinally aligned).",
-            "advances_to": "Node 44"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Genua III and IV each with 10 setae, including 2 posterolaterals on genu III (2 2/1, 2/1 2) and 1 posteroventral on genu IV (2 2/1, 3/1 1); female epigynal shield lacking expanded hyaline rim anteriorly; male lacking cheliceral sperm-transferring appendages and with mid-sternal genital opening; peritremes often short or vestigial on adults.",
-            "advances_to": "Node 9"
-          },
-          "option_b": {
-            "morphology": "Genua III and IV each commonly with 9 or fewer setae, including 1 posterolateral on genu III (2 2/1, 2/1 1) and no posteroventral on genu IV (2 2/1, 3/0 1) but with 10 setae, including 2 posterolaterals on III and a posteroventral on IV, in PARASITIDAE and VEIGAIIDAE; female epigynal shield with hyaline rim usually expanded anteriorly to often reach or overlap posterior edge of sternal shield; male chelicerae with a sperm transfer appendage on movable digit and with presternal genital opening; adult peritremes variously developed, often extending anteriorly to or beyond insertions of coxae II.",
-            "advances_to": "Node 12"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Tritosternum with rudimentary laciniae; peritremes vestigial or absent in deutonymph and adult; adult with dorsal shield entire, distinctively tuberculate-reticulate; legs I elongated, their tarsi with several long minutely clubbed setae and lacking ambulacrum and paired claws; peripodomeric suture of tarsi II-IV with or without a dorsal intercalary sclerite bearing 2 setae. Free living, Northern Hemisphere.",
-            "advances_to": "Family: Epicriidae"
-          },
-          "option_b": {
-            "morphology": "Tritosternum with well-developed laciniae; peritremes well developed in deutonymph, often reduced in length in adult; adult with dorsal shield entire or more commonly divided into well-developed podonotal and opisthonotal shields, the latter rarely absent in female; legs I not elongated, without long, minutely clubbed setae, and with or without ambulacrum and paired claws; peripodomeric suture of tarsi II-IV without intercalary sclerite.",
-            "advances_to": "Node 10"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "Adult dorsal shield abbreviated and leaving posterior one-fourth to one-half of idiosoma uncovered in female but covering entire dorsum in male; female epigynal shield without setae but flanked by 2 pairs of setae in soft integument; male ventrianal shield free caudally from posterior margin of dorsal shield; peritremes well developed in deutonymph and adult, extending to level of bases of legs I or II; palptarsal apotele 3-tined. Free living in high northern latitudes and altitudes.",
-            "advances_to": "Family: Arctacaridae"
-          },
-          "option_b": {
-            "morphology": "Adult with separate, well-developed podonotal and opisthonotal shields, the latter rarely absent in female; female epigynal shield with 1 pair of setae and not flanked by setae in soft integument; male ventrianal shield usually fused caudally with posterior margin of dorsal shield; peritremes well developed in deutonymph, usually reduced in length in adult and usually extending at most to level of bases of legs III, rarely to legs II; palptarsal apotele 2-tined.",
-            "advances_to": "Node 11"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Female, male, and deutonymph with podonotal and opisthonotal shields well developed, those of adult ornamented and expanded laterally so as to bear the marginal setae along their usually serrated margins; opisthonotal shield of deutonymph and adult fused caudally with ventrianal shield and often with a transverse row of 4 (sometimes coalesced to 3 or 2) clearly defined fossae near posterior margin. Male genital opening between coxae II-III; female and male with a broad ventrianal shield; adult peritremes often short but rarely reduced to size of stigmata. Free-living predators, Northern Hemisphere.",
-            "advances_to": "Family: Zerconidae"
-          },
-          "option_b": {
-            "morphology": "Female with podonotal shield unornamented, reduced in extent so as not to bear the marginal setae, and lacking shield on opisthonotum, leaving setae inserted on soft cuticle; deutonymph and male with podonotal and opisthonotal shields well developed and ornamented but free caudally from ventral shields, those of male expanded laterally so as to bear the marginal setae along their smooth margins; opisthonotum lacking well-defined muscle-insertion fossae. Male genital opening between coxae II; female with an anal shield and male with a narrow ventrianal shield; adult peritremes reduced to size of stigmata. Cavernicoles.",
-            "advances_to": "Family: Coprozerconidae"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Female with sternal setae st4 inserted on large metasternal plates flanking an anteriorly acuminate epigynal shield anterolaterally; female sperm access system opening via an unpaired, usually strongly developed endogynum beneath epigynal shield, often with ancillary sclerotized processes. Male chelicera with a spermatotreme, a sperm-holding process that is coalesced distally with movable digit; males usually with highly developed, sexually dimorphic, spinelike setae, spurs, and apophyses on legs II. Predators, free living or associated with insects.",
-            "advances_to": "Family: Parasitidae"
-          },
-          "option_b": {
-            "morphology": "Female with sternal setae st4 inserted on small metasternal plates or on soft integument or on posterolateral corners of sternal shield; female sperm access system opening by pair of small solenostomes in region of coxae III or IV. Male chelicera with a spermatodactyl, a sperm-holding process that projects distally, usually free from movable digit; males with or without sexually dimorphic structures on legs II.",
-            "advances_to": "Node 13"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Palptarsal apotele 3- or 4-tined and with adjacent hyaline scalelike process; hypostome with internal malae typically elaborated, fimbriated, often bilobed, and moustachelike; inguinal area usually with a cluster of gland pores behind posterior margin of legs IV; dorsal subapical sensory field of tarsus I with 2 adjacent sensilla fused basally and inserted together in common alveolus; genu IV with 10 setae, including 2 ventrals. Free-living predators.",
-            "advances_to": "Family: Veigaiidae"
-          },
-          "option_b": {
-            "morphology": "Palptarsal apotele 2- or 3-tined and lacking adjacent hyaline process, or rarely if with such a process, then apotele 2-tined; hypostome with internal malae usually unmodified and lightly fringed; inguinal area with or without a single gland pore behind posterior margin of legs IV; dorsal subapical sensory field of tarsus I lacking fusion of any two adjacent sensilla; genu IV with maximally 9 or rarely 10 setae, including 1 or rarely 2 ventrals.",
-            "advances_to": "Node 14"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "Female sternal shield usually fused with metasternal plates so as to include 4th pair of sternal setae but with metasternal elements free and with separated endopodal fragments in HALOLAELAPIDAE; female epigynal shield separate from ventrianal or anal shield; male with holoventral shield or separate sternitigenital and ventrianal shields, when separate, anterolateral margins of ventrianal shield often incised or eroded, and posterolateral margins often fused caudally with posterior margin of dorsal shielding; microtrichia of postanal cribrum sometimes extending onto posterior margin of dorsal shield.",
-            "advances_to": "Node 15"
-          },
-          "option_b": {
-            "morphology": "Female sternal shield usually not fused with metasternal plates, leaving 4th pair of sternal setae free on soft integument or on metasternal plates that are free or attached to endopodal plates; if sternal setae st4 on endopodal-metapodal plates that are incorporated with sternal shield (as in PACHYLAELAPIDAE), then epigynal shield expanded into a genitiventral shield; male with holoventral shield or separate sternitigenital and ventrianal shields; when separate, anterolateral margins of ventrianal shield intact, and posterolateral margins free caudally from posterior margin of dorsal shielding; microtrichia of cribrum confined to postanal region of anal or ventrianal shield.",
-            "advances_to": "Node 19"
-          }
-        },
-        "15": {
-          "option_a": {
-            "morphology": "Fixed and movable digits of chelicerae elongate and attenuate, each with 1-3 retrorse teeth; corniculi narrow, acicular; stigmata with vestigial peritremes; palpi 4-segmented, with fused tibia and tarsus; ambulacra of tarsi I-IV without claws; tarsus I with ventrally delineated acrotarsus. Associated with termites.",
-            "advances_to": "Family: Laelaptonyssidae"
-          },
-          "option_b": {
-            "morphology": "Fixed and movable cheliceral digits typically robust, not attenuate, with dentition variable but usually not retrorse; corniculi typically robust, hornlike; stigmata with peritremes usually well developed, rarely reduced; palpi 5-segmented, with separate tibia and tarsus; ambulacra of tarsi I-IV with claws, or leg I with ambulacra and claws reduced or absent; tarsus I without acrotarsus.",
-            "advances_to": "Node 16"
-          }
-        },
-        "16": {
-          "option_a": {
-            "morphology": "Dorsal shield of adults divided, the anterior shield usually with setal pair j2 nearly in transverse alignment with vertical and paravertical pairs j1 and z1, and usually with 2-4 distinctive sclerotic nodules in mid-posterior region (absent in Digamasellus and Longoseius); anterior portion of female sternal shield and of male sternitigenital shield weakly defined, usually carrying sternal setae st1; spermatodactyl of male often recurved basally.",
-            "advances_to": "Node 17"
-          },
-          "option_b": {
-            "morphology": "Dorsal shield of adults divided or entire, the anterior shield with setal pair j2 in usual position well behind vertical and paravertical pairs j1 and z1, and without sclerotic nodules; anterior portion of female sternal shield and male sternitigenital shield undifferentiated from more posterior portions; spermatodactyl of male not recurved basally.",
-            "advances_to": "Node 18"
-          }
-        },
-        "17": {
-          "option_a": {
-            "morphology": "Palptarsal apotele 2-tined; legs IV usually with 7 setae on genu (1 2/1, 2/0 1) and 7 on tibia (1 1/1, 2/1 1); male with sternal setae st5 on separate platelets. Predators, insect associates, and a few fungivores.",
-            "advances_to": "Family: Digamasellidae"
-          },
-          "option_b": {
-            "morphology": "Palptarsal apotele 3-tined; legs IV with 10 setae on genu (2 2/1, 3/1 1) and 10 on tibia (2 1/1, 3/1 2); male with sternal setae st5 on sternitigenital shield. Free-living soil predators.",
-            "advances_to": "Family: Rhodacaridae"
-          }
-        },
-        "18": {
-          "option_a": {
-            "morphology": "Exopodal elements generally distinct as sclerotized strips alongside coxae II-IV, endopodal elements usually present and fused with sternal shield in female and with sternitigenital shield in male; tibia IV typically with 10 setae (2 1/1, 3/1 2); tarsi II-IV without elongate dorsodistal setae. Free-living predators.",
-            "advances_to": "Family: Ologamasidae"
-          },
-          "option_b": {
-            "morphology": "Exopodal elements not developed, and endopodal elements absent or present as small pieces separate from sternal shield in female and from sternitigenital shield in male (except Halodarcia); tibia IV typically with 8 setae (2 1/1, 2/1 1); tarsi II-IV often with a pair of elongate, distally acuminate, dorsodistal setae that extend well beyond tarsal claws. Free-living and arthropod associates.",
-            "advances_to": "Family: Halolaelapidae"
-          }
-        },
-        "19": {
-          "option_a": {
-            "morphology": "Arthrodial envelope at base of movable digit of chelicerae with 1 or 2 plumose or filamentous processes or with a brush and an adjacent fringed coronet; female typically with an epigynal and a ventrianal shield (if anal shield is present, it is widely separated from epigynal shield); male typically with a holoventral shield.",
-            "advances_to": "Node 20"
-          },
-          "option_b": {
-            "morphology": "Arthrodial processes, if present, at base of movable cheliceral digit with at most a fringed coronet but without distinct filamentous or brushlike processes; female with an epigynal and an anal or a ventrianal shield, or rarely with a genitiventral shield narrowly separated from or fused with an anal shield; male with separate sternitigenital and ventrianal or anal shields or with a holoventral shield.",
-            "advances_to": "Node 21"
-          }
-        },
-        "20": {
-          "option_a": {
-            "morphology": "Peritremes generally looped proximally, joining the stigmata posteriorly; genu I usually with 2 ventral setae; tarsus I usually without claws; paired paradactyli of pretarsi II-IV usually broad and extending to apex of claws and divided or deeply serrated distally when observed obliquely; female with a pair of conspicuous accessory sclerites beneath the lateral margins of epigynal shield. Predators, free living or associated with insects.",
-            "advances_to": "Family: Macrochelidae"
-          },
-          "option_b": {
-            "morphology": "Peritremes normal, joining the stigmata anteriorly; genu I usually with 3 ventral setae; tarsus I with or without claws; paired paradactyli of pretarsi II-IV usually setiform, undivided distally; female with lateral accessory sclerites faint or absent beneath the lateral margins of epigynal shield. Free-living predators.",
-            "advances_to": "Family: Parholaspididae"
-          }
-        },
-        "21": {
-          "option_a": {
-            "morphology": "Tarsus II in female and male usually with 1 or 2 of the distal setae enlarged into stout spines; if lacking such spines, female with a genitiventral shield closely bordered by an anal shield or with peritrematic-exopodal shields extending posteriorly beyond coxae IV to fuse with metapodal plates; tibia III and genu and tibia IV each with 1 anterolateral seta. Predators, free living, or associated with insects.",
-            "advances_to": "Family: Pachylaelapidae"
-          },
-          "option_b": {
-            "morphology": "Tarsus II usually without enlarged distal spinose structures in female but sometimes with such attributes dimorphically in male; female with an epigynal shield separate from a ventrianal or anal shield or, rarely, with an expanded genitiventral or genitiventrianal shield in some LAELAPIDAE; female with peritrematic-exopodal shields usually not extending posteriorly to fuse with metapodal plates, but rarely with such extensions in some BLATTISOCIIDAE, LAELAPIDAE, and EVIPHIDIDAE; tibia III and genu and tibia IV each with 1 or more commonly 2 anterolateral setae. Predators, fungivores, nidicoles, insect associates, and ecto- and endoparasites of vertebrates.",
-            "advances_to": "Node 22"
-          }
-        },
-        "22": {
-          "option_a": {
-            "morphology": "Female sternal shield with 1 or typically 2 pairs of setae (sternal setae 1-2); sternal setae 3 often on adjacent platelets or on soft cuticle, rarely on sternal shield; opisthonotum without caudal setae J5 and marginal R setae; posterior row of deutosternal denticles extending laterally beyond insertions of capitular setae; corniculi often divided distally or entire; femur II with 10 setae, including 4 dorsals. Fungal, algal, pollen, or nectar feeders; free living, nidicoles, or associates of insects and birds.",
-            "advances_to": "Family: Ameroseiidae"
-          },
-          "option_b": {
-            "morphology": "Female with 0 to typically 3 pairs of sternal setae on the sternal shield; opisthonotum usually with caudal setae J5 and usually with one or more marginal R setae (R setae absent in PODOCINIDAE, some PHYTOSEIIDAE, and some OTOPHEIDOMENIDAE); posterior row of deutosternal denticles not extending laterally beyond insertions of capitular setae; corniculi usually entire, rarely divided distally; femur II with 10-11 setae, including 5 dorsals.",
-            "advances_to": "Node 23"
-          }
-        },
-        "23": {
-          "option_a": {
-            "morphology": "Female with epigynal shield truncate or weakly convex posteriorly and either narrowly separated from or abutting a ventrianal shield or widely separated from an anal shield that is round or oval but usually not inversely subtriangular; male with sternitigenital shield usually delineated from, though often abutting, a ventrianal shield or separate ventral and anal elements.",
-            "advances_to": "Node 24"
-          },
-          "option_b": {
-            "morphology": "Female with epigynal shield broadly or narrowly rounded posteriorly, usually widely separated from inversely subtriangular anal shield, or epigynal shield expanded into a genitiventral or genitiventrianal shield in some LAELAPIDAE; male with either a consolidated holoventral shield or a sternitigenital shield widely separated from an anal shield.",
-            "advances_to": "Node 29"
-          }
-        },
-        "24": {
-          "option_a": {
-            "morphology": "Deutonymphs and adults with less than 20 pairs of dorsal shield setae (the podocinid species Podocinella plumosa, with 23 pairs, is an exception), setae J absent, and female with less than 4 pairs of marginal setae on soft integument; female with phytoseiid-type sperm access system, including a usually sclerotized calyx and often an associated minor duct. Free living or phoretically associated with, or parasitic on, insects.",
-            "advances_to": "Node 25"
-          },
-          "option_b": {
-            "morphology": "Deutonymphs and adults with more than 20 pairs of dorsal shield setae (the blattisociid genus Aceodromus, with 18-21 pairs, is an exception); setae J present; female usually with more than 4 pairs of marginal setae on soft integument; female with phytoseiid-type or laelapid-type sperm access system, with or without a sclerotized calyx and an associated minor duct. Free living or phoretically associated with arthropods or birds.",
-            "advances_to": "Node 27"
-          }
-        },
-        "25": {
-          "option_a": {
-            "morphology": "Legs I greatly elongated, with genual, tibial, and tarsal segments attenuate, subequal; tarsus I without claws and with 1-2 apical, whiplike setae; tibia II with 10 setae, including 2 anterolaterals and 4 dorsals, and tibia IV with 10 setae, including 2 anterolaterals and 2 ventrals; dorsal shield with a pair of large, distinctive gland pores between setae J3 and Z3. Free living.",
-            "advances_to": "Family: Podocinidae"
-          },
-          "option_b": {
-            "morphology": "Legs I usually not elongated, with genual, tibial, and tarsal segments unequal in length; tarsus I usually with claws and lacking whiplike setae apically; typically, tibia II with 7 setae, including 1 anterolateral and 3 dorsals; tibia IV with 6 setae, including 1 anterolateral and 1 ventral; dorsal shield with porelike structures but without an enlarged pair between the J and Z setal series.",
-            "advances_to": "Node 26"
-          }
-        },
-        "26": {
-          "option_a": {
-            "morphology": "Fixed and movable cheliceral digits normally developed, similar in length and apposed; tritosternum present, with well-developed laciniae; anal opening posteroventral, usually in a ventrianal shield. Free-living predators, fungivores, and pollen feeders in aerial and soil habitats.",
-            "advances_to": "Family: Phytoseiidae"
-          },
-          "option_b": {
-            "morphology": "Fixed cheliceral digit absent or reduced to less than 1/4 the length of the slender, pointed movable digit; tritosternum commonly absent or reduced to a basal remnant; anal opening terminal or occasionally subterminal, usually in an anal shield. Parasites of insects.",
-            "advances_to": "Family: Otopheidomenidae"
-          }
-        },
-        "27": {
-          "option_a": {
-            "morphology": "Female with 3rd pair of sternal poroids on posterolateral corners of sternal shield and with sternal setae st4 usually free on soft cuticle; male with endopodal strips beside coxae III-IV usually free or narrowly connected to sternitigenital shield (except genus Antennoseius); movable cheliceral digit usually bidentate.",
-            "advances_to": "Family: Ascidae"
-          },
-          "option_b": {
-            "morphology": "Female with 3rd pair of sternal poroids off sternal shield and associated with sternal setae st4 usually on metasternal plates or on soft cuticle; male with endopodal strips beside coxae III-IV fully integrated with sternitigenital shield; movable cheliceral digit with 0 to many teeth, often tridentate.",
-            "advances_to": "Node 28"
-          }
-        },
-        "28": {
-          "option_a": {
-            "morphology": "Fixed cheliceral digit with pilus dentilis modified to a hyaline flap; movable cheliceral digit usually with a pointed process (mucro) on its mid-ventral face; peritrematic shield of adults free posteriorly from, or narrowly attached to, exopodal plate beside coxa IV; female with laelapid-type sperm access system, lacking a sclerotized spermathecal calyx and associated minor duct; female with epigynal shield gently rounded posteriorly, and usually with an oval or elliptical anal shield bearing only the 3 anal setae (or rarely expanded to capture the nearest pair of opisthogastric setae).",
-            "advances_to": "Family: Melicharidae"
-          },
-          "option_b": {
-            "morphology": "Fixed cheliceral digit with setiform pilus dentilis; movable cheliceral digit lacking a ventral mucro; peritrematic shield of adults broadly fused posteriorly to exopodal plate curving behind coxa IV; female with phytoseiid-type sperm access system, including a sclerotized calyx and an associated minor duct; female with epigynal shield usually truncate posteriorly, and usually with a ventrianal shield bearing 2-7 of the opisthogastric setae in addition to the anal setae.",
-            "advances_to": "Family: Blattisociidae"
-          }
-        },
-        "29": {
-          "option_a": {
-            "morphology": "Tibia and genu I each with 1 anterolateral seta (1 3/2, 2/1 2 or 1 2/1, 2/1); tectum usually produced into an elongated, lancelike process, rarely multidenticulate; dorsal shield entire; female and male with anal shield. Free living or associated with insects or amphipods.",
-            "advances_to": "Family: Eviphididae"
-          },
-          "option_b": {
-            "morphology": "Tibia and genu I each with 2 anterolateral setae (2 3/2, 2/1 2 or 2 3/2, 3/1 2 or 2 3/1 2/1 2); tectum with smooth or denticulate anterior margin, usually not produced into an elongated process; dorsal shield entire or with lateral incisions or divided; female with anal or, rarely, genitiventrianal shield, male usually with holoventral shield.",
-            "advances_to": "Node 30"
-          }
-        },
-        "30": {
-          "option_a": {
-            "morphology": "Sternal shield over 6 times wider than long at its widest point; epigynal membrane broad, convoluted, with epigynal setae flanking the shield remnant, with separate anal shield. Opisthosoma considerably broader than long, with a fringe of spatulate setae. Parasites of snakes.",
-            "advances_to": "Family: Omentolaelapidae"
-          },
-          "option_b": {
-            "morphology": "Without the above combination of characters.",
-            "advances_to": "Node 31"
-          }
-        },
-        "31": {
-          "option_a": {
-            "morphology": "Chelicerae massive, hooked; with a broad, heavy epistome overlying the gnathosoma. Parasites of Neotropical bats.",
-            "advances_to": "Family: Spelaeorhynchidae"
-          },
-          "option_b": {
-            "morphology": "Chelicerae and epistome not as above.",
-            "advances_to": "Node 32"
-          }
-        },
-        "32": {
-          "option_a": {
-            "morphology": "Peritremes absent or greatly reduced. Respiratory tract parasites of mammals, reptiles, or birds.",
-            "advances_to": "Node 33"
-          },
-          "option_b": {
-            "morphology": "Peritremes rarely absent, occasionally reduced. Free living or ectoparasites of vertebrates or insects.",
-            "advances_to": "Node 35"
-          }
-        },
-        "33": {
-          "option_a": {
-            "morphology": "Epigynal shield absent or rudimentary (distinct in Zumptiella bakeri), sternal shield usually present; stigmata ventral or lateroventral. Respiratory tract parasites of terrestrial and marine mammals.",
-            "advances_to": "Family: Halarachnidae"
-          },
-          "option_b": {
-            "morphology": "Epigynal shield distinct but sometimes reduced, shield setae reduced or absent; sternal shield present or absent, stigmata lateral or dorsal. Parasites of snakes or birds.",
-            "advances_to": "Node 34"
-          }
-        },
-        "34": {
-          "option_a": {
-            "morphology": "Sternal and epigynal shields well developed but often weakly sclerotized, sternal setae minute or absent, stigmata lateral. Respiratory tract parasites of snakes.",
-            "advances_to": "Family: Entonyssidae"
-          },
-          "option_b": {
-            "morphology": "Sternal shield reduced or absent but with distinct, and often distinctive, sternal setae, epigynal shield well developed or reduced, stigmata dorsal. Respiratory tract parasites of birds.",
-            "advances_to": "Family: Rhinonyssidae"
-          }
-        },
-        "35": {
-          "option_a": {
-            "morphology": "Legs I extremely stout, with heavy sessile claws; legs II-IV slender, with long pretarsi and small claws, leg coxae widely separated. Sternal shield absent or barely visible as an interruption in the ventral integumentary striae; opisthogaster with distinctive spurlike or broad flattened setae. Parasites of armadillos.",
-            "advances_to": "Family: Dasyponyssidae"
-          },
-          "option_b": {
-            "morphology": "Legs I-IV of comparable thickness or coxae I-IV contiguous; sternal shield well developed or reduced but distinctly tanned and easily visible. Opisthogaster without spurlike or flattened setae.",
-            "advances_to": "Node 36"
-          }
-        },
-        "36": {
-          "option_a": {
-            "morphology": "Tritosternum absent or represented by tritosternal base remnant (if tritosternal base is well developed, then the peritremes extend only to level of anterior edge of coxae III). Sternal setae inserted at the margins of reduced sternal shield or in integument bordering it; epigynal shield narrowed or otherwise reduced, with or without setae. Parasites of bats.",
-            "advances_to": "Family: Spinturnicidae"
-          },
-          "option_b": {
-            "morphology": "Tritosternum well developed, with laciniae.",
-            "advances_to": "Node 37"
-          }
-        },
-        "37": {
-          "option_a": {
-            "morphology": "Sternal shield subrectangular, reduced laterally, carrying only sternal setae st1 and associated pores, sternal setae st2 and st3 in adjacent integument. Anal shield elongate, narrowly produced posterior to postanal seta; opisthogastric margin with 2 pairs of long, flagellate setae. Parasites of edentates.",
-            "advances_to": "Family: Manitherionyssidae"
-          },
-          "option_b": {
-            "morphology": "Sternal and anal shields variously developed, often reduced or expanded but not as above.",
-            "advances_to": "Node 38"
-          }
-        },
-        "38": {
-          "option_a": {
-            "morphology": "Chelicerae of female whiplike, styliform; cheliceral digits minute, chelate; corniculi membranous, indistinct.",
-            "advances_to": "Node 39"
-          },
-          "option_b": {
-            "morphology": "Chelicerae variously produced but not styliform; corniculi variously developed.",
-            "advances_to": "Node 40"
-          }
-        },
-        "39": {
-          "option_a": {
-            "morphology": "Elongate second cheliceral segment of female far exceeding basal cheliceral segment 1 in length, male chelicerae with second segment of normal length. Idiosoma broadly rounded posteriorly. Parasites of mammals and birds.",
-            "advances_to": "Family: Dermanyssidae"
-          },
-          "option_b": {
-            "morphology": "Second cheliceral segment normally developed, considerably shorter than greatly elongated basal cheliceral segment. Idiosoma with strongly narrowed opisthosoma. Parasites of porcupines and snakes.",
-            "advances_to": "Family: Hystrichonyssidae"
-          }
-        },
-        "40": {
-          "option_a": {
-            "morphology": "Chelicerae elongate, edentate; corniculi membranous, usually lobate. Palptrochanter often with a raised medioventral keel; with a large anterior nonsetigerous spur on leg coxa II (rarely minute or absent), other coxae without spurs but occasionally with small ridges; genu IV typically with 2 ventral setae. Parasites of mammals, birds, and reptiles.",
-            "advances_to": "Family: Macronyssidae"
-          },
-          "option_b": {
-            "morphology": "Chelicerae various, dentate or edentate, corniculi strongly sclerotized or membranous, hornlike, barbed, or lobate. Palptrochanter without raised medioventral keel; generally with more than 1 large, nonsetigerous coxal spur, or coxal spurs absent; genu IV typically with 1 ventral seta.",
-            "advances_to": "Node 41"
-          }
-        },
-        "41": {
-          "option_a": {
-            "morphology": "Corniculi attenuate-acuate, often barbed (barbs absent in Hemilaelaps, Scutanolaelaps, Strandtibbetsia, and Asiatolaelaps); with spurlike setae on coxae II, I-II, or I-III; palptarsal claw greatly reduced, generally with a single tine. External parasites of snakes.",
-            "advances_to": "Family: Ixodorhynchidae"
-          },
-          "option_b": {
-            "morphology": "Corniculi not as above, spurlike setae on coxae present or absent; palptarsal claw normally produced, with 2-3 tines.",
-            "advances_to": "Node 42"
-          }
-        },
-        "42": {
-          "option_a": {
-            "morphology": "Fixed cheliceral digit absent; with only 2 pairs of hypostomatic setae; peritremes of female short, looped medially or apically, confined to level of coxae III or coxae III-IV; males with peritremes very short and crooked or vestigial. Parasites of bees.",
-            "advances_to": "Family: Varroidae"
-          },
-          "option_b": {
-            "morphology": "Fixed cheliceral digit present, chelicerae dentate or edentate; with 3 pairs of hypostomatic setae; peritremes of adults variously produced, typically well developed and elongate, occasionally absent.",
-            "advances_to": "Node 43"
-          }
-        },
-        "43": {
-          "option_a": {
-            "morphology": "Tibia I usually with 1 ventral seta, lacking seta av2; genu IV usually with 1 posterolateral seta, lacking seta pl2; subcapitulum with internal malae usually weakly developed, with nearly smooth lateral margins and shorter than corniculi. Paraphages of chilopods, diplopods, spiders, and crustaceans.",
-            "advances_to": "Family: Iphiopsididae"
-          },
-          "option_b": {
-            "morphology": "Tibia I usually with 2 ventral setae, including av2; genu IV usually with 2 posterolateral setae, including pl2; subcapitulum with internal malae usually well developed, with fimbriate lateral margins, and equal to or longer than corniculi. A heterogenous group comprising free-living forms and facultative and obligate parasites of arthropods, birds, and mammals.",
-            "advances_to": "Family: Laelapidae"
-          }
-        },
-        "44": {
-          "option_a": {
-            "morphology": "Deutonymph and adults with a single dorsal shield that is never flanked by marginal shields; dorsal shield with several pairs of greatly elongated marginal setae, and paranal setae also markedly elongated; palptarsal claw absent, palpgenu with 4 setae; tibiae I-IV with only 1 dorsal seta (1 0/1, 1/1 1); femur IV with 8 setae (1 2/1, 2/1 1). Parasites of passalid beetles.",
-            "advances_to": "Family: Diarthrophallidae"
-          },
-          "option_b": {
-            "morphology": "Deutonymph and adults with more than 1 shield dorsally, adults usually with 1 or more pygidial shields or marginal shields in addition to dorsal shield; dorsal shield without differentiated pairs of greatly elongated marginal setae and paranal setae not elongated, although 1 pair of ventrocaudal setae sometimes so elongated; palptarsal claw present, palpgenu with 5-6 setae; tibiae I-IV with at least 3 dorsal setae (1 1/1, 2/1 1); femur IV with 6 setae in various configurations. Free-living predators, fungivores, and scavengers, or associated with arthropods.",
-            "advances_to": "Node 45"
-          }
-        },
-        "45": {
-          "option_a": {
-            "morphology": "Coxae of legs I narrow, cylindrical, each in its own acetabulum; tritosternum with 2 long, feathered laciniae; female epigynal shield loosely tripartite; chelicerae with lateral slit organs; palpgenu with 6 setae; tibia of leg I with 3 or 4 ventral setae.",
-            "advances_to": "Node 46"
-          },
-          "option_b": {
-            "morphology": "Coxae of legs I inserted together in a gnathopodal cavity and often widened so that the tritosternum is partly covered; tritosternum with variously shaped laciniae; epigynal shield of female usually unipartite, occasionally trigynaspid-like; chelicerae without lateral slit organs; palpgenu usually with 4-5 setae; tibia of leg I with 2 ventral setae.",
-            "advances_to": "Node 47"
-          }
-        },
-        "46": {
-          "option_a": {
-            "morphology": "Peritremes and stigmata dorsal; coxa of legs IV with 2 setae; epistome with a narrow middle spine.",
-            "advances_to": "Family: Thinozerconidae"
-          },
-          "option_b": {
-            "morphology": "Peritremes and stigmata ventrolateral; coxa of legs IV with 1 seta; epistome without differentiated middle spine.",
-            "advances_to": "Family: Protodinychidae"
-          }
-        },
-        "47": {
-          "option_a": {
-            "morphology": "Coxae of legs I normally produced, not covering base of tritosternum, tritosternal base about twice as wide as long; ventral leg cavities (pedofossae) absent.",
-            "advances_to": "Node 48"
-          },
-          "option_b": {
-            "morphology": "Coxae of legs I usually widened and flattened so that the tritosternum is entirely or partially covered; base of the tritosternum usually not wider than long; pedofossae usually well developed, sometimes absent.",
-            "advances_to": "Node 50"
-          }
-        },
-        "48": {
-          "option_a": {
-            "morphology": "Genu I with 2 anterolateral and 2 posterolateral setae; femur IV with 2 ventral setae.",
-            "advances_to": "Node 49"
-          },
-          "option_b": {
-            "morphology": "Genu I usually with 2 anterolateral and 1 posterolateral seta, femur IV with 2 ventral setae (if only 1 is present, then genu I with 2 posterolateral setae).",
-            "advances_to": "Family: Dithinozerconidae"
-          }
-        },
-        "49": {
-          "option_a": {
-            "morphology": "Idiosoma typically elongate, subtriangular, or pyriform, marginal shields entire or fragmented into numerous platelets, pygidial shield entire or variously subdivided. Genu IV with 1 ventral seta.",
-            "advances_to": "Family: Trachytidae"
-          },
-          "option_b": {
-            "morphology": "Idiosoma broadly ovate, marginal shields absent or variously coalesced, pygidial shield entire. Genu IV with 2 ventral setae.",
-            "advances_to": "Family: Polyaspididae"
-          }
-        },
-        "50": {
-          "option_a": {
-            "morphology": "Apex of fixed cheliceral digit with a large flower- or mushroom-shaped sensory organ; corniculi with terminal teeth.",
-            "advances_to": "Family: Uroactiniidae"
-          },
-          "option_b": {
-            "morphology": "Apex of fixed cheliceral digit not as above, corniculi generally smooth terminally.",
-            "advances_to": "Node 51"
-          }
-        },
-        "51": {
-          "option_a": {
-            "morphology": "Chelicerae with a distinctive internal sclerotized node associated with the levator tendon.",
-            "advances_to": "Node 53"
-          },
-          "option_b": {
-            "morphology": "Chelicerae without internal sclerotized node.",
-            "advances_to": "Node 52"
-          }
-        },
-        "52": {
-          "option_a": {
-            "morphology": "Hypostomatic setae h1 short, spiniform; genital shield of female located behind coxae IV. Small mites, with adults under 400 µm in length.",
-            "advances_to": "Family: Metagynuridae"
-          },
-          "option_b": {
-            "morphology": "Hypostomatic setae h1 typically long and setiform; female genital shield located between coxae II-IV. Adults generally over 400 µm in length.",
-            "advances_to": "Family: Uropodidae"
-          }
-        },
-        "53": {
-          "option_a": {
-            "morphology": "Internal malae of hypostome simple, without marginal fimbriations or distal moustachelike excrescences; dorsal shield of adults often notched marginally.",
-            "advances_to": "Family: Trematuridae"
-          },
-          "option_b": {
-            "morphology": "Internal malae with short marginal fimbriations and/or with elaborated distal moustachelike excrescences.",
-            "advances_to": "Node 54"
-          }
-        },
-        "54": {
-          "option_a": {
-            "morphology": "Fixed cheliceral digit typically with a rounded or acuminate apical finger that extends well beyond the movable digit (absent in Caminella). Peritremes well developed and often elaborated to form distinctive serpentine patterns, pygidial shield sometimes present in adults.",
-            "advances_to": "Family: Dinychidae"
-          },
-          "option_b": {
-            "morphology": "Fixed cheliceral digit subequal to or little longer than movable digit, sometimes with short rounded extension. Peritremes variously developed but not as above, pygidial shield absent in adults.",
-            "advances_to": "Node 55"
-          }
-        },
-        "55": {
-          "option_a": {
-            "morphology": "Dorsal shield of adults strongly ornamented with pits and ridges, often with numerous dorsal T-shaped setae. Movable cheliceral digit more than twice the length of its basal width.",
-            "advances_to": "Family: Trachyuropodidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal shield of adults without conspicuous ornamentation or T-shaped dorsal setae. Movable cheliceral digit shorter than twice its basal width.",
-            "advances_to": "Family: Oplitidae"
-          }
-        }
-      }
-    },
-    "nothopodinae.to.tribe": {
-      "title": "Tribe under Nothopodinae",
-      "parent": {
-        "rank": "Subfamily",
-        "name": "Nothopodinae"
-      },
-      "identifies": [
-        "Tribe"
-      ],
-      "endpoint_ranks": [
-        "Tribe"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Anterolateral setae on coxisternum I (1b) present.",
-            "advances_to": "Tribe: Nothopodini (with setae)"
-          },
-          "option_b": {
-            "morphology": "Anterolateral setae on coxisternum I (1b) absent.",
-            "advances_to": "Tribe: Nothopodini"
-          }
-        }
-      }
-    },
-    "oligonychus.to.species": {
-      "title": "Species under Oligonychus",
-      "parent": {
-        "rank": "Genus",
-        "name": "Oligonychus"
-      },
-      "identifies": [
-        "Species"
-      ],
-      "endpoint_ranks": [
-        "Species"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Aedeagus bent ventrad with distal end narrowing gradually.",
-            "advances_to": "Species: O. punicae"
-          },
-          "option_b": {
-            "morphology": "Aedeagus bent dorsad.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Peritreme retrose distally.",
-            "advances_to": "Species: O. biharensis"
-          },
-          "option_b": {
-            "morphology": "Peritreme ending with simple straight bulb.",
-            "advances_to": "Node 3"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Aedeagus without distinct knob.",
-            "advances_to": "Node 4"
-          },
-          "option_b": {
-            "morphology": "Aedeagus with distinct knob.",
-            "advances_to": "Node 5"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Dorsal margin of the neck straight and upright projected.",
-            "advances_to": "Species: O. indicus"
-          },
-          "option_b": {
-            "morphology": "Aedeagus bent acutely as sigmoid.",
-            "advances_to": "Species: O. oryzae"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Aedeagus with narrow neck; knob is spear-shaped and small.",
-            "advances_to": "Species: O. tylus"
-          },
-          "option_b": {
-            "morphology": "Aedeagus with slightly projected posterior end; neck width more broadly developed.",
-            "advances_to": "Species: O. neotylus"
-          }
-        }
-      }
-    },
-    "oligonychus.to.species.kerala": {
-      "title": "Species under Oligonychus (Kerala regional paper)",
-      "parent": {
-        "rank": "Genus",
-        "name": "Oligonychus"
-      },
-      "identifies": [
-        "Species"
-      ],
-      "endpoint_ranks": [
-        "Species"
-      ],
-      "scope": {
-        "source_type": "regional paper",
-        "region": "Kerala"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Male aedeagus with distinct knob.",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Male aedeagus without distinct knob.",
-            "advances_to": "Node 3"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Aedeagus with knob very prominent, curved downwards with long slender tapered posterior projection and flat dorsal margin.",
-            "advances_to": "Species: O. biharensis"
-          },
-          "option_b": {
-            "morphology": "Aedeagus with knob small, spear-like with broad base; dorsal margin of shaft forming almost a right angle to anterior margin of upturned part.",
-            "advances_to": "Species: O. tylus"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Dorsally directed aedeagal part longer, strongly angulate medially, with long and slender posterior projection.",
-            "advances_to": "Species: O. grypus"
-          },
-          "option_b": {
-            "morphology": "Dorsally directed aedeagal part comparatively short, weakly angulate medially, with small posterior projection forming slender, blunt, or finger-like tip.",
-            "advances_to": "Node 4"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Palp with terminal sensillum about three times as long as wide and dorsal sensillum slender; dorsal idiosomal setae slightly longer than the interval between their longitudinal bases; dorsal projection of aedeagus narrow, finger-like, projecting posteriorly.",
-            "advances_to": "Species: O. oryzae"
-          },
-          "option_b": {
-            "morphology": "Palpus with terminal sensillum two times as long as wide and slender, dorsal sensillum slender; dorsal idiosomal setae twice longer than the interval between their longitudinal bases; aedeagus with distal part strongly sigmoid; upturned part recurved distally, forming strong and comparatively thick downturned tip.",
-            "advances_to": "Species: O. sacchari"
-          }
-        }
-      }
-    },
-    "oribatida.to.family.excluding.astigmatina": {
-      "title": "Family under Oribatida (excluding Astigmatina)",
-      "parent": {
-        "rank": "Suborder",
-        "name": "Oribatida"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general",
-        "excludes": "Astigmatina"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Genua of legs noticeably shorter than tibiae, differently shaped, functioning as knee. Legs articulate with body in deep pockets (acetabula), as a \"ball and socket\" joint; trochanters I-II almost totally contained within acetabula. Venter of the brachypyline type, comprising a unified rigid plate in which only the subcapitulum and the paired genital valves and anal valves are distinct and movable (i.e., coxisternal, aggenital, and adanal regions are fused into a single unit that carries their respective setae). Subcapitulum usually diarthric; if (secondarily) without labiogenal articulation, then rutella and chelicerae are highly modified. (The \"higher\" oribatid mites).",
-            "advances_to": "Node 43"
-          },
-          "option_b": {
-            "morphology": "Genua of legs similar to tibiae in size and shape, not reduced to kneelike segment. Leg articulation not in deep acetabula, at most in shallow depressions; trochanters I-II small but clearly external. Venter of various form but rarely as above (exception: HERMANNIIDAE); paired aggenital and adanal plates often distinguishable; coxisternal region often transversely divided by sejugal articulation and usually not fused to aggenital region. Subcapitulum usually stenarthric (if anarthric then rutella and chelicerae not noticeably modified; diarthric in several TRHYPOCHTHONIIDAE). The \"lower\" or \"macropyline\" oribatid mites.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Body form ptychoid; legs can be fully withdrawn as a group and aspis rotated ventrad such that it touches the notogaster and ventral plate (thus fully covering the retracted legs). Legs relatively short, those on each side adjacent, attached to a rather inconspicuous, narrow coxisternal region that connects to a voluminous, soft, deformable pleural region (seen on distended specimens).",
-            "advances_to": "Node 3"
-          },
-          "option_b": {
-            "morphology": "Body form not ptychoid; legs longer or, if short, clearly not capable of being withdrawn and covered by prodorsum. Coxisternal region conspicuous, wide; pleural region sclerotized, or, if not, noticeable sclerotization generally absent from whole body.",
-            "advances_to": "Node 8"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Notogaster clearly of multiple parts; dorsal plate (notaspis) subdivided transversely by a telescoping (type L) articulation; only 4 pairs of setae (row c) on anterior plate (pronotaspis); posterior plate (pygidium) with setae of rows e and f closely associated with 2 transverse carinae; setae of row d minute or absent; seta p1 and row h on ventral margin; setae p2 and p3 inserted posteriorly on pair of large lateral plates (pleuraspis). Epimere II with 2 pairs of setae. Genua of all legs without solenidia.",
-            "advances_to": "Family: Protoplophoridae"
-          },
-          "option_b": {
-            "morphology": "Hysterosoma covered dorsally and laterally by single, undivided sclerite that bears at least 6 pairs of setae. One pair of epimere II setae. Genua I-III with 1 or 2 solenidia.",
-            "advances_to": "Node 4"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Hysterosoma covered dorsally by an apparent notogaster with only 6-8 pairs of setae (rows c, d, and e); body region bearing setae of rows f, h, p (and ad in Mesoplophora), shifted ventrally, incorporated into a ventral plate in which genital and anal (and sometimes adanal) plates insert. Subcapitulum anarthric; rutella narrow. Genu I with 1 solenidion.",
-            "advances_to": "Family: Mesoplophoridae"
-          },
-          "option_b": {
-            "morphology": "Hysterosoma covered with notogaster of typical structure, bearing 14 or 15 (rarely more) pairs of setae (rows c, d, e h p present; row f represented only by inconspicuous alveoli). No separate, seta-bearing ventral plate in which anal or genital valves insert. Subcapitulum stenarthric; rutella broad, massive. Genu 1 with 2 solenidia.",
-            "advances_to": "Node 5"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Combined anogenital region broad, length approximately twice width, composed of 2 fully independent pairs of plates (fused genital/aggenital plates and fused anal/adanal plates). Without plicature plates. Pretarsi monodactylous. Anterior genital papillae reduced.",
-            "advances_to": "Family: Phthiracaridae"
-          },
-          "option_b": {
-            "morphology": "Combined anogenital region narrow, length usually greater than 3 times maximum width; structure of ventral plates otherwise. Paired, narrow plicature plates (without setae) present between notogaster and aggenital/adnanal plates; rarely absent (some SYNICHOTRITIIDAE). Pretarsi monodactylous or tridactylous. Three pairs of genital papillae well formed, or only posterior pair reduced.",
-            "advances_to": "Node 6"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Anal plates (bearing anal setae) discrete, although they may be very narrow posteriorly, not fused to adanal plate or to adanal portion of aggenito-adanal plate; genital plate of various form, fused to aggenital region or not. Notogastral integument usually smooth, uniformly shiny in reflected light.",
-            "advances_to": "Family: Oribotritiidae"
-          },
-          "option_b": {
-            "morphology": "Neither anal nor genital plates discernable; that is, genital plates fused to aggenitals, and anal plates fused to adanals. Notogastral integument often pitted (at least anteriorly), usually not shiny.",
-            "advances_to": "Node 7"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Paired ventral plates connected across midline in preanal position by a short region of interdigitating ridges (in transmitted light appearing as dark interlocking triangle). Genital plates not attached medially, genital setae spread the length of genital region, located on medial edge, all genital papillae of approximately equal size. Palp 3-segmented (trochanter/femur/genu fused).",
-            "advances_to": "Family: Euphthiracaridae"
-          },
-          "option_b": {
-            "morphology": "Preanal region without interlocking triangle. Paired plates attached to each other medially in genital region, either fused medially as a single plate or articulating by narrow scissure; genital setae concentrated anteriorly, not restricted to medial region, with one pair of genital papillae greatly reduced, 1/2 the size of other two. Palp 4- (femur/genu fusion) or 5- (no fusions) segmented.",
-            "advances_to": "Family: Synichotritiidae"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Legs with 6 free segments past coxisternum, all femora divided. Prodorsum astegasime, with no rostral tectum. Bothridium and base of bothridial seta simple, without obvious bend, bothridial seta never barbed, ciliate, or pectinate. Body white, at least in anterior half; usually with inconspicuous, thin sclerites on hysterosoma. Several pairs of notogastral setae often large and conspicuously darkened. Coxisternum II with 3 pairs of setae. Solenidia of tibiae and genua clearly separate from respective setae d.",
-            "advances_to": "Node 9"
-          },
-          "option_b": {
-            "morphology": "Legs with 5 free segments past coxisternum; femora undivided. Prodorsum with or without rostral tectum. Bothridium and base of bothridial seta with conspicuous sharp proximal d bend (except TRICHTHONIIDAE), bothridial seta of diverse form, smooth or barbed. Body (adults) usually tan or brown, with noticeable sclerotization; rarely white (Parhyposomatides) or brightly colored (some BRACHYCHTHONIIDAE). Notogastral setae not darkened, although some may be enlarged. Epimere II usually with 1 pair of setae, rarely 2 or 3. Solenidia and setae d of tibiae and genua usually either adjacent (coupled), or d absent.",
-            "advances_to": "Node 14"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "With 2 exobothridial setae oriented almost vertically; ventral (xi) similar in size and shape to seta in, and much larger than dorsal (xs). Famulus large, erect, ciliate, the most proximodorsal setiform organ on tarsus I. Main part of chelicerae oriented almost vertically, with narrow, elongated digits. Palptarsus short, little longer than tibia. Genital papillae and genital setae unmodified. Tibia II with 2 solenidia.",
-            "advances_to": "Node 10"
-          },
-          "option_b": {
-            "morphology": "With 2 exobothridial setae oriented almost horizontally; anterodorsal one (xa) much larger than other (xp), but both clearly smaller than in. Famulus large or small, but smooth and inserted more distally. Chelicerae normal, oriented anteriorly or anteroventrally and digits shorter, thicker. Palptarsus at least twice length of tibia. Anterior pair of genital setae strongly modified and/or anterior genital papillae strongly reduced in size (or absent). Tibia II with 1 solenidion.",
-            "advances_to": "Node 11"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "Famulus not broadened distally. Inferior lip of mouth large, easily distinguished. Setae of pairs c1 and c2 all on single unpaired sclerite; pair e1 usually on single unpaired sclerite. Prodorsum in midregion often with vague, internal sclerotized thickenings forming a U or square shape.",
-            "advances_to": "Family: Archeonothridae"
-          },
-          "option_b": {
-            "morphology": "Famulus broadened distally, somewhat spatulate. Inferior lip minute, difficult to distinguish. Setae of pair c2 on individual small sclerites; setae of pair e1 on individual sclerites. Prodorsum without thickenings.",
-            "advances_to": "Family: Acaronychidae"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Leg pretarsi II-IV bidactylous. Famulus large, approximately equal in length to solenidia or only slightly shorter, inserted on conspicuous tubercle in proximal quarter or third of tarsus. All genital papillae of normal size. Anterior adoral seta (or1) simple, smaller than others. Bothridial seta filiform. Opisthonotal setae h1 and p1 unusually short, swollen or spinelike; seta p4 present (17 pairs of opisthonotal setae).",
-            "advances_to": "Family: Palaeacaridae"
-          },
-          "option_b": {
-            "morphology": "Leg pretarsi II-IV tridactylous, with empodial claw well developed or much reduced. Famulus much smaller than solenidia, inserted at midpoint or in anterior half of tarsus. Anterior pair of genital papillae greatly reduced or absent. Adoral seta or1 usually strongly barbed or pectinate, larger than other 2. Bothridial seta slightly to greatly expanded (rarely filiform). Opisthonotal setae h1 and p1 not unusually short; with either 16 (p4 absent) or more than 17 (neotrichy) pairs of opisthonotal setae.",
-            "advances_to": "Node 12"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Opisthonotal setae heteromorphic, 2 pairs (d2 and e1) enlarged, the longest of dorsal setae, darkly pigmented and erectile, 1 pair near posterior margin broadly vaned or heavily barbed. Body form normal, hysterosoma about 1.5 times longer than broad. Anterior genital papillae reduced, middle and posterior papillae normally developed. Leg solenidia normally developed.",
-            "advances_to": "Family: Ctenacaridae"
-          },
-          "option_b": {
-            "morphology": "Opisthonotal setae similar in structure, with various lengths but all thin and smooth. Body elongated, hysterosoma about twice as long as broad. All genital papillae noticeably reduced in size, anterior papillae present or absent. Most solenidia of genua and tibiae II-IV unusually small or vestigial.",
-            "advances_to": "Node 13"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Bothridial seta conspicuously and abruptly broadened, flattened distally, straight to strongly curved, shorter than seta in. With only a groove (no striations) between setal rows c and d; c1 much longer than c2. Anterior genital papillae absent. Tarsus III with 1 solenidion. Palpfemur with 1 seta (sup absent).",
-            "advances_to": "Family: Aphelacaridae"
-          },
-          "option_b": {
-            "morphology": "Bothridial seta straight, thin, very slightly and gradually broadened distally, much longer than in. Broad region of soft, transversely striated cuticle between setal rows c and d; c1 much shorter than c2. Anterior genital papillae present. Tarsus III with 2 solenidia. Palpfemur with 2 setae (sup present).",
-            "advances_to": "Family: Adelphacaridae"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "Opisthonotum subdivided transversely by 1-3 complete scissures (if dorsum is otherwise sclerotized) or grooves (if dorsum is rather soft).",
-            "advances_to": "Node 15"
-          },
-          "option_b": {
-            "morphology": "Opisthonotum represented by a single notogaster, not subdivided transversely, usually well sclerotized; if superficial transverse grooves appear in sclerotized cuticle, then they number more than 3 and are usually incomplete medially (some LOHMANNIIDAE).",
-            "advances_to": "Node 30"
-          }
-        },
-        "15": {
-          "option_a": {
-            "morphology": "Opisthonotal gland present. Notogaster with a single transverse scissure or groove, lying between setal rows d and e; row e inserted well posterior to scissure. Rather weakly sclerotized mites, colorless to pale yellow. Rutella strongly developed, distally broad and toothed. Pretarsi with well-developed lateral claws; empodial claw reduced, hooklike, or absent.",
-            "advances_to": "Node 16"
-          },
-          "option_b": {
-            "morphology": "Opisthonotal gland absent. Notogaster with 1-3 transverse scissures or grooves (if only 1, then the following is true: mites more strongly pigmented, not soft bodied; scissure runs either anterior to row d or posterior to e or actually contains row e on narrow intercalary sclerite). Rutella various, but rarely as above. Pretarsi various, usually monodactylous.",
-            "advances_to": "Node 18"
-          }
-        },
-        "16": {
-          "option_a": {
-            "morphology": "Prodorsum astegasime; rostral tectum absent or poorly developed, much of chelicerae visible in dorsal aspect. With 3 pairs of adoral setae. Palp 5-segmented, trochanter and femur freely articulated. Notogastral seta f2 much smaller than f1 or absent.",
-            "advances_to": "Node 17"
-          },
-          "option_b": {
-            "morphology": "Prodorsum stegasime; rostral tectum covering most of chelicerae in dorsal aspect. With 1 pair of adoral setae. Palp 4-segmented, trochanter and femur fused. Notogastral seta f2 well developed, similar to f1.",
-            "advances_to": "Family: Elliptochthoniidae"
-          }
-        },
-        "17": {
-          "option_a": {
-            "morphology": "Opisthonotal gland opens on flared, funnel-shaped protuberance bearing seta f2. With 4 pairs of adanal, 4 pairs of anal setae; peranal segment present, bearing 1 pair of setae. With 1 pair of epimere II setae; genu II and tarsus III with 2 and 1 solenidia, respectively.",
-            "advances_to": "Family: Parhypochthoniidae"
-          },
-          "option_b": {
-            "morphology": "Opisthonotal gland opens without conspicuous protuberance; seta f2 absent, represented only by inconspicuous alveolus near gland opening. With 3 pairs of adanal, 2 pairs of anal setae; peranal segment absent. With 2 pairs of epimere II setae; genu II and tarsus III with 1 and 0 solenidia, respectively.",
-            "advances_to": "Family: Gehypochthoniidae"
-          }
-        },
-        "18": {
-          "option_a": {
-            "morphology": "Notogaster with a single transverse scissure, which lies posterior to setal row c, d, or e. (Telescoping, type L scissures can appear as 2 in transmitted light, due to overlapping structures; some SPHAEROCHTHONIIDAE have vestiges of 1-2 additional posterior scissures, but they appear simply as thin ridges, fused to surrounding cuticle; ENIOCHTHONIIDAE have a transverse groove near setal row d, that can be confused with a scissure.).",
-            "advances_to": "Node 19"
-          },
-          "option_b": {
-            "morphology": "Notogaster with 2-3 transverse scissures or grooves, separating 3-4 dorsal plates or regions.",
-            "advances_to": "Node 22"
-          }
-        },
-        "19": {
-          "option_a": {
-            "morphology": "Single transverse scissure of type S, with intercalary sclerite containing large, erectile setae of row e. Setae f1, f2 also erectile, stout, with long branches, inserted on intercalary sclerites in pair of circular unsclerotized depressions; setae p1, p2 phylliform. Prodorsum astegasime. Leg pretarsi bidactylous, empodial claw absent.",
-            "advances_to": "Family: Arborichthoniidae"
-          },
-          "option_b": {
-            "morphology": "Single transverse scissure of other type; either telescoping type L or, if type S then setae of row e (on intercalating sclerite) smaller than nearby notogastral setae, often vestigial. No opisthonotal setae conspicuously enlarged or erectile. Prodorsum stegasime. Leg pretarsi monodactylous to tridactylous; empodial claw well developed.",
-            "advances_to": "Node 20"
-          }
-        },
-        "20": {
-          "option_a": {
-            "morphology": "Integument distinctly patterned (foveolate/reticulate); at least some dorsal setae of notogaster and/or prodorsum heavily ciliate, T shaped. Transverse scissure type L, posterior to setal row c; 4 pairs of setae insert on anterior notogastral plate (pronotaspis). With 4-10 pairs of anal setae in linear arrangement. Trochanters I-II each with 1 seta.",
-            "advances_to": "Family: Sphaerochthoniidae"
-          },
-          "option_b": {
-            "morphology": "Integument smooth or sculpted but without foveae or reticulation; dorsal setae simple, setiform, or flattened, lanceolate. Transverse scissure of either type (L, S), located posterior to setal row d, such that 6-8 pairs of setae borne on pronotaspis. With 0-2 pairs of anal setae. Trochanters I-II without setae.",
-            "advances_to": "Node 21"
-          }
-        },
-        "21": {
-          "option_a": {
-            "morphology": "Transverse scissure of type L, located behind setal row e; pronotaspis with 8 pairs of setae (setae e similar to others) and with transverse, medially incomplete sulcus at level of setal row d. Setae h2, h3 on separate, longitudinally elongated lateral plate. Aggenital setae present, on separate plate. Femur I with 3 setae; genu I with 2 solenidia and 5 setae.",
-            "advances_to": "Family: Eniochthoniidae"
-          },
-          "option_b": {
-            "morphology": "Single transverse scissure a modified type S, with undivided intercalary plate bearing small or vestigial setae e1, e2. Pronotaspis with 6 pairs of setae, without sulcus. Without isolated lateral plate bearing setae. Neither separate aggenital plate nor aggenital seta present. Femur I with 5 setae, genu I with 1 solenidion and 3 setae.",
-            "advances_to": "Family: Hypochthoniidae (pars)"
-          }
-        },
-        "22": {
-          "option_a": {
-            "morphology": "All scissures (2 or 3) simple, type E, or only grooves. Notogastral setae generally homogeneous, similar in shape and size; none extremely broad (platelike) or unusually large or erectile; bothridial seta clavate.",
-            "advances_to": "Node 23"
-          },
-          "option_b": {
-            "morphology": "At least 1 (of 2 or 3) scissure of type S, with intercalary sclerite and large, erectile setae; or notogastral setae extremely broad, platelike, covering body like shields. Bothridial seta of various forms.",
-            "advances_to": "Node 25"
-          }
-        },
-        "23": {
-          "option_a": {
-            "morphology": "Body more than 3 times longer than wide; legs II-III widely separated. Pretarsi without distinct claw; empodium highly modified, with hyaline flap on either side. Prodorsum astegasime, with a small, narrow anterior lobe bearing setae ro; bothridial seta smooth.",
-            "advances_to": "Family: Pediculochelidae"
-          },
-          "option_b": {
-            "morphology": "Body little more than twice maximum width; legs II-III almost adjacent. Pretarsi with empodium developed as typical claw. Prodorsum stegasime, without obvious, narrow naso; bothridial seta barbed or ciliate.",
-            "advances_to": "Node 24"
-          }
-        },
-        "24": {
-          "option_a": {
-            "morphology": "Notogaster with 3 transverse type E scissures; 4 pairs of setae (c row only) on anteriormost plate. With cupule immediately lateral to each mid-dorsal seta (c1, d1, e1, f1), in addition to normal complement. Genital plates twice the size of anal plates. Aggenital seta absent, anal plates with 4 pairs of setae; peranal plate and seta absent.",
-            "advances_to": "Family: Haplochthoniidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster with 2 transverse type E scissures; 6 pairs of setae on anteriormost plate (c and d rows). Without extra cupules immediately lateral to mid-dorsal setae. Genital plates and combined anal/peranal plates subequal in size. With 1 pair of aggenital setae, anal plates with 2 pairs of setae; peranal plates present, with 1 pair of setae.",
-            "advances_to": "Family: Brachychthoniidae"
-          }
-        },
-        "25": {
-          "option_a": {
-            "morphology": "Some or all setae of prodorsum and notogaster broad, shieldlike, sometimes covering all or most of dorsal surface; setal surface with distinct pattern of foveae or reticulation; without barbs or cilia. With or without erectile setae. Pale mites, with little sclerotization.",
-            "advances_to": "Node 26"
-          },
-          "option_b": {
-            "morphology": "Dorsal setae of various size and ornamentation-smooth, ciliate, or pectinate but not foveate or reticulate. At least 4 pairs (e1, e2, f1, f2) much longer than others, inserted on intercalary sclerites in 2 type S scissures. Cuticle usually with noticeable sclerotization, light brown color.",
-            "advances_to": "Node 28"
-          }
-        },
-        "26": {
-          "option_a": {
-            "morphology": "Leg pretarsi monodactylous. All dorsal setae shieldlike, similar in shape and mostly of similar size, none erectile or inserted on large tubercles. Palptarsus terminating in long, ribbon-shaped eupathidia. Rutellum minute, conical, smooth. Leg genua apparently without solenidia (vestige may be present on genu I). Setae of ovipositor enlarged, hornlike eupathidia.",
-            "advances_to": "Family: Pterochthoniidae"
-          },
-          "option_b": {
-            "morphology": "Leg pretarsi bidactylous, with strong lateral claws but without empodium. One or 2 pairs of notogastral setae different from others, in shape and orientation. Palptarsus terminating in short, forked eupathid. Rutellum elongated, with narrow base, broad and toothed distally. Leg genua with 2-1-1-1 solenidia (I-IV). Setae of ovipositor normal, not hornlike.",
-            "advances_to": "Node 27"
-          }
-        },
-        "27": {
-          "option_a": {
-            "morphology": "With 2 pairs of erectile setae inserted on large, independent tubercles; these setae narrowed distally, phylliform, distinctly longer than all other dorsal setae. Dorsal setae clearly independent, well spaced; interlamellar setae shieldlike, as broad as long, foveate. With 6 pairs of genital setae. Tarsus III without solenidion.",
-            "advances_to": "Family: Atopochthoniidae"
-          },
-          "option_b": {
-            "morphology": "With 1 pair of notogastral setae (e1) erect, in fixed position; these setae broad, not tapering. Remaining notogastral setae shieldlike, overlapping and appearing fused together, covering entire hysterosoma; interlamellar seta much longer than broad, without foveae. With 8 pairs of genital setae. Tarsus III with solenidion.",
-            "advances_to": "Family: Phyllochthoniidae"
-          }
-        },
-        "28": {
-          "option_a": {
-            "morphology": "Notogaster with only 2 transverse scissures, both of type S, bearing erectile setae e and f. Setal rows c and d similar and on same plate; bothridial seta straight at base, with simple insertion, bothridium without noticeable curve.",
-            "advances_to": "Family: Trichthoniidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster with 3 transverse scissures, such that setal rows c and d similar or different in shape but not on same plate; bothridial seta and bothridium strongly curved at base.",
-            "advances_to": "Node 29"
-          }
-        },
-        "29": {
-          "option_a": {
-            "morphology": "Notogaster and prodorsum without noticeable sculpturing, rostrum not fenestrate. Setae of rows c-f compressed into anterior 1/3 of notogaster, leaving middle 1/3 devoid of setae; setal row d much enlarged, similar to rows e and f but now erectile. Genital plate transversely divided; aggenital plates large, broadly fused to coxisternum; adanal plate pair not fused posterior to anal aperture. Pretarsi of legs monodactylous.",
-            "advances_to": "Family: Heterochthoniidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster and prodorsum usually with reticulate or foveate sculpturing; rostrum distinctly fenestrate. Setae of rows c-f occupy anterior 1/2 of notogaster; no large area without setae; setal row d not enlarged, similar to row c. Genital plate not divided; aggenital plates small, not fused to coxisternum; adanal plates fused posteriorly to form a U shape. Pretarsi of legs bi- or tridactylous.",
-            "advances_to": "Family: Cosmochthoniidae"
-          }
-        },
-        "30": {
-          "option_a": {
-            "morphology": "Dichoid mites: with full sejugal articulation, such that prodorsum is capable of horizontal and lateral movement relative to hysterosoma, often slightly retractable into it; epimera II-III therefore not fused, separated by band of unsclerotized cuticle. With 2 pairs of exobothridial setae.",
-            "advances_to": "Node 31"
-          },
-          "option_b": {
-            "morphology": "Holoid mites: epimera II-III usually entirely fused, such that sejugal articulation present only in dorsal and sometimes lateral region; proterosoma not retractable into hysterosoma (exception: a narrow band of unsclerotized cuticle connects epimera II-III in some Malaconothroidea, allowing slight dorsoventral movement of proterosoma). With 1 or 0 pair of exobothridial setae.",
-            "advances_to": "Node 37"
-          }
-        },
-        "31": {
-          "option_a": {
-            "morphology": "With 10 pairs of genital setae, some in lateral row. Aggenital setae absent; aggenital plates small, inconspicuous, or absent; usually with 2 pairs of anal setae (rarely 0 or 1). Opisthonotal gland and lyrifissures iad, ian absent.",
-            "advances_to": "Node 32"
-          },
-          "option_b": {
-            "morphology": "With fewer than 10 pairs of genital setae, usually all in medial row. With 2-3 pairs of aggenital setae, aggenital region variously formed; with 3-4 pairs of anal setae. Opisthonotal gland, lyrifissure iad, and often ian present.",
-            "advances_to": "Node 33"
-          }
-        },
-        "32": {
-          "option_a": {
-            "morphology": "With characteristic body shape: ventral surface flat, dorsal surface strongly arched, prodorsum posteriorly equally as broad as notogaster. Anterior margin of notogaster with large, thin tectum overhanging posterior region of prodorsum. Preanal plate conspicuous. Subcapitulum stenarthric: adoral setae all broadest near base. Femora of at least legs I-II with ventral keels.",
-            "advances_to": "Family: Lohmanniidae"
-          },
-          "option_b": {
-            "morphology": "Differently shaped: prodorsum only 2/3 width of notogaster. Anterior margin of notogaster without tectum. Preanal plate minute, usually hidden in ventral aspect. Subcapitulum anarthric: adoral seta or2 broadest distally, with conspicuous tines. Femora with small ventral spurs, but without keels.",
-            "advances_to": "Family: Hypochthoniidae (pars, Nothrolohmannia)"
-          }
-        },
-        "33": {
-          "option_a": {
-            "morphology": "Colorless, weakly sclerotized mites. Rostral tectum weakly developed, chelicerae mostly exposed. Leg pretarsi tridactylous, with empodial claw minute, hooklike. Notogastral setae f1 and f2 present, but equally small, unlike larger neighboring setae.",
-            "advances_to": "Family: Nehypochthoniidae"
-          },
-          "option_b": {
-            "morphology": "More sclerotized forms, with distinct yellow or brown pigmentation. Rostral tectum covers retracted chelicerae, at least dorsally. Leg pretarsi various, if tridactylous, empodial claw similar in size to lateral claws. Notogastral seta of row f not as above: one or both absent, or both present but similar to other notogastral setae.",
-            "advances_to": "Node 34"
-          }
-        },
-        "34": {
-          "option_a": {
-            "morphology": "Large mites: total length over 800 µm. Epimeral halves III-IV separated medially by unsclerotized cuticle. Genital plates immediately posterior to epimere IV, located in anterior 1/2 of hysterosoma; with 2 pairs of aggenital setae. Palp with 5 free segments.",
-            "advances_to": "Node 35"
-          },
-          "option_b": {
-            "morphology": "Smaller mites, total length less than 700 µm, usually much less. Epimeral halves III-IV fused medially, demarcated with suture or not. Genital plates well posterior to epimere IV, in posterior half of hysterosoma; with 3 (rarely more) pairs of aggenital setae. Palp with 2-4 free segments.",
-            "advances_to": "Node 36"
-          }
-        },
-        "35": {
-          "option_a": {
-            "morphology": "Hysterosoma rather rectangular in dorsal aspect and dorsoventally flattened. All notogastral setae short: c1, d1, d2, e1 in longitudinal row; c3, c2, cp, e2 in another row on lateral carina. With unpaired postanal plate; 3 pairs of adanal setae.",
-            "advances_to": "Family: Perlohmanniidae"
-          },
-          "option_b": {
-            "morphology": "Hysterosoma convex, both in dorsal and lateral aspects. Notogastral setae d2, h2, p1 flagellate, much longer than others; setae not in rows as above, no lateral carina. Without postanal plate; 2 pairs of adanal setae.",
-            "advances_to": "Family: Collohmanniidae"
-          }
-        },
-        "36": {
-          "option_a": {
-            "morphology": "Body light yellow, cylindrical, proterosoma constricted behind level of bothridium. Epimera III-IV and aggenital region fused without delineation; U-shaped scissure passes between adanal, anal, and genital plates. With 4 pairs of anal, 4 pairs of adanal, and 9 pairs of genital setae. Leg pretarsi bidactylous. Palp with 4 free segments.",
-            "advances_to": "Family: Eulohmanniidae"
-          },
-          "option_b": {
-            "morphology": "Body light to dark brown, moderately elongated, without constriction as above. Epimera III-IV clearly outlined by borders and apodemes; without U-shaped scissure. With 3 pairs of anal, 3 pairs of adanal, and 7-8 pairs of genital setae. Leg pretarsi monodactylous. Palp with 2-3 free segments.",
-            "advances_to": "Family: Epilohmanniidae"
-          }
-        },
-        "37": {
-          "option_a": {
-            "morphology": "Body cylindrical, somewhat elongated. Prodorsum posteriorly with tubercles or ridges directed over dorsosejugal furrow. Notogaster indistinguishably fused to ventral region in posterior 1/2, giving appearance of pair of crescent-shaped scissures directed between widely separated genital and anal plates.",
-            "advances_to": "Family: Nanhermanniidae"
-          },
-          "option_b": {
-            "morphology": "Body not cylindrical, often globose or dorsally flattened. Prodorsum posteriorly without tubercles or ridges. Notogaster distinct from ventral region throughout its length; genital and anal plates adjacent or only narrowly separated.",
-            "advances_to": "Node 38"
-          }
-        },
-        "38": {
-          "option_a": {
-            "morphology": "Ventral region of brachypyline type, similar to that of cohort BRACHYPYLINA: adanal and aggenital regions broad, completely fused, and aggenital region fused with epimere IV. Hysterosoma rather globose, may have granules, but without carinae or other strong surface topography.",
-            "advances_to": "Family: Hermanniidae"
-          },
-          "option_b": {
-            "morphology": "Ventral region of macropyline type: adanal and aggenital plates (when latter is distinct) relatively narrow; if sclerotized, aggenital region never fully fused to epimere IV. Hysterosoma not globose; usually somewhat dorsoventrally flattened, often with distinct surface topography of carinae, broad ridges or depressions.",
-            "advances_to": "Node 39"
-          }
-        },
-        "39": {
-          "option_a": {
-            "morphology": "Epimere II with 3 or more pairs of setae. With 9 pairs of genital setae, 1 posterior pair far from medial edge of plate. Rostrum with short medial incision. Bothridial seta setiform, longer than seta in; bothridium basally with many saccules or short brachytracheae. Integument distinctly foveolate.",
-            "advances_to": "Family: Nothridae"
-          },
-          "option_b": {
-            "morphology": "Epimere II with 1 (rarely 2 or 0) pair of setae. With 4-24 pairs of genital setae, all near medial edge. Rostrum without medial incision. Bothridium at most with single saccule, usually none; bothridial seta often clavate, length usually equal to or less than that of seta in. Integument various, but rarely foveolate.",
-            "advances_to": "Node 40"
-          }
-        },
-        "40": {
-          "option_a": {
-            "morphology": "Prodorsum and notogaster fused dorsally. Bothridial seta with globular head, extremely short, entirely within closed bothridial chamber. Coxisternum uniformly fused; epimeral halves not delineated by sagittal features. Often with much adherent organic debris and with posterior setae on long apophyses. Mostly in Southern Hemisphere.",
-            "advances_to": "Family: Crotoniidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum separated from notogaster by band of soft cuticle. Bothridial seta, if present, of various forms, but clearly projecting from normal bothridium (with rare exception). Coxisternum with some type of sagittal feature (e.g., longitudinal groove, soft cuticle, apodeme) that delineates at least some epimeral halves. Cosmopolitan families.",
-            "advances_to": "Node 41"
-          }
-        },
-        "41": {
-          "option_a": {
-            "morphology": "Anal plate wider or only slightly narrower than adanal plate, not greatly reduced. Medial margin of genital plates, bearing genital setae, delimited from rest of plate by distinct line or carina; aggenital setae present. Body often with adherent organic debris.",
-            "advances_to": "Family: Camisiidae"
-          },
-          "option_b": {
-            "morphology": "Anal plate usually reduced (exception: Allonothrus), much narrower than adanal plate, sometimes inconspicuous. Genital plate without carina that delimits marginal seta-bearing region; aggenital setae absent. Body usually without conspicuous organic debris.",
-            "advances_to": "Node 42"
-          }
-        },
-        "42": {
-          "option_a": {
-            "morphology": "Bothridial seta and bothridium lost without trace. Subcapitulum without labiogenal articulation (anarthric). Palpfemur without setae. Cerotegument present in form of large, thin plates that appear waxy, without excrescences, strongly birefringent in polarized light.",
-            "advances_to": "Family: Malaconothridae"
-          },
-          "option_b": {
-            "morphology": "Bothridial seta present, usually with well-developed bothridium (vestigial or absent in some Trhypochthoniellus). Subcapitulum with labiogenal articulation (usually stenarthric). Palpfemur with 1 seta. Cerotegument, if present, of different form, not birefringent.",
-            "advances_to": "Family: Trhypochthoniidae"
-          }
-        },
-        "43": {
-          "option_a": {
-            "morphology": "Notogaster without octotaxic system of porose areas or saccules, pteromorphs absent, dorsophragmata and pleurophragmata usually absent (present in LIACARIDAE, GUSTAVIIDAE, TENUIALIDAE). Epimera II-IV usually rectangular in shape; apodemes 2 and sejugal apodeme transverse. Discidium and circumpedal carina usually absent. Humerosejugal porose organ Am absent, Ah usually absent.",
-            "advances_to": "Node 44"
-          },
-          "option_b": {
-            "morphology": "Notogaster usually with octotaxic system of porose areas or saccules, pteromorphs present or absent, dorsophragmata and pleurophragmata present. Epimera II-IV never rectangular in shape; apodemes 2 and sejugal apodeme angled toward genital plate. Discidium and circumpedal carina usually present (absent in PASSALOZETIDAE). Humerosejugal porose organs Am and Ah present.",
-            "advances_to": "Node 137"
-          }
-        },
-        "44": {
-          "option_a": {
-            "morphology": "Paired opisthonotal glands opening on distinct, funnel-shaped tubes or on large apophyses laterally on notogaster.",
-            "advances_to": "Node 45"
-          },
-          "option_b": {
-            "morphology": "Paired opisthonotal glands opening directly on notogaster, without funnel-shaped tubes.",
-            "advances_to": "Node 46"
-          }
-        },
-        "45": {
-          "option_a": {
-            "morphology": "Gnathosoma modified, chelicerae pelopsiform. Paired opisthonotal glands opening on large anteriorly directed apophyses laterally on notogaster. Rostrum with deep medial incision; lamellar setae small, hardly visible. Trochanters and femora I-II with retrotecta. Adults with or without scalps, scalps when present concentrically arranged and very evident. Length: small to medium, 330-440 µm.",
-            "advances_to": "Family: Plasmobatidae"
-          },
-          "option_b": {
-            "morphology": "Gnathosoma normal, chelicerae chelate-dentate. Paired opisthonotal glands opening on distinct, funnel-shaped tubes laterally on notogaster. Rostrum without incision; lamellar setae well developed. Trochanters and femora I-II without retrotecta. Adults with only inconspicuous tritonymphal scalp adhering closely to notogaster. Length: 550-800 µm.",
-            "advances_to": "Family: Hermanniellidae"
-          }
-        },
-        "46": {
-          "option_a": {
-            "morphology": "Genital plates with transverse scissure; 7-8 (exceptionally up to 18) pairs of genital setae. Adults with scalps, scalps strongly sclerotized. Femora I-IV and trochanters III-IV with brachytrachea. Length: 800-1,100 µm.",
-            "advances_to": "Family: Neoliodidae"
-          },
-          "option_b": {
-            "morphology": "Genital plates without transverse scissure; usually with 3-6 pairs of genital setae. Adults with or without scalps, scalps if present weakly sclerotized. Femora I-IV and trochanters III-IV generally with porose areas; rarely with filamentous tracheae.",
-            "advances_to": "Node 47"
-          }
-        },
-        "47": {
-          "option_a": {
-            "morphology": "Prodorsum without true lamellae; with or without costulae.",
-            "advances_to": "Node 48"
-          },
-          "option_b": {
-            "morphology": "Prodorsum with true lamellae.",
-            "advances_to": "Node 111"
-          }
-        },
-        "48": {
-          "option_a": {
-            "morphology": "Bothridium vestigial, bothridial seta absent; with 2 pairs of genital papillae, 7 pairs of genital setae, and 3 or 4 pairs of anal setae. Single species is a myrmecophile in Java. Length: 650-720 µm.",
-            "advances_to": "Family: Aribatidae"
-          },
-          "option_b": {
-            "morphology": "Bothridium developed, bothridial seta normal or reduced. Usually with 3 pairs of genital papillae and 3-6 pairs of genital setae, with 2-9 pairs of anal setae.",
-            "advances_to": "Node 49"
-          }
-        },
-        "49": {
-          "option_a": {
-            "morphology": "Notogaster with large, triangular humeral projections and with concave impressions, anterior notogastral margin concave. Costulae positioned laterally on prodorsum. Setae of epimera I-II spiniform. Length: 340-350 µm.",
-            "advances_to": "Family: Pterobatidae"
-          },
-          "option_b": {
-            "morphology": "Without combination of above characters. Notogaster with or without triangular humeral projections, anterior notogastral margin usually straight to convex, notogaster with or without concave impressions. Costulae variously positioned or absent. Setae of epimera I-II usually setiform.",
-            "advances_to": "Node 50"
-          }
-        },
-        "50": {
-          "option_a": {
-            "morphology": "Notogaster usually flat-topped and elliptical (convex in ALEURODAMAEIDAE), with 2-9 pairs of posteromarginal setae, dorsocentral setae absent or only 1 pair present. Usually with thick, ornamented cerotegument.",
-            "advances_to": "Node 51"
-          },
-          "option_b": {
-            "morphology": "Notogaster usually convex, with 9-15 pairs of setae or setal alveoli, only 3 pairs of setae positioned posteromarginally. Ornamented cerotegument usually absent.",
-            "advances_to": "Node 60"
-          }
-        },
-        "51": {
-          "option_a": {
-            "morphology": "Pedotecta I-II present, pedotectum I auriculate, propodolateral apophysis absent. Legs thin, filiform. Notogastral setae positioned posterior to lyrifissure im.",
-            "advances_to": "Node 52"
-          },
-          "option_b": {
-            "morphology": "Pedotectum I-II absent; propodolateral apophysis present or absent. Legs never filiform. Notogastral setae variously positioned relative to lyrifissure im.",
-            "advances_to": "Node 54"
-          }
-        },
-        "52": {
-          "option_a": {
-            "morphology": "With 3 pairs of anal setae. Tarsus II with 1 solenidion. Length: approximately 500 µm.",
-            "advances_to": "Family: Idiodamaeidae"
-          },
-          "option_b": {
-            "morphology": "With 2 pairs of anal setae. Tarsus II with 2 solenidia.",
-            "advances_to": "Node 53"
-          }
-        },
-        "53": {
-          "option_a": {
-            "morphology": "Notogaster concave in lateral aspect, caudal notogastral setae long or not but never twisted and corkscrewlike. Length: 480-700 µm.",
-            "advances_to": "Family: Gymnodamaeidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster convex in lateral aspect, caudal notogastral setae long and twisted, corkscrewlike. Length: 430-450 µm.",
-            "advances_to": "Family: Aleurodamaeidae"
-          }
-        },
-        "54": {
-          "option_a": {
-            "morphology": "Prodorsum with enantiophysis A bordering deep, transverse furrow. Femora with trachea. Length: 300-500 µm.",
-            "advances_to": "Family: Pheroliodidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum without enantiophysis A, transverse furrow present or absent. Femora with porose areas.",
-            "advances_to": "Node 55"
-          }
-        },
-        "55": {
-          "option_a": {
-            "morphology": "Notogaster with circummarginal furrow; notogaster extending anteromedially to level of bothridium. Genua, tibiae, and tarsi I-IV with retrotecta. Length: 350-370 µm.",
-            "advances_to": "Family: Nacunansellidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster without circummarginal furrow; notogaster not extending anteromedially to level of bothridium. Genua, tibiae, and tarsi I-IV with or without retrotecta.",
-            "advances_to": "Node 56"
-          }
-        },
-        "56": {
-          "option_a": {
-            "morphology": "Femur I with minimum of 8 setae, femur IV with minimum of 5 setae, trochanter IV with 3 setae. Bothridial seta filiform. Coxisternal region neotrichous. Length: 600-800 µm.",
-            "advances_to": "Family: Plateremaeidae"
-          },
-          "option_b": {
-            "morphology": "Femur I with 5 setae, femur IV with 3 setae, trochanter IV with 1 setae. Head of bothridial seta flat, leaf shaped, fusiform, or club shaped. Coxisternal setation is 3-1-3-3.",
-            "advances_to": "Node 57"
-          }
-        },
-        "57": {
-          "option_a": {
-            "morphology": "Lamellar setae inserted close to rostral margin, anterior to rostral setae. Bothridial seta fusiform or club shaped. Exobothridial seta absent; setae p2 and p3 positioned dorsally to dorsolaterally on notogaster. Genital plates with 6-7 pairs of setae.",
-            "advances_to": "Node 58"
-          },
-          "option_b": {
-            "morphology": "Lamellar setae removed from rostral margin, at same level or posterior to rostral setae. Bothridial seta flat, leaf shaped. Exobothridial seta present; setae p2 and p3 positioned ventrally on notogaster. Genital plates with 5-6 pairs of setae.",
-            "advances_to": "Node 59"
-          }
-        },
-        "58": {
-          "option_a": {
-            "morphology": "Genital and anal apertures partially joined; aggenital setae lateral to genital plates. Notogaster slightly invaginated posteriorly, ovate. Lateral claws of pretarsi slender, weak. Length: 500-600 µm.",
-            "advances_to": "Family: Pedrocortesellidae"
-          },
-          "option_b": {
-            "morphology": "Genital and anal apertures completely joined, aggenital setae posterior to genital plates. Notogaster rounded posteriorly, round also in general shape. Three claws of pretarsi strongly developed. Length: 500-800 µm.",
-            "advances_to": "Family: Lyrifissellidae"
-          }
-        },
-        "59": {
-          "option_a": {
-            "morphology": "Scalps absent. Notogaster with 9-10 pairs of setae; notogastral lyrifissures long, integument reticulate or smooth, without pair of tubercles lateroposteriorly. Femora with porose area. Length: 190-420 µm.",
-            "advances_to": "Family: Licnodamaeidae"
-          },
-          "option_b": {
-            "morphology": "Scalps present, with reticulate sculpture, tritonymphal scalp attached anteriorly to notogaster. Notogaster with 4-5 pairs of notogastral setae, of which p series and pair posterior to lateral tubercles distinct; notogastral lyrifissures short; integument of adult notogaster shiny, smooth; notogaster with pair of tubercles lateroposteriorly. Femora with dorsal saccule. Length: 250-300 µm.",
-            "advances_to": "Family: Licnobelbidae"
-          }
-        },
-        "60": {
-          "option_a": {
-            "morphology": "Anal plates with 2-9 pairs of setae. Porose areas distoventrally on tibiae I-IV and proximoventrally on tarsi I-IV. Notogaster without humeral projections.",
-            "advances_to": "Node 61"
-          },
-          "option_b": {
-            "morphology": "Anal plates with 2 (exceptionally 3) pairs of setae. Tibiae and tarsi without porose areas. Notogaster with or without humeral projections.",
-            "advances_to": "Node 62"
-          }
-        },
-        "61": {
-          "option_a": {
-            "morphology": "Oblique carina present lateral to each costula. Rostral carina present. Notogaster with 2 pairs of tubercles anteriorly; with 10 pairs of setae. With 3 pairs of anal setae. Length: 550-1,100 µm.",
-            "advances_to": "Family: Megeremaeidae"
-          },
-          "option_b": {
-            "morphology": "Rostral and oblique lateral carinae absent. Notogaster without tubercles anteriorly; usually with 10-11 pairs of setae, occasionally up to 21 pairs. With 2-9 pairs of anal setae. Length: 400-800 µm.",
-            "advances_to": "Family: Eremaeidae"
-          }
-        },
-        "62": {
-          "option_a": {
-            "morphology": "Gnathosoma modified: either rutella very large, thin and leaflike, or paired rutella forming tube; chelicerae with unusually large teeth, or pelopsiform, or digits tapered, elongate. Chelicerae with 0-1 seta.",
-            "advances_to": "Node 63"
-          },
-          "option_b": {
-            "morphology": "Gnathosoma normal, chelicerae with dentate chelae; rutella normally developed. Chelicerae with 2 setae.",
-            "advances_to": "Node 68"
-          }
-        },
-        "63": {
-          "option_a": {
-            "morphology": "Subcapitulum diarthric; rutella very large, thin, and leaflike. Chelicerae with unusually large teeth. Palpgenu without seta, fused or not to femur; palptarsus with 3-5 setae. Length: 215-250 µm.",
-            "advances_to": "Family: Damaeolidae"
-          },
-          "option_b": {
-            "morphology": "Subcapitulum anarthric; rutella forming tube. Chelicerae pelopsiform, or attenuate-edentate. Palpgenu with 1 seta, not fused to femur; palptarsus with 8 or 9 setae.",
-            "advances_to": "Node 64"
-          }
-        },
-        "64": {
-          "option_a": {
-            "morphology": "Chelicerae attenuate-edentate. Distal eupathids on palptarsus fused basally, appearing like forked seta. Palptarsus with 8 setae.",
-            "advances_to": "Node 65"
-          },
-          "option_b": {
-            "morphology": "Chelicerae pelopsiform. Distal eupathids on palptarsus separate, not appearing like forked seta. Palptarsus with 9 setae.",
-            "advances_to": "Node 67"
-          }
-        },
-        "65": {
-          "option_a": {
-            "morphology": "Prodorsum with or without paired flat regions (tectopedial fields) and short costulae or knoblike tubercle. Tarsus IV with 2 ventral setae more strongly developed, clavate, terminating bluntly, often pinnate, trochanter III with 1 seta. Prodorsum centrally granular or not; and/or rostral setae geniculate. Length: 170-300 µm.",
-            "advances_to": "Family: Suctobelbidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum without paired tectopedial fields or knoblike costulae. Tarsus IV without strongly developed, clavate, or pinnate ventral setae, trochanter III with 2 setae. Prodorsum centrally not granular; rostral setae curved gently, not geniculate.",
-            "advances_to": "Node 66"
-          }
-        },
-        "66": {
-          "option_a": {
-            "morphology": "Fused epimera III-IV very elongate; with 5 pairs of genital setae. Prodorsum large, broad, triangular; bothridium positioned well anterior of dorsosejugal furrow. Length: 430-450 µm.",
-            "advances_to": "Family: Trizetidae"
-          },
-          "option_b": {
-            "morphology": "Fused epimera III-IV not elongate; with 7 pairs of genital setae. Prodorsum elongate, with rostrum gradually or abruptly attenuated; bothridium positioned only slightly anterior of dorsosejugal furrow. Length: 500-1,000 µm.",
-            "advances_to": "Family: Rhynchoribatidae"
-          }
-        },
-        "67": {
-          "option_a": {
-            "morphology": "Notogaster narrow, about twice as long as wide; with strong depression laterally between setae c and la; porelike alveolar vestige of second exobothridial seta present, costulae present. With 3-4 pairs of genital setae. Tarsi and tibiae functionally fused, move as single segment. Length: 600-1,400 µm.",
-            "advances_to": "Family: Dampfiellidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Notogaster not elongated, slightly longer than wide; without strong depression laterally between setae c and la; alveolar vestige of second exobothridial seta absent, costulae absent. With 6 pairs of genital setae. Tarsi and tibiae with normal articulation. Length: 270-515 µm.",
-            "advances_to": "Family: Oxyameridae"
-          }
-        },
-        "68": {
-          "option_a": {
-            "morphology": "Notogaster with scalps (at least tritonymphal scalp) tightly affixed by conspicuous anterior attachment structure.",
-            "advances_to": "Node 69"
-          },
-          "option_b": {
-            "morphology": "Notogaster without scalps.",
-            "advances_to": "Node 70"
-          }
-        },
-        "69": {
-          "option_a": {
-            "morphology": "Scalps affixed on medial tubercle at anterior of notogaster. Bothridial seta with ringlike thickenings proximally. Genital plates with 6 pairs of setae; circumventral carina present curving posterior to anal plates. Trochanter II with broad ventral keel that mimics pedotectum II, setae (p) absent from tarsi II to IV. Length: 400-750 µm.",
-            "advances_to": "Family: Basilobelbidae"
-          },
-          "option_b": {
-            "morphology": "Scalps affixed on pair of humeral tubercles at anterior of notogaster. Bothridial seta without ringlike thickenings. Genital plates with 7 pairs of setae; circumventral carina absent. Trochanter II without broad ventral keel, setae (p) present on tarsi II-IV. Length: 300-400 µm.",
-            "advances_to": "Family: Heterobelbidae"
-          }
-        },
-        "70": {
-          "option_a": {
-            "morphology": "Prodorsum subequal in length to notogaster; strongly constricted anterior to legs I. Legs I palplike; claw present or absent; eupathidial setae (p) of tarsus I very long, almost twice length of claw, when claw present, tarsus I is thickest segment; leg segments without porose areas. Subcapitular mentum with tectum. Length: 400-500 µm.",
-            "advances_to": "Family: Staurobatidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum clearly shorter in length than notogaster; prodorsum not constricted anterior to legs I. Legs I normal, leglike; claw(s) present; eupathidial setae (p) of tarsus I shorter than or subequal to length of claw, tarsus I not thickest segment; at least femora with porose areas. Subcapitular mentum with or without tectum.",
-            "advances_to": "Node 71"
-          }
-        },
-        "71": {
-          "option_a": {
-            "morphology": "Posterior of prodorsum and anterior of notogaster strongly flattened and usually fused; longer notogastral setae often showing two distinct patterns: lm, lp, and h3 arch toward midline, and h1 and h2 arch posteriorly; rostrum usually with pair of incisions. Axillary saccule present at base of palp. Length: 600-1,050 µm.",
-            "advances_to": "Family: Ameridae"
-          },
-          "option_b": {
-            "morphology": "Posterior of prodorsum and anterior of notogaster convex, fused or not; notogastral setae of similar size and shape, usually none arching medially; rostrum with single incision or incisions absent. Axillary saccule absent.",
-            "advances_to": "Node 72"
-          }
-        },
-        "72": {
-          "option_a": {
-            "morphology": "Aggenital neotrichy present, that is, 3 or more pairs of aggenital setae; ventral plate setae branched or not.",
-            "advances_to": "Node 73"
-          },
-          "option_b": {
-            "morphology": "Aggenital neotrichy absent, 0-2 pairs of aggenital setae; coxisternal and ventral plate setae not branched.",
-            "advances_to": "Node 75"
-          }
-        },
-        "73": {
-          "option_a": {
-            "morphology": "Adanal neotrichy present (more than 3 pairs of setae). Tibiae and tarsi I-IV with retrotecta, femora I-IV and trochanters III-IV with saccules. Length: 300-550 µm.",
-            "advances_to": "Family: Eremobelbidae"
-          },
-          "option_b": {
-            "morphology": "Adanal setation 3 pairs. Tibiae and tarsi I-IV without retrotecta, femora I-IV and trochanters III-IV with porose areas.",
-            "advances_to": "Node 74"
-          }
-        },
-        "74": {
-          "option_a": {
-            "morphology": "Ventral plate setae branched. Costulae present. Pedotectum I present; propodolateral apophysis absent. Length: 275-500 µm.",
-            "advances_to": "Family: Eremulidae"
-          },
-          "option_b": {
-            "morphology": "Ventral plate setae not branched. Costulae absent. Pedotectum I absent; propodolateral apophysis present. Length: 335-415 µm.",
-            "advances_to": "Family: Hungarobelbidae"
-          }
-        },
-        "75": {
-          "option_a": {
-            "morphology": "Notogaster with 10 pairs of setae (1 seta anterior to lyrifissure ia). Pedotectum II present. Proral setae of tarsi spiniform.",
-            "advances_to": "Node 76"
-          },
-          "option_b": {
-            "morphology": "Notogaster with 10-11 pairs of setae (1-2 setae anterior to lyrifissure ia, or notogastral setae (other than p series) arranged in 2 conspicuous longitudinal rows). Pedotectum II present or absent. Proral setae of tarsi setiform.",
-            "advances_to": "Node 77"
-          }
-        },
-        "76": {
-          "option_a": {
-            "morphology": "Prodorsum without costulae, usually fused to notogaster. Length: 500-800 µm.",
-            "advances_to": "Family: Amerobelbidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum with parallel costulae; prodorsum usually separate from notogaster. Length: 400-500 µm.",
-            "advances_to": "Family: Ctenobelbidae"
-          }
-        },
-        "77": {
-          "option_a": {
-            "morphology": "Notogastral setae (other than p series) arranged in 2 conspicuous longitudinal rows. Well-developed parastigmatic enantiophysis present. Legs moniliform, tarsal segments swollen proximally, tapered distally; femora and tibiae narrow proximally, swollen distally. Length: 450-1,300 µm.",
-            "advances_to": "Family: Damaeidae"
-          },
-          "option_b": {
-            "morphology": "Notogastral setae not arranged in 2 longitudinal rows. Parastigmatic enantiophysis absent. Legs moniliform (Oppioidea) or not.",
-            "advances_to": "Node 78"
-          }
-        },
-        "78": {
-          "option_a": {
-            "morphology": "Epimera III-IV distinctly delineated.",
-            "advances_to": "Node 79"
-          },
-          "option_b": {
-            "morphology": "Epimera III-IV not distinctly delineated; border of epimere III not visible.",
-            "advances_to": "Node 89"
-          }
-        },
-        "79": {
-          "option_a": {
-            "morphology": "Seta d inserted on proximal 1/5 of femora I-III, proximal to other femoral setae; with 13 or 15-17 pairs of notogastral setae (secondary h setae). Bothridial seta reduced or absent (frequently broken). Lenticulus present, circular, strongly convex. Length: 400-700 µm.",
-            "advances_to": "Family: Hydrozetidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Seta d not most proximal seta on femora I-III; 10-15 pairs of notogastral setae, (only 3 pairs of h setae). Bothridial seta normal, reduced, or absent. Lenticulus, if present, not strongly convex.",
-            "advances_to": "Node 80"
-          }
-        },
-        "80": {
-          "option_a": {
-            "morphology": "Bothridial seta very small or absent.",
-            "advances_to": "Node 81"
-          },
-          "option_b": {
-            "morphology": "Bothridial seta normally developed.",
-            "advances_to": "Node 83"
-          }
-        },
-        "81": {
-          "option_a": {
-            "morphology": "Genital plates with 3 pairs of setae. Coxisternal setation 1-0-1-1, tarsus II with 1 solenidion. Length: 370-420 µm.",
-            "advances_to": "Family: Selenoribatidae"
-          },
-          "option_b": {
-            "morphology": "Genital plates with 5 or 6 pairs of setae. Coxisternal setation 3-1-2-2, 3-1-2-3, or 3-1-3-2, tarsus II with 2 solenidia.",
-            "advances_to": "Node 82"
-          }
-        },
-        "82": {
-          "option_a": {
-            "morphology": "Genital plates with 5 pairs of setae. Lyrifissure iad positioned anterior to ad3. Lateral plastron (Van der Hammen's organ) absent. Leg tibiae and tarsi completely separate. Length: 550-800 µm.",
-            "advances_to": "Family: Ameronothridae"
-          },
-          "option_b": {
-            "morphology": "Genital plates with 6 pairs of setae. Lyrifissure iad positioned beside or posterior to ad3. Lateral plastron (Van der Hammen's organ) present. Tibiae and tarsi partially fused. Length: 400-500 µm.",
-            "advances_to": "Family: Fortuyniidae"
-          }
-        },
-        "83": {
-          "option_a": {
-            "morphology": "Notogaster narrow, elongated, about twice as long as wide, prodorsum and notogaster fused; vestigial alveolus of second exobothridial seta present. Leg tarsi and tibiae functionally fused, move as single segment. Genital plates with 3-4 pairs of setae. Length: 300-850 µm.",
-            "advances_to": "Family: Dampfiellidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Notogaster oval, length to width ratio less than 1.5:1.0, prodorsum and notogaster usually separate; vestigial alveolus of second exobothridial seta absent. Leg tarsi and tibiae articulate normally. Genital plates with 4-6 pairs of setae.",
-            "advances_to": "Node 84"
-          }
-        },
-        "84": {
-          "option_a": {
-            "morphology": "Border of epimere IV with taenidium and minitectum. Length: 300-500 µm.",
-            "advances_to": "Family: Thyrisomidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Border of epimere IV generally without taenidium and minitectum.",
-            "advances_to": "Node 85"
-          }
-        },
-        "85": {
-          "option_a": {
-            "morphology": "Notogaster with pair of deep depressions between setae c and la, lamellar setae arising from medial tubercle. Body elongated, prodorsum nearly as long as notogaster. Costulae with long, thin cusps. Prodorsum usually with spine(s) between interlamellar and lamellar setae. Bothridial seta with ringlike thickenings proximally. Rostrum with pair of incisions. Length: 300-400 µm.",
-            "advances_to": "Family: Spinozetidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster without paired depressions between setae c and la. Lamellar setae not arising from medial tubercle. Body not elongated. Costulae without cusps, or costulae absent. Prodorsum without spine(s). Bothridial seta without ringlike thickenings. Rostrum rounded or dentate.",
-            "advances_to": "Node 86"
-          }
-        },
-        "86": {
-          "option_a": {
-            "morphology": "Femora I-IV with very broad ventral keel, trochanters III-IV without porose areas. Costulae absent. Propodolateral apophysis present. Enantiophyses L and E4 present. Length: 450-600 µm.",
-            "advances_to": "Family: Arceremaeidae"
-          },
-          "option_b": {
-            "morphology": "Femora I-IV without broad ventral keel, trochanters III-IV with porose areas. Costulae present. Propodolateral apophysis absent. Enantiophyses L and E4 absent.",
-            "advances_to": "Node 87"
-          }
-        },
-        "87": {
-          "option_a": {
-            "morphology": "Femora III-IV with retrotecta. Bothridial seta long, bifurcated. Tutorium, humeral apophysis, parastigmatic enantiophysis S, and enantiophysis V absent. Notogaster with 2 pairs of cristae. Length: 400-500 µm.",
-            "advances_to": "Family: Machadobelbidae"
-          },
-          "option_b": {
-            "morphology": "Femora III-IV without retrotecta. Bothridial seta not bifurcated. Tutorium, humeral apophysis, parastigmatic enantiophysis S, and enantiophysis V present. Notogaster with or without crista.",
-            "advances_to": "Node 88"
-          }
-        },
-        "88": {
-          "option_a": {
-            "morphology": "Bothridium with internal spiral thickening. Notogaster without tubercles on anterior margin, depressions absent between notogastral setae c and la; pedotectum II present, enantiophysis A absent. Fixed digit of chelicerae with unsclerotized lobe with 7-10 small teeth. Tarsus II with 2 solenidia. Length: 280-850 µm.",
-            "advances_to": "Family: Anderemaeidae"
-          },
-          "option_b": {
-            "morphology": "Bothridium without internal thickening. Notogaster with tubercles on anterior margin, with 1 to several pairs of small, circular depressions between notogastral setae c and la; pedotectum II absent, enantiophysis A present. Fixed digit of chelicerae without unsclerotized lobe. Tarsus II with 1 solenidion. Length: 300-475 µm.",
-            "advances_to": "Family: Caleremaeidae"
-          }
-        },
-        "89": {
-          "option_a": {
-            "morphology": "Body elongated. Pedotectum II large, well developed, auriculate or not. Distance between genital and anal plates greater than twice length of genital plate.",
-            "advances_to": "Node 90"
-          },
-          "option_b": {
-            "morphology": "Body not elongated. Pedotectum II weakly developed, never auriculate. Distance between genital and anal plates less than twice length genital plate.",
-            "advances_to": "Node 91"
-          }
-        },
-        "90": {
-          "option_a": {
-            "morphology": "Costulae present. Pedotectum II auriculate. Border of epimere IV without minitectum. Length: 500-1,600 µm.",
-            "advances_to": "Family: Otocepheidae"
-          },
-          "option_b": {
-            "morphology": "Costulae absent. Pedotectum II not auriculate. Border of epimere IV with minitectum. Length: 650-750 µm.",
-            "advances_to": "Family: Tokunocepheidae"
-          }
-        },
-        "91": {
-          "option_a": {
-            "morphology": "Tarsi I-II shorter than tibiae I-II, respectively. Chelicerae with edentate or dentate chelae.",
-            "advances_to": "Node 92"
-          },
-          "option_b": {
-            "morphology": "Tarsi I-II longer than or subequal to tibiae I-II, respectively. Chelicerae with dentate chelae.",
-            "advances_to": "Node 93"
-          }
-        },
-        "92": {
-          "option_a": {
-            "morphology": "Notogaster and posterior of prodorsum covered with very thick, white cerotegument, held between long, thick, and heavily barbed interlamellar setae and 5 pairs of long, thick, and heavily barbed notogastral setae. Subcapitulum diarthric. Chelicerae with dentate chelae. Length: ca. 425 µm.",
-            "advances_to": "Family: Tuparezetidae"
-          },
-          "option_b": {
-            "morphology": "Thick, white cerotegument absent. Notogastral and interlamellar setae setiform. Subcapitulum anarthric. Chelicerae with edentate chelae. Length: 370-400 µm.",
-            "advances_to": "Family: Nosybelbidae"
-          }
-        },
-        "93": {
-          "option_a": {
-            "morphology": "Lenticulus present or absent. Tubercle present bearing palptarsal eupathidium acm, associated with solenidion or solenidion positioned at base of tubercle.",
-            "advances_to": "Node 94"
-          },
-          "option_b": {
-            "morphology": "Lenticulus absent. Tubercle bearing palptarsal eupathidium acm absent; acm not closely associated with or fused to solenidion.",
-            "advances_to": "Node 95"
-          }
-        },
-        "94": {
-          "option_a": {
-            "morphology": "Aggenital setae absent. Notogaster with 14 pairs of setae. Tarsal setation I-IV reduced, 13-12-9-8, respectively (not including solenidia). Femora III-IV with 2 porose areas each, 1 proximally on femoral bulge and 1 paraxially on segment. Subcapitular mentum without tectum. Solenidion σ absent from genu III, porose areas or saccules absent from tibiae and tarsi. Palpal eupathidium acm forming imperfect \"double horn\" with solenidion. Length: 240-315 µm.",
-            "advances_to": "Family: Micreremidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Aggenital setae present. Notogaster usually with 10 or 13 pairs of setae. Tarsal setation not reduced, usually (17-20)-15-15-12, respectively (not including solenidia), femora III-IV with 1 porose area, on paraxial face. Subcapitular mentum with or without tectum. Solenidion σ present on genu III, tibiae and tarsi with porose areas or saccules. Palpal eupathidium acm free from solenidion. Length: 350-800 µm.",
-            "advances_to": "Family: Cymbaeremaeidae (pars)"
-          }
-        },
-        "95": {
-          "option_a": {
-            "morphology": "Border of epimere IV with minitectum. Genital and anal plates very large, almost touching, separated by distance of less than 1/2 length genital plate. Length: 290-500 µm.",
-            "advances_to": "Family: Thyrisomidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Border of epimere IV generally without minitectum. Genital and anal plates separated by distance greater than 1/2 length of genital plate.",
-            "advances_to": "Node 96"
-          }
-        },
-        "96": {
-          "option_a": {
-            "morphology": "Rostrum with straight, deep, medial incision. Medially positioned parallel costulae present; humeral enantiophysis present. Tibia I with large dorsodistal tubercle overhanging tarsus I. Length: 250-350 µm.",
-            "advances_to": "Family: Autognetidae"
-          },
-          "option_b": {
-            "morphology": "Rostrum without medial incision. Costulae not parallel; humeral enantiophysis absent. Tibia I without large dorsodistal tubercle overhanging tarsus I.",
-            "advances_to": "Node 97"
-          }
-        },
-        "97": {
-          "option_a": {
-            "morphology": "Costulae H shaped. Seven pairs of notogastral setae arranged in submarginal longitudinal row. Length: 250-350 µm.",
-            "advances_to": "Family: Eremellidae"
-          },
-          "option_b": {
-            "morphology": "Costulae, if present, never H shaped. Notogastral setae arranged otherwise.",
-            "advances_to": "Node 98"
-          }
-        },
-        "98": {
-          "option_a": {
-            "morphology": "Tibiae I-II expanded laterally, with apophyses. Genital plates with 6 pairs of setae. Length: 300-450 µm.",
-            "advances_to": "Family: Teratoppiidae"
-          },
-          "option_b": {
-            "morphology": "Tibiae I-II without apophyses. Genital plates with 3-6 pairs of setae.",
-            "advances_to": "Node 99"
-          }
-        },
-        "99": {
-          "option_a": {
-            "morphology": "Genital plates with 3 pairs of setae. Prodorsum flattened; rostrum very broad. Lamellar setae originating near anterior margin of rostrum in transverse alignment with rostral setae; interlamellar setae positioned midway between bothridia and rostrum. Length: 450-900 µm.",
-            "advances_to": "Family: Platyameridae"
-          },
-          "option_b": {
-            "morphology": "Genital plates with 4-6 pairs of setae. Prodorsum not flattened; rostrum tapered. Lamellar setae inserted posterior to rostral setae; interlamellar setae positioned in interbothridial region.",
-            "advances_to": "Node 100"
-          }
-        },
-        "100": {
-          "option_a": {
-            "morphology": "Coxisternal setal formula 2-2-4-5 or up to 17 pairs of coxisternal setae; coxisternal setae directed medially toward ventrosejugal region, forming a \"basket\" within a thick layer of cerotegument. Anterior margin of epimere I with medial tooth. Distance between genital and anal plates less than length of genital plate. Length: 150-250 µm.",
-            "advances_to": "Family: Machuellidae"
-          },
-          "option_b": {
-            "morphology": "Coxisternal setal formula usually 3-1-3-3 or setation reduced; coxisternal setae not directed medially toward ventrosejugal region, not forming a \"basket\" in thick layer of cerotegument. Anterior margin of epimere I without tooth. Distance between genital and anal plates greater than length of genital plate.",
-            "advances_to": "Node 101"
-          }
-        },
-        "101": {
-          "option_a": {
-            "morphology": "Coxisternal setae large, plumose; coxisternum covered by 2 overlapping plates. Length: 250-350 µm.",
-            "advances_to": "Family: Sternoppiidae"
-          },
-          "option_b": {
-            "morphology": "Coxisternal setae setose; coxisternum not covered by 2 overlapping plates.",
-            "advances_to": "Node 102"
-          }
-        },
-        "102": {
-          "option_a": {
-            "morphology": "Borders of epimera III-IV separated medially by area subequal in width to genital aperture. Length: 300-500 µm.",
-            "advances_to": "Family: Epimerellidae"
-          },
-          "option_b": {
-            "morphology": "Borders of epimera III-IV meet medially.",
-            "advances_to": "Node 103"
-          }
-        },
-        "103": {
-          "option_a": {
-            "morphology": "Epimeral border IV absent.",
-            "advances_to": "Node 104"
-          },
-          "option_b": {
-            "morphology": "Epimeral border IV present.",
-            "advances_to": "Node 106"
-          }
-        },
-        "104": {
-          "option_a": {
-            "morphology": "Setae ad1 (most posterior pair) in adanal position, far removed from anal plates; setae ad3 in preanal position; costulae present. Length: ca. 450-680 µm.",
-            "advances_to": "Family: Granuloppiidae"
-          },
-          "option_b": {
-            "morphology": "Setae ad1 (most posterior pair) in postanal position (if in adanal position, costulae absent); setae ad3 in preanal or adanal position.",
-            "advances_to": "Node 105"
-          }
-        },
-        "105": {
-          "option_a": {
-            "morphology": "Epimera III-IV long, extending well posterior of genital plates. Notogaster without anteromedial sclerotized elevation between 2 oval concavities. Length: 120-550 µm.",
-            "advances_to": "Family: Oppiidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Epimera III-IV normal in length, not extending posterior of genital plates. Notogaster with anteromedial sclerotized elevation between 2 oval concavities. Length: 400-500 µm.",
-            "advances_to": "Family: Enantioppiidae"
-          }
-        },
-        "106": {
-          "option_a": {
-            "morphology": "Epimeral border IV straight, transverse, posterior to genital plates. Papillate cerotegument covering body. Costulae strongly developed, with anterior cusp; notogastral setae papillate. Length: 220-250 µm.",
-            "advances_to": "Family: Papillonotidae"
-          },
-          "option_b": {
-            "morphology": "Epimeral border IV either slightly convex or concave, never straight transverse. Cerotegument if present, not papillate. Costulae, if present, without anterior cusp; notogastral setae not papillate.",
-            "advances_to": "Node 107"
-          }
-        },
-        "107": {
-          "option_a": {
-            "morphology": "Prodorsum with lateral paired flat regions (tectopedial fields), notogaster without crista. Epimera appear separated by broad sternal region. Length: 260-290 µm.",
-            "advances_to": "Family: Chaviniidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum without paired tectopedial fields, notogaster with or without crista. Epimera usually not appearing separated by broad sternal region.",
-            "advances_to": "Node 108"
-          }
-        },
-        "108": {
-          "option_a": {
-            "morphology": "Ventral plate with postanal saccule. Posterior margin of notogaster divided medially, with margins overlapping. Solenidion ω2 on tarsus I arising well proximal of famulus; ω1 on tarsus II positioned proximally on segment. Length: 230-260 µm.",
-            "advances_to": "Family: Luxtoniidae"
-          },
-          "option_b": {
-            "morphology": "Ventral plate without postanal saccule. Posterior margin of notogaster undivided. Solenidion ω2 on tarsus I arising close to famulus; ω1 on tarsus II positioned medially on segment.",
-            "advances_to": "Node 109"
-          }
-        },
-        "109": {
-          "option_a": {
-            "morphology": "Costulae, if present, shorter than 1/2 length of prodorsum. Crista, if present, not longer than 1/3 length of notogaster. Length: 120-550 µm.",
-            "advances_to": "Family: Oppiidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Costulae longer than 1/2 length of prodorsum. Crista 1/3 length of notogaster or longer.",
-            "advances_to": "Node 110"
-          }
-        },
-        "110": {
-          "option_a": {
-            "morphology": "Notogaster with 9 pairs of setae, similar in size and shape. Length: 150-230 µm.",
-            "advances_to": "Family: Quadroppiidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster with 10 pairs of setae, of which 3 pairs are long and densely pilose. Length: 180-200 µm.",
-            "advances_to": "Family: Hexoppiidae"
-          }
-        },
-        "111": {
-          "option_a": {
-            "morphology": "Scalps present, obscured by thick cerotegument bearing mass of dirt. Tutorium present. Femur IV and trochanters III-IV with large ventral keel.",
-            "advances_to": "Node 112"
-          },
-          "option_b": {
-            "morphology": "Scalps absent. Tutorium present or absent. Femur IV and trochanters III-IV with or without large ventral keel.",
-            "advances_to": "Node 113"
-          }
-        },
-        "112": {
-          "option_a": {
-            "morphology": "Cerotegument very thick and bearing dirt mass. Lamellae very large and touching medially, medially thickened and with thin lateral extensions. Patronium present, pedotectum II absent. Subcapitulum anarthric; mentum and gena extending anteriorly over rutella like a tectum; rutella in form of large bifurcate seta. Chelicerae highly modified with strainerlike teeth; cheliceral setae setiform. Length: 400-560 µm.",
-            "advances_to": "Family: Polypterozetidae"
-          },
-          "option_b": {
-            "morphology": "Cerotegument thin, without adherent dirt. Lamellae very large and fused medially, patronium absent. Small pedotectum I present. Subcapitulum diarthric; mentum and gena not extending anteriorly over rutella; rutella normal. Chelicerae chelate-dentate; cheliceral seta cha curved and coiled many times back over digit. Length: 350-400 µm.",
-            "advances_to": "Family: Podopterotegaeidae"
-          }
-        },
-        "113": {
-          "option_a": {
-            "morphology": "Subcapitulum anarthric. Cheliceral digits highly modified, or chelicerae pelopsiform or styliform (movable digit serrate distally).",
-            "advances_to": "Node 114"
-          },
-          "option_b": {
-            "morphology": "Subcapitulum diarthric. Chelicerae chelate-dentate.",
-            "advances_to": "Node 120"
-          }
-        },
-        "114": {
-          "option_a": {
-            "morphology": "Notogaster with or without large fossae. Ventral plate with gutterlike tectum, accommodating edge of notogaster. Chelicerae pelopsiform. Length: 340-420 µm.",
-            "advances_to": "Family: Charassobatidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster without fossae. Ventral plate without tectum. Chelicerae highly modified, or pelopsiform or styliform (movable digit serrate distally).",
-            "advances_to": "Node 115"
-          }
-        },
-        "115": {
-          "option_a": {
-            "morphology": "Chelicerae styliform, movable digit serrate distally, fixed digit absent. Border of epimere IV with minitectum. Length: ca. 600 µm.",
-            "advances_to": "Family: Gustaviidae"
-          },
-          "option_b": {
-            "morphology": "Chelicerae highly modified or pelopsiform. Border of epimere IV without minitectum.",
-            "advances_to": "Node 116"
-          }
-        },
-        "116": {
-          "option_a": {
-            "morphology": "Humeral processes large, subrectangular, curving dorsally, covering seta c or not. Gnathosoma not strongly tapered; cheliceral digits highly modified. Rutella in form of large bifurcate setae; mentum and gena fused and extended as tectum that covers base of rutella.",
-            "advances_to": "Node 117"
-          },
-          "option_b": {
-            "morphology": "Humeral processes, if present, small, subtriangular, not curving dorsally, not covering seta c, or humeral process absent. Gnathosoma strongly tapered. Chelicerae pelopsiform; digits not highly modified. Rutella tubular; mentum and gena fused but not extended as tectum that covers base of rutella.",
-            "advances_to": "Node 118"
-          }
-        },
-        "117": {
-          "option_a": {
-            "morphology": "Notogaster with large projection anteromedially, curving above prodorsum and forming large open depression with anterior of notogaster; prodorsum with broad converging lamella-like tubercles, bearing interlamellar setae, these tubercles with connecting transverse ridge. With 10 pairs of notogastral setae; seta c2 absent. Length: ca. 500 µm.",
-            "advances_to": "Family: Tumerozetidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster without projection anteromedially; prodorsum with large medial hump, bearing interlamellar setae. With 11 pairs of notogastral setae; seta c2 hidden by dorsally curved humeral process. Length: 300-350 µm.",
-            "advances_to": "Family: Nodocepheidae"
-          }
-        },
-        "118": {
-          "option_a": {
-            "morphology": "Integument shiny; cerotegument weakly developed, mainly in acetabular region. Notogaster without humeral processes or tubercles. Length: 400-800 µm.",
-            "advances_to": "Family: Peloppiidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Integument roughened; cerotegument well developed. Notogaster with humeral processes or tubercles.",
-            "advances_to": "Node 119"
-          }
-        },
-        "119": {
-          "option_a": {
-            "morphology": "Rostrum without medial incision. Bothridium cup shaped, without internal thickening. Enantiophysis E4 present on either side of genital plates; deep pit present medially over sejugal apodeme. Tutorium absent. Length: 210-380 µm.",
-            "advances_to": "Family: Microtegeidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Rostrum with long, deep medial incision. Bothridium trumpet shaped, with internal thickening. Enantiophysis E4 absent; pit absent medially over sejugal apodeme. Tutorium present. Length: approximately 400 µm.",
-            "advances_to": "Family: Cerocepheidae"
-          }
-        },
-        "120": {
-          "option_a": {
-            "morphology": "Notogaster with long, triangular or subrectangular humeral processes, projecting anteriorly to bothridia, or projecting dorsally over bothridium. Genital neotrichy absent.",
-            "advances_to": "Node 121"
-          },
-          "option_b": {
-            "morphology": "Notogaster without long, triangular humeral processes, if humeral tubercles present, not reaching level of bothridium. Genital neotrichy present or absent.",
-            "advances_to": "Node 124"
-          }
-        },
-        "121": {
-          "option_a": {
-            "morphology": "Subcapitular mentum with tectum. Palptarsal eupathidium acm on tubercle, associated with solenidion, or solenidion positioned at base of tubercle. Length: 350-800 µm.",
-            "advances_to": "Family: Cymbaeremaeidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Subcapitular mentum without tectum. Palptarsal eupathidium not on tubercle, not associated with or fused to solenidion.",
-            "advances_to": "Node 122"
-          }
-        },
-        "122": {
-          "option_a": {
-            "morphology": "Notogaster with large subtriangular or subrectangular humeral processes projecting dorsally over bothridium; prodorsum with large processes, interlocked or not with humeral processes. Length: 600-750 µm.",
-            "advances_to": "Family: Nippobodidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster with long, triangular or subrectangular humeral processes, projecting anterolaterally to bothridium; prodorsum without processes.",
-            "advances_to": "Node 123"
-          }
-        },
-        "123": {
-          "option_a": {
-            "morphology": "Prodorsum and notogaster smooth, shiny; bothridium without internal spiral thickenings. Podosomal region with depressions for reception of retracted legs. Epimeral border IV with minitectum. Trochanters III-IV and femora III-IV without ventral carina. Length: 800-1,200 µm.",
-            "advances_to": "Family: Tenuialidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum and notogaster sculptured, not shiny; bothridium with internal spiral thickenings. Podosomal region without concavities for reception of retracted legs. Epimeral border IV without minitectum. Trochanter III-IV and femora III-IV with well-developed ventral carina. Length: 700-1,050 µm.",
-            "advances_to": "Family: Eutegaeidae"
-          }
-        },
-        "124": {
-          "option_a": {
-            "morphology": "Genital neotrichy present; 11-18 pairs of genital setae in 2 longitudinal rows. Epimere IV with 4 setae. Length: 850-1,150 µm.",
-            "advances_to": "Family: Niphocepheidae"
-          },
-          "option_b": {
-            "morphology": "Genital neotrichy absent; 4-7 pairs of genital setae. Epimere IV with at most 3 setae.",
-            "advances_to": "Node 125"
-          }
-        },
-        "125": {
-          "option_a": {
-            "morphology": "Integument of genital area usually darker than surrounding area. Epimeral setae 4a and 4b closely adjacent. Lenticulus usually present. Pedotectum I in two parts (narrow dorsal part and wider ventral part). Length: 250-500 µm.",
-            "advances_to": "Family: Tegeocranellidae"
-          },
-          "option_b": {
-            "morphology": "Integument of genital area same color as anal region. Epimeral setae 4a and 4b not closely adjacent. Lenticulus absent. Pedotectum I not in two separate parts.",
-            "advances_to": "Node 126"
-          }
-        },
-        "126": {
-          "option_a": {
-            "morphology": "Subcapitular mentum with tectum. Eupathidium acm of palptarsus on tubercle. Lamellar cusps touching medially, fused or not, covering rostrum medially; lamellar setae arising anteroventrally on lamellar cusps. Length: 350-800 µm.",
-            "advances_to": "Family: Cymbaeremaeidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Subcapitular mentum without tectum. Eupathidium acm of palptarsus not on tubercle. Lamellar cusps, if touching medially, not covering rostrum; lamellar setae arising anteriorly or dorsally on lamellae or lamellar cusps.",
-            "advances_to": "Node 127"
-          }
-        },
-        "127": {
-          "option_a": {
-            "morphology": "Tarsus I with 3 solenidia, pretarsus with very small claw, tarsal pulvillus present; legs IV modified for jumping or not. Cerotegument with large globules. Adanal setation 1 or 2 pairs, positioned postanally. Length: 330-550 µm.",
-            "advances_to": "Family: Zetorchestidae"
-          },
-          "option_b": {
-            "morphology": "Tarsus I with 2 solenidia, pretarsus with normal size claw, tarsal pulvillus absent; legs IV not modified for jumping. Cerotegument without globules. Adanal setation 3 pairs, positioned adanally and postanally.",
-            "advances_to": "Node 128"
-          }
-        },
-        "128": {
-          "option_a": {
-            "morphology": "Notogaster with 0-1 pair of setae positioned centrodorsally; all other notogastral setae in marginal and posteromarginal rows and clearly visible; enantiophysis E4 present or absent.",
-            "advances_to": "Node 129"
-          },
-          "option_b": {
-            "morphology": "Notogaster with 2 pairs of setae positioned centrodorsally, or notogastral setae other than p series absent, with or without alveoli; enantiophysis E4 absent.",
-            "advances_to": "Node 130"
-          }
-        },
-        "129": {
-          "option_a": {
-            "morphology": "Notogaster with 1 pair of setae centrodorsally; other notogastral setae in marginal or posteromarginal position; enantiophysis E4 present on either side of genital aperture. Integument sculptured. Length: 210-380 µm.",
-            "advances_to": "Family: Microtegeidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Notogaster without setae centrodorsally; all notogastral setae in marginal or posteromarginal position; enantiophysis E4 absent. Integument usually sculptured (smooth in Conoppia). Length: 500-1,200 µm.",
-            "advances_to": "Family: Cepheidae"
-          }
-        },
-        "130": {
-          "option_a": {
-            "morphology": "Humeral region with 2 pairs of closely adjacent setae c (c1 and c2). Length: 500-1,160 µm.",
-            "advances_to": "Family: Liacaridae"
-          },
-          "option_b": {
-            "morphology": "Humeral region with 0-1 pair of setae c.",
-            "advances_to": "Node 131"
-          }
-        },
-        "131": {
-          "option_a": {
-            "morphology": "Integument smooth. Lamellae converging or parallel, if parallel, not positioned close to lateral margin of prodorsum.",
-            "advances_to": "Node 132"
-          },
-          "option_b": {
-            "morphology": "Integument distinctly sculptured with coarse ridges, tubercles, or areoles. Lamellae usually broad, almost parallel, close to lateral margin of prodorsum.",
-            "advances_to": "Node 135"
-          }
-        },
-        "132": {
-          "option_a": {
-            "morphology": "Notogaster with 50-55 pairs of setal alveoli. Length: 600-750 µm.",
-            "advances_to": "Family: Multoribulidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster with 9-13 pairs of setae or alveoli.",
-            "advances_to": "Node 133"
-          }
-        },
-        "133": {
-          "option_a": {
-            "morphology": "Anal plates with 3 pairs of setae. Length: 750-900 µm.",
-            "advances_to": "Family: Kodiakellidae"
-          },
-          "option_b": {
-            "morphology": "Anal plates with 2 pairs of setae.",
-            "advances_to": "Node 134"
-          }
-        },
-        "134": {
-          "option_a": {
-            "morphology": "Genital plates large; distance between genital and anal plates usually less than length of anal plates. Notogaster glabrous or with 10 pairs of notogastral setae. Length: 250-600 µm.",
-            "advances_to": "Family: Astegistidae"
-          },
-          "option_b": {
-            "morphology": "Genital plates medium in size; distance between genital and anal plates usually greater than length of anal plates. Eight pairs of notogastral setae present or vestigial. Length: 400-800 µm.",
-            "advances_to": "Family: Peloppiidae (pars)"
-          }
-        },
-        "135": {
-          "option_a": {
-            "morphology": "Genal notch present. Circumpedal carina developed caudally. Anal plate triangular. Leg tarsi and tibiae articulate normally. Interlamellar setae positioned in interbothridial region. Length: 225-300 µm.",
-            "advances_to": "Family: Tectocepheidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Genal notch absent. Circumpedal carina absent. Anal plate rectangular. Leg tarsi functionally fused to tibiae. Interlamellar setae usually positioned well anterior of bothridia or on lamellae.",
-            "advances_to": "Node 136"
-          }
-        },
-        "136": {
-          "option_a": {
-            "morphology": "Rostrum rounded; lamellar cusps present. Cerotegument of notogaster with foveae or tubercles. Tutorium without free cusp. Length: 350-600 µm.",
-            "advances_to": "Family: Carabodidae"
-          },
-          "option_b": {
-            "morphology": "Rostrum elongate; lamellar cusps absent, lamellae merging with prodorsum anteriorly. Cerotegument of notogaster granular. Tutorium with free cusp. Length: ca. 600 µm.",
-            "advances_to": "Family: Carabocepheidae"
-          }
-        },
-        "137": {
-          "option_a": {
-            "morphology": "Pteromorphs movable, auriculate, that is, extending anteriorly and posteriorly past articulation with notogaster such that all legs are covered when pteromorphs are closed. Seta c positioned on pteromorph or body of notogaster.",
-            "advances_to": "Node 138"
-          },
-          "option_b": {
-            "morphology": "Pteromorphs present or absent; if present, fixed or movable but not auriculate. Seta c positioned on body of notogaster.",
-            "advances_to": "Node 142"
-          }
-        },
-        "138": {
-          "option_a": {
-            "morphology": "Lamellae absent, at most a narrow carina present (line L). Pteromorph with alary furrow, appearing bilobed. Subcapitular mentum with tectum; tutorium reduced to line (S) or absent.",
-            "advances_to": "Node 139"
-          },
-          "option_b": {
-            "morphology": "Lamellae or broad carina present. Pteromorph without alary furrow. Subcapitular mentum without tectum; tutorium present, lamelliform.",
-            "advances_to": "Node 140"
-          }
-        },
-        "139": {
-          "option_a": {
-            "morphology": "Rostrum acuminate. Chelicerae pelopsiform. Length: 440-500 µm.",
-            "advances_to": "Family: Galumnellidae"
-          },
-          "option_b": {
-            "morphology": "Rostrum rounded. Chelicerae chelate-dentate. Length: 300-1100 µm.",
-            "advances_to": "Family: Galumnidae"
-          }
-        },
-        "140": {
-          "option_a": {
-            "morphology": "Lamella usually narrow, directed anteriorly from bothridium as simple carina. Seta c positioned on body of notogaster, notogaster without posterior tectum. Tibiae and tarsi I-IV with porose areas ventrally. Marginoventral porose areas present. Adalar porose organ of octotaxic system expressed as porose area or saccule, other 3 (mesonotic porose organs) always expressed as saccules. Length: 300-820 µm.",
-            "advances_to": "Family: Parakalummidae"
-          },
-          "option_b": {
-            "morphology": "Lamellae broader, usually converging and with distinct cusps. Seta c positioned on pteromorph; notogaster with posterior tectum. Tibiae and tarsi I-IV without porose areas ventrally. Marginoventral porose areas absent. Octotaxic system expressed as porose areas or saccules.",
-            "advances_to": "Node 141"
-          }
-        },
-        "141": {
-          "option_a": {
-            "morphology": "Notogaster and pteromorphs foveate. Genital plates with 6 pairs of setae; postanal porose area absent. Length: 210-300 µm.",
-            "advances_to": "Family: Epactozetidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster and pteromorphs smooth. Genital plates with 5 pairs of setae; postanal porose area present. Length: 250-350 µm.",
-            "advances_to": "Family: Ceratokalummidae"
-          }
-        },
-        "142": {
-          "option_a": {
-            "morphology": "Epimeral border IV clearly evident, extending transversely anterior to genital plates; border of epimere IV with tectum. Prodorsum often longer than notogaster; the latter as wide as long, or wider than long. Chelicerae dorsally with bacilliform tubercle. Tarsi II-IV with short, thick setae (p). Length: 150-550 µm.",
-            "advances_to": "Family: Microzetidae"
-          },
-          "option_b": {
-            "morphology": "Epimeral border IV not clearly evident, or, if present, not transverse but angled anteriorly to meet genital plates. Border of epimere IV without tectum. Prodorsum shorter than notogaster; the latter longer than wide. Chelicerae dorsally without bacilliform tubercle. Tarsi II-IV with setiform setae (p).",
-            "advances_to": "Node 143"
-          }
-        },
-        "143": {
-          "option_a": {
-            "morphology": "Bothridial seta weakly developed, reduced, or absent. Seta d inserted on proximal fifth of femora I-III, proximal to other femoral setae; epimera II-IV clearly delineated.",
-            "advances_to": "Node 144"
-          },
-          "option_b": {
-            "morphology": "Bothridial seta well developed. Seta d not most proximal seta on femora; epimera II-IV weakly delineated.",
-            "advances_to": "Node 145"
-          }
-        },
-        "144": {
-          "option_a": {
-            "morphology": "Lenticulus absent. Notogaster with or without pteromorphs, with 10 pairs of notogastral setae, lamellae and tutoria well developed. Length: 260-380 µm.",
-            "advances_to": "Family: Limnozetidae"
-          },
-          "option_b": {
-            "morphology": "Lenticulus present, circular, strongly convex. Notogaster without pteromorphs, with 13 or 15-17 pairs of notogastral setae (because of secondary h setae), prodorsal carina and tutoria weakly expressed. Length: 400-700 µm.",
-            "advances_to": "Family: Hydrozetidae (pars)"
-          }
-        },
-        "145": {
-          "option_a": {
-            "morphology": "Cerotegument well developed, very thick, with or without blocky structure, sometimes birefringent in polarized light. Pteromorphs present.",
-            "advances_to": "Node 146"
-          },
-          "option_b": {
-            "morphology": "Cerotegument developed as thin layer, not blocky in structure, never birefringent. Pteromorphs present or absent.",
-            "advances_to": "Node 149"
-          }
-        },
-        "146": {
-          "option_a": {
-            "morphology": "Lenticulus distinct convex, shiny, oval structure, free of cerotegument. Interlamellar setae present or absent. Cerotegument not birefringent in polarized light. Chelicerae normal.",
-            "advances_to": "Node 147"
-          },
-          "option_b": {
-            "morphology": "Lenticulus, if present not distinctly convex or oval (exception: some PHENOPELOPIDAE with pelopsiform chelicerae), not shiny. Interlamellar setae present. Cerotegument birefringent in polarized light. Chelicerae pelopsiform or normal.",
-            "advances_to": "Node 148"
-          }
-        },
-        "147": {
-          "option_a": {
-            "morphology": "Notogaster shorter than prodorsum, strongly convex, with anterior process bearing lenticulus; apophyses lateral to process bearing setae c; humeral processes shaped as prominent discal projections; with pteromorphs long, attenuated, strongly bent downward. Interlamellar setae present. Length: 260-405 µm.",
-            "advances_to": "Family: Idiozetidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster longer than prodorsum, weakly convex, without anterior process; without apophyses laterally; humeral processes usually subrectangular or round; with pteromorphs small to long, attenuated or not, often strongly bent downward. Interlamellar setae usually absent. Length: 260-600 µm.",
-            "advances_to": "Family: Eremaeozetidae"
-          }
-        },
-        "148": {
-          "option_a": {
-            "morphology": "Genital plates with 8 or more pairs of setae. Octotaxic system absent. Notogastral setal pair c1 divergent, posteromarginal region of notogaster undulate. Pedotectum I without transverse carina. Interlamellar seta setose. Chelicerae normal. Length: 550-670 µm.",
-            "advances_to": "Family: Unduloribatidae"
-          },
-          "option_b": {
-            "morphology": "Genital plates with 6 pairs of setae. Octotaxic system of porose areas, if present, all closely associated with setae. Posteromarginal region of notogaster smooth, notogastral setal pair p1 convergent or directed posteriorly. Pedotectum I with transverse carina. Interlamellar seta large, spatulate or short, setose. Chelicerae pelopsiform or normal. Length: 400-1,000 µm.",
-            "advances_to": "Family: Phenopelopidae"
-          }
-        },
-        "149": {
-          "option_a": {
-            "morphology": "Bothridium with internal, spiral thickenings. Genu IV long thin segment, concave dorsally; longer than genu III, usually longer than tibia IV. Pteromorph present, with or without long, knifelike anterior projection. Length: 390-850 µm.",
-            "advances_to": "Family: Achipteriidae"
-          },
-          "option_b": {
-            "morphology": "Bothridium without internal, spiral thickenings. Genu IV straight dorsally, short segment, subequal in length to genu III, shorter than tibia IV. Pteromorph, if present, without knifelike projection.",
-            "advances_to": "Node 150"
-          }
-        },
-        "150": {
-          "option_a": {
-            "morphology": "Lamellae completely fused medially (exception: separate in Hypozetes). Tibia IV usually without solenidion. Length: 340-480 µm.",
-            "advances_to": "Family: Tegoribatidae"
-          },
-          "option_b": {
-            "morphology": "Lamellae, if present, touching medially or separate, never completely fused. Tibia IV with solenidion.",
-            "advances_to": "Node 151"
-          }
-        },
-        "151": {
-          "option_a": {
-            "morphology": "Lenticulus sharply defined, oval, at center of concavity on notogaster. Prodorsum without lamellae; with or without costulae; lamellar setae positioned closely adjacent to rostral setae, not associated with costulae. Tibiae and tarsi with retrotecta. Pteromorph absent. Length: 230-460 µm.",
-            "advances_to": "Family: Passalozetidae"
-          },
-          "option_b": {
-            "morphology": "Lenticulus, if present, not sharply defined, rectangular to subtriangular in shape. Prodorsum with or without lamellae, lamellar setae borne on lamellae or lamellar cusps or on adjacent prodorsum, lamellar setae not closely adjacent to rostral setae. Tibiae and tarsi without retrotecta. Pteromorph present or absent.",
-            "advances_to": "Node 152"
-          }
-        },
-        "152": {
-          "option_a": {
-            "morphology": "Circumpedal carina partially developed close to lateral margin of ventral plate. Octotaxic system absent. Sejugal apodeme and apodemes 3-4 meet medially anterior to genital plate. Genal notch present. Length: 250-280 µm.",
-            "advances_to": "Family: Tectocepheidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Circumpedal carina complete. Octotaxic system present or absent. Sejugal apodeme and apodemes 3-4 not meeting medially anterior to genital plate. Genal notch present or absent.",
-            "advances_to": "Node 153"
-          }
-        },
-        "153": {
-          "option_a": {
-            "morphology": "Notogastral neotrichy present, with 30-35 pairs of long, dark, notogastral setae. Length: 700-750 µm.",
-            "advances_to": "Family: Neotrichozetidae"
-          },
-          "option_b": {
-            "morphology": "Notogastral neotrichy absent, with at most 15 pairs of notogastral setae.",
-            "advances_to": "Node 154"
-          }
-        },
-        "154": {
-          "option_a": {
-            "morphology": "Pedotectum I at most weakly developed as small lamina. Prodorsum without genal notch. Axillary sacculus of subcapitulum absent. Postanal porose area absent.",
-            "advances_to": "Node 155"
-          },
-          "option_b": {
-            "morphology": "Pedotectum I well developed as large lamina. Prodorsum with genal notch. Axillary sacculus of subcapitulum usually present. Postanal porose area usually present (absent in MAUDHEIMIIDAE and CHAMOBATIDAE).",
-            "advances_to": "Node 175"
-          }
-        },
-        "155": {
-          "option_a": {
-            "morphology": "Notogaster with triangular humeral process bearing large seta apically, seta larger than other notogastral setae; rostrum denticulate. Legs IV sometimes modified as jumping legs. Trochanter IV without seta. Lyrifissure im often modified as piriform organ. Large humeral saccule present or absent. Length: 350-550 µm.",
-            "advances_to": "Family: Zetomotrichidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster without triangular humeral process; setae c subequal in size and length to other notogastral setae; rostrum never denticulate. Legs IV never modified as jumping leg. Trochanter IV with seta. Lyrifissure im not modified as piriform organ. Humeral saccule absent.",
-            "advances_to": "Node 156"
-          }
-        },
-        "156": {
-          "option_a": {
-            "morphology": "Pedotectum II usually absent. Genital and anal plates closely adjacent, separated by less than half length of genital plates. Notogaster with small porose areas Aa, A2 only.",
-            "advances_to": "Node 157"
-          },
-          "option_b": {
-            "morphology": "Pedotectum II present. Genital and anal plates separated by more than half length of genital plate. Notogaster with 0-many pairs of porose areas or saccules.",
-            "advances_to": "Node 158"
-          }
-        },
-        "157": {
-          "option_a": {
-            "morphology": "Bothridial seta large, strongly widened distally, leaf shaped; prodorsum with costulae. Notogaster extending medially between bothridia and the in, forming acute angle; with large circular to reticulate sculpturing, independent of sculpturing formed by cerotegument. Length: 200-250 µm.",
-            "advances_to": "Family: Licneremaeidae"
-          },
-          "option_b": {
-            "morphology": "Bothridial seta not strongly widened distally, not leaf shaped; prodorsum with lamellae and translamella; notogaster curved to flat anteriorly, not extending medially between bothridia and setae in. Notogaster and cerotegument without large circular to reticulate sculpturing. Length: 200-300 µm.",
-            "advances_to": "Family: Lamellareidae"
-          }
-        },
-        "158": {
-          "option_a": {
-            "morphology": "Prodorsum laterally with broad hyaline expansions. Aggenital setae absent, with 2 pairs of adanal setae. Length: ca. 270 µm.",
-            "advances_to": "Family: Nesozetidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum laterally without hyaline expansions. Aggenital setae usually present, with 2-3 pairs of adanal setae.",
-            "advances_to": "Node 159"
-          }
-        },
-        "159": {
-          "option_a": {
-            "morphology": "Aggenital setae absent. Femora III-IV each with 2 porose areas, 1 proximally on femoral bulge and 1 paraxially on segment, solenidion σ absent from genu III. Length: 240-315 µm.",
-            "advances_to": "Family: Micreremidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Aggenital setae present. Femora III-IV each with 1 porose area, solenidion σ present on genu III.",
-            "advances_to": "Node 160"
-          }
-        },
-        "160": {
-          "option_a": {
-            "morphology": "Posterior notogastral tectum present.",
-            "advances_to": "Node 161"
-          },
-          "option_b": {
-            "morphology": "Posterior notogastral tectum absent.",
-            "advances_to": "Node 162"
-          }
-        },
-        "161": {
-          "option_a": {
-            "morphology": "Tutorium present. Posterior notogastral tectum without overlapping lobes. Tarsal pulvillus absent, brachytracheae or saccules present on tibiae I-IV. Length: 350-500 µm.",
-            "advances_to": "Family: Scutoverticidae"
-          },
-          "option_b": {
-            "morphology": "Tutorium absent. Posterior notogastral tectum with overlapping lobes. Tarsal pulvillus present; porose areas, brachytracheae or saccules absent from tibiae I-IV. Length: 400-450 µm.",
-            "advances_to": "Family: Adhaesozetidae"
-          }
-        },
-        "162": {
-          "option_a": {
-            "morphology": "Pteromorphs well developed, with hinge; insertions of adductor muscles for pteromorphs evident on notogaster.",
-            "advances_to": "Node 163"
-          },
-          "option_b": {
-            "morphology": "Pteromorphs if present, without hinge; pteromorph adductor muscles absent.",
-            "advances_to": "Node 164"
-          }
-        },
-        "163": {
-          "option_a": {
-            "morphology": "Subcapitulum anarthric. Chelicerae pelopsiform. Notogastral setae reduced to length of alveolus, octotaxic system of 4 pairs of saccules. Length: approximately 670 µm.",
-            "advances_to": "Family: Tubulozetidae"
-          },
-          "option_b": {
-            "morphology": "Subcapitulum diarthric. Chelicerae chelate-dentate. Notogastral setae developed, octotaxic system of porose areas or saccules. Length: 250-650 µm.",
-            "advances_to": "Family: Haplozetidae"
-          }
-        },
-        "164": {
-          "option_a": {
-            "morphology": "Tarsi, particularly tarsus I, strongly truncate. Prodorsum not curved over gnathosoma, and rostral tectum not completely covering chelicerae dorsally. Bothridium inserted lateroposteriorly, posterior to level of anterior notogastral margin, thus anterolateral border of notogaster partially or completely covering bothridial seta. Chelicerae with 1-2 setae. Anal, and/or adanal setae often long, flagelliform.",
-            "advances_to": "Node 165"
-          },
-          "option_b": {
-            "morphology": "Tarsi not truncate. Prodorsum curving over gnathosoma, covering chelicerae dorsally. Bothridium inserted anterior to notogastral margin. Chelicerae with 2 setae. Anal and adanal setae never long and flagelliform.",
-            "advances_to": "Node 167"
-          }
-        },
-        "165": {
-          "option_a": {
-            "morphology": "Pretarsi tridactylous. With 4 pairs of saccules. With 1-3 pairs of genital setae. Length: 250-550 µm.",
-            "advances_to": "Family: Oripodidae"
-          },
-          "option_b": {
-            "morphology": "Pretarsi monodactylous. With 4 pairs of porose areas or octotaxic system absent. With 4 pairs of genital setae.",
-            "advances_to": "Node 166"
-          }
-        },
-        "166": {
-          "option_a": {
-            "morphology": "Octotaxic system present as porose areas; sexual dimorphism in octotaxic system such that porose areas of male differ from those of female. Aggenital setae present. Setae (u) of tarsi I-IV setiform. Sexually dimorphic rostral setae present, those of female setose, directed anteromedially, those of male robust, tapered projections directed anteriorly. Length: 220-260 µm.",
-            "advances_to": "Family: Symbioribatidae"
-          },
-          "option_b": {
-            "morphology": "Octotaxic system absent, or 1-2 pairs of saccules present, sexual dimorphism in octotaxic system absent. Aggenital setae absent. Setae (u) of tarsi I-IV short, dark colored and terminally bifid. Sexually dimorphic rostral setae absent. Length: 230-335 µm.",
-            "advances_to": "Family: Campbellobatidae"
-          }
-        },
-        "167": {
-          "option_a": {
-            "morphology": "Notogaster with both porose areas and saccules, Sa and S1 saccules, remainder of octotaxic system porose areas. Length: 800-1,020 µm.",
-            "advances_to": "Family: Drymobatidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster with either porose areas or saccules but not both.",
-            "advances_to": "Node 168"
-          }
-        },
-        "168": {
-          "option_a": {
-            "morphology": "Rostrum with medial projection, almost tubelike. Granular cerotegument present over entire body. Notogastral setae lanceolate; tutorium present. Length: ca. 430 µm.",
-            "advances_to": "Family: Nasobatidae"
-          },
-          "option_b": {
-            "morphology": "Rostrum rounded, no tubelike projection. Granular cerotegument present at most in region between pteromorph, pedotectum I and lateral body wall. Notogastral setae not lanceolate; tutorium present or absent.",
-            "advances_to": "Node 169"
-          }
-        },
-        "169": {
-          "option_a": {
-            "morphology": "Notogaster with 4 or more pairs of porose areas, their limits often well defined by internally thickened border; porose areas sexually dimorphic, or not; notogaster without conspicuous setae; 3 pairs of short setae in p row and 7 pairs of alveoli; prodorsum fused to notogaster; tutorium present. Distinct notch present antiaxially on chelicerae. Length: 500-800 µm.",
-            "advances_to": "Family: Mochlozetidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster usually with 4 (or fewer) pairs of porose areas or saccules, without thickened border; notogaster with 10-14 pairs of well-developed setae; prodorsum fused or not to notogaster. Tutorium present or absent. Without notch antiaxially on chelicerae.",
-            "advances_to": "Node 170"
-          }
-        },
-        "170": {
-          "option_a": {
-            "morphology": "Notogaster with 4 pairs of curved, sausage-shaped saccules, notogastral setae unusually long. Tutorium and pleural carinae present. Length: 380-500 µm.",
-            "advances_to": "Family: Stelechobatidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster with porose areas or saccules; if saccules present, never curved like a sausage; notogastral setae short to long; tutorium and pleural carinae absent.",
-            "advances_to": "Node 171"
-          }
-        },
-        "171": {
-          "option_a": {
-            "morphology": "Pteromorphs or humeral projections usually present (if absent, octotaxic system as saccules). Distal eupathidia on palptarsus in same plane. Notogaster with 2-4 pairs of porose areas or saccules. With 1-4 pairs of genital setae. Prodorsum with prolamella often present; sublamella present. Sternal furrow extending from genital plates anteriorly on coxisternum often present. Length: 200-650 µm.",
-            "advances_to": "Family: Scheloribatidae"
-          },
-          "option_b": {
-            "morphology": "Pteromorphs or humeral projections absent. Distal eupathidia on palptarsus not in same plane. Notogaster with 4-5 pairs of porose areas; 4-5 pairs of genital setae. Prodorsum without prolamella and sublamella. Sternal furrow absent.",
-            "advances_to": "Node 172"
-          }
-        },
-        "172": {
-          "option_a": {
-            "morphology": "Adanal setation 2 pairs. Octotaxic system with 5 pairs of saccules, integument strongly foveate, notogastral setae strongly barbed to plumose, translamella present. Length 350-850 µm.",
-            "advances_to": "Family: Caloppiidae"
-          },
-          "option_b": {
-            "morphology": "Adanal setation 3 pairs. Octotaxic system comprised of porose areas or saccules; if more than 4 pairs, they are porose areas, integument usually smooth. Notogastral setae not strongly barbed to plumose.",
-            "advances_to": "Node 173"
-          }
-        },
-        "173": {
-          "option_a": {
-            "morphology": "Marginoventral porose areas present. Tarsus I without dorsal porose area. Length: 250-900 µm.",
-            "advances_to": "Family: Oribatulidae"
-          },
-          "option_b": {
-            "morphology": "Marginoventral porose areas absent. Tarsus I with dorsal porose area between solenidia.",
-            "advances_to": "Node 174"
-          }
-        },
-        "174": {
-          "option_a": {
-            "morphology": "Octotaxic system of 5 pairs of small porose areas. Femur II with 4 or fewer setae. Notogaster without caudal protuberance. Circumpedal carina incomplete posterior to acetabulum IV. Tarsus II with 2 solenidia, without porose area at base. Length: 300-400 µm.",
-            "advances_to": "Family: Crassoribatulidae"
-          },
-          "option_b": {
-            "morphology": "Octotaxic system of 4 pairs of porose areas. Femur II with 5 setae. Notogaster with caudal protuberance bearing porose area and seta p1. Circumpedal carina complete posterior to acetabulum IV. Tarsus II with 1 solenidion, with porose area at base. Length: 575-625 µm.",
-            "advances_to": "Family: Sellnickiidae"
-          }
-        },
-        "175": {
-          "option_a": {
-            "morphology": "Lamellae well developed, fused at base of cusps; lamellar cusps almost covering entire prodorsum, usually deeply incised, forming large medial and lateral tooth, or large lateral tooth; lamellar setae inserted at base of incision. Tutorium usually rectangular, dentate distally, or if tapered, notogaster with indistinct hexagonal pattern anteriorly. Pteromorph without hinge. Length: 240-750 µm.",
-            "advances_to": "Family: Oribatellidae"
-          },
-          "option_b": {
-            "morphology": "Lamellae well or weakly developed, usually not fused at level of base of cusps; lamellar cusps not covering entire prodorsum; lamellae not deeply incised; medial and lateral tooth, if present, small. Tutorium not rectangular, usually tapered, dentate or not distally. Pteromorph with or without hinge.",
-            "advances_to": "Node 176"
-          }
-        },
-        "176": {
-          "option_a": {
-            "morphology": "Pretarsi I and IV usually with different number of claws. Notogaster with posterior tectum.",
-            "advances_to": "Node 177"
-          },
-          "option_b": {
-            "morphology": "Pretarsi I and IV with same number of claws. Notogaster with or without posterior tectum.",
-            "advances_to": "Node 178"
-          }
-        },
-        "177": {
-          "option_a": {
-            "morphology": "Notogaster with porose areas Aa and A3 only, Aa positioned anteriorly, just posterior or medial to seta c. Claw of leg I expanded medially. With 10 pairs of notogastral setae. Length: ca. 315 µm.",
-            "advances_to": "Family: Onychobatidae"
-          },
-          "option_b": {
-            "morphology": "Notogaster with 4 pairs of porose areas, Aa positioned well posteriorly of seta c or porose areas absent. Claw of leg I not expanded medially. With 10-11 pairs of notogastral setae or their alveoli; if 11 pairs, then 2 pairs of setae p (or their alveoli) closely adjacent on anterior of notogaster. Length: 250-750 µm.",
-            "advances_to": "Family: Zetomimidae"
-          }
-        },
-        "178": {
-          "option_a": {
-            "morphology": "Notogaster with posterior tectum. With 10 pairs of notogastral setae.",
-            "advances_to": "Node 179"
-          },
-          "option_b": {
-            "morphology": "Notogaster without posterior tectum. With 10-15 pairs of notogastral setae.",
-            "advances_to": "Node 181"
-          }
-        },
-        "179": {
-          "option_a": {
-            "morphology": "Lamellar setae inserted on prodorsal surface, lamellar cusps absent. Postanal porose area absent. Length: 290-700 µm.",
-            "advances_to": "Family: Chamobatidae"
-          },
-          "option_b": {
-            "morphology": "Lamellar setae inserted on lamellae or on lamellar cusps, which usually are present. Postanal porose area present.",
-            "advances_to": "Node 180"
-          }
-        },
-        "180": {
-          "option_a": {
-            "morphology": "Prolamella extending from tip of lamellae to rostral margin, positioned medial to rostral seta. Tibiae and tarsi I-IV with distoventral and proximoventral porose areas. Tutorium without distinct cusp. Subcapitular mentum without tectum. Length: 600-936 µm.",
-            "advances_to": "Family: Humerobatidae"
-          },
-          "option_b": {
-            "morphology": "Prolamella absent. Tibiae and tarsi I-IV without porose areas. Tutorium with distinct cusp. Subcapitular mentum with or without tectum. Length: 400-650 µm.",
-            "advances_to": "Family: Mycobatidae"
-          }
-        },
-        "181": {
-          "option_a": {
-            "morphology": "Pteromorph small, not projecting ventrally. Custodium absent. Postanal porose area absent. Length: 500-650 µm.",
-            "advances_to": "Family: Maudheimiidae"
-          },
-          "option_b": {
-            "morphology": "Pteromorph usually well developed, projecting ventrally (exception Jugatala). Custodium present. Postanal porose area present.",
-            "advances_to": "Node 182"
-          }
-        },
-        "182": {
-          "option_a": {
-            "morphology": "Subcapitular mentum with tectum. Epimere IV neotrichous (4 or more pairs of setae). With 10 pairs of minute notogastral setae or setae reduced to alveoli. Length: 1,000-1,200 µm.",
-            "advances_to": "Family: Euzetidae"
-          },
-          "option_b": {
-            "morphology": "Subcapitular mentum without tectum. Epimere IV with 2 or 3 pairs of setae. With 10-15 pairs of minute to long notogastral setae. Length: 270-990 µm.",
-            "advances_to": "Family: Ceratozetidae"
-          }
-        }
-      }
-    },
-    "parasitengonina.to.family.adult": {
-      "title": "Family under Parasitengonina (adult)",
-      "parent": {
-        "rank": "Cohort",
-        "name": "Parasitengonina"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general",
-        "life_stage": "adult"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Idiosoma and appendages usually not hypertrichous (exception: CTENOTHYADIDAE); idiosoma with series of stomatoid lyrifissures or glandularia comprising glandlike structures that each open on small platelet, often adjacent to associated seta. Aquatic forms.",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Idiosoma and appendages hypertrichous; idiosoma without glandularia. Terrestrial forms.",
-            "advances_to": "Node 3"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Idiosoma variously shaped but rarely vermiform (exception: HYDRYPHANTIDAE, subfamily Wandesiinae); palpfemur and genu separate, and palptarsus lacking long, terminal solenidia; prodorsal area various but never with elongate prodorsal plate bearing unpaired vi seta anteromedially; legs with claws usually simple or with a few distal prongs, rarely pectinate.",
-            "advances_to": "Node 4"
-          },
-          "option_b": {
-            "morphology": "Idiosoma vermiform, greatly elongated posterior to podosoma; prodorsal area with elongate prodorsal plate bearing unpaired vi seta anteromedially; palpfemur and genu fused, and palptarsus bearing long, terminal solenidia; legs with claws strongly pectinate.",
-            "advances_to": "Family: Stygothrombidiidae"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Chelicerae with movable digit usually bladelike and not retractable.",
-            "advances_to": "Node 59"
-          },
-          "option_b": {
-            "morphology": "Chelicerae with movable digit styletiform and retractable, either independently or with entire gnathosoma.",
-            "advances_to": "Node 71"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Mostly marine, 4th coxal plates with 2 pairs of long posterior apodemes; genital acetabula wheel-like in appearance and usually not in gonopore region.",
-            "advances_to": "Family: Pontarachnidae"
-          },
-          "option_b": {
-            "morphology": "Living in fresh water and without above combination of characters.",
-            "advances_to": "Node 5"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Genital acetabula small and inconspicuous, lying on coxal plates IV.",
-            "advances_to": "Node 6"
-          },
-          "option_b": {
-            "morphology": "Genital acetabula conspicuous, either closely associated with gonopore or scattered in ventral integument.",
-            "advances_to": "Node 7"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Dorsum with large central plate surrounded by platelet anteriorly and many smaller but similar platelets laterally and posteriorly; glandularia represented by setae, with gland portion absent.",
-            "advances_to": "Family: Acherontacaridae"
-          },
-          "option_b": {
-            "morphology": "Dorsum with large central plate surrounded by platelet anteriorly and several smaller dissimilar platelets laterally and posteriorly; glandularia with gland portion present.",
-            "advances_to": "Family: Hydrovolziidae"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Idiosoma nearly spherical; palptibia much shorter than genu and bearing dorsodistal projection that extends beyond origin of tarsus; chelicera styletiform and 1-segmented.",
-            "advances_to": "Family: Hydrachnidae"
-          },
-          "option_b": {
-            "morphology": "Idiosoma variously shaped but rarely spherical; palptibia usually longer than genu, but when shorter, then lacking distodorsal projection; chelicera 2-segmented.",
-            "advances_to": "Node 8"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Genital flaps present and partially or completely covering 3 pairs of acetabula; palptibia with 2 thick dorsodistal setae; known only from Australia and New Zealand.",
-            "advances_to": "Family: Zelandothyadidae"
-          },
-          "option_b": {
-            "morphology": "Genital flaps present or absent; palptibia lacking 2 thick dorsodistal setae as described above.",
-            "advances_to": "Node 9"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Capitulum broadly widened distally, palpi with all segments fused and flexing medially to oppose anterior edge of capitulum; dorsum and venter with numerous rugose glandularia platelets.",
-            "advances_to": "Family: Apheviderulicidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 10"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "Soft bodied; all coxal plates fused on their respective sides and narrowly joined at anterior end; movable genital flaps covering 3 pairs of genital acetabula. Known only from interstitial waters in New Zealand.",
-            "advances_to": "Family: Stygotoniidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 11"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Mouth opening surrounded by a distinct membranous fringe; lateral eyes usually present and located on common prodorsal plate.",
-            "advances_to": "Node 12"
-          },
-          "option_b": {
-            "morphology": "Mouth opening with indistinct or no membranous ring; lateral eyes, if present, not on common prodorsal plate.",
-            "advances_to": "Node 14"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Prodorsal plate noticeably wider than long, constricted near middle and bearing 1 pair of setae; coxal plates as indicated in Fig. 13.26H.",
-            "advances_to": "Family: Eylaidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsal plate either longer than wide or only slightly wider than long, not constricted near middle and bearing 4 pairs of setae.",
-            "advances_to": "Node 13"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Prodorsal plate much longer than wide; genital acetabula scattered in ventral integument.",
-            "advances_to": "Family: Limnocharidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsal plate approximately as long as wide; genital acetabula located on acetabular plates.",
-            "advances_to": "Family: Piersigiidae"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "Palpi chelate with dorsodistal portion of tibia extending beyond base of tarsus, either as a spur or a thick seta. Capitulum lacking an anchoral process.",
-            "advances_to": "Node 15"
-          },
-          "option_b": {
-            "morphology": "Palpi rarely chelate; when appearing chelate (some PIONIDAE), then capitulum with an anchoral process.",
-            "advances_to": "Node 16"
-          }
-        },
-        "15": {
-          "option_a": {
-            "morphology": "Dorsodistal extension of palptibia an extremely long spur; idiosoma without platelets dorsally.",
-            "advances_to": "Family: Hydrodromidae"
-          },
-          "option_b": {
-            "morphology": "Dorsodistal extension of palptibia a relatively short, thick seta; idiosoma usually with varying degrees of plate or platelet development dorsally.",
-            "advances_to": "Family: Hydryphantidae"
-          }
-        },
-        "16": {
-          "option_a": {
-            "morphology": "Genital field with movable genital flaps flanking gonopore and either partially or completely covering gonopore when closed; genital acetabula lying free in gonopore, not on flaps or acetabular plates.",
-            "advances_to": "Node 17"
-          },
-          "option_b": {
-            "morphology": "Genital field usually without movable genital flaps, when flaps present then genital acetabula lie on flaps rather than under them.",
-            "advances_to": "Node 23"
-          }
-        },
-        "17": {
-          "option_a": {
-            "morphology": "Coxal plates IV with median margins reduced to median angles and bearing a pair of glandularia near tip of these angles; palptarsus bearing terminal pad-shaped setae and appears spatulate.",
-            "advances_to": "Family: Rutripalpidae"
-          },
-          "option_b": {
-            "morphology": "Coxal plates IV with median margins usually well developed, when reduced to median angles, then lacking glandularia in position illustrated above.",
-            "advances_to": "Node 18"
-          }
-        },
-        "18": {
-          "option_a": {
-            "morphology": "Integument of idiosoma soft; coxal plates IV with pair of glandularia located in small area of soft integument anteromedially, partially or completely surrounded by sclerotization of coxal plates IV; gonopore bearing 3 pairs of genital acetabula.",
-            "advances_to": "Family: Teutoniidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 19"
-          }
-        },
-        "19": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; either with gonopore bearing 6 pairs of genital acetabula and dorsal shield consisting of a large posterior plate and 1 or 2 pairs of anterior platelets or with gonopore bearing 3 pairs of genital acetabula and dorsal shield consisting of a central plate surrounded by several pairs of platelets.",
-            "advances_to": "Family: Torrenticolidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 20"
-          }
-        },
-        "20": {
-          "option_a": {
-            "morphology": "Dorsal shield absent, dorsal integument soft and with or without scattered platelets; insertions of all pairs of legs near anterior end of idiosoma; median coxal suture line usually absent but present in some species in Southern Hemisphere.",
-            "advances_to": "Family: Oxidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal shield present or absent; insertions of at least legs IV near middle of idiosoma; median coxal suture line or lines present.",
-            "advances_to": "Node 21"
-          }
-        },
-        "21": {
-          "option_a": {
-            "morphology": "Venter with suture lines between coxal plates II-III incomplete but touching genital field area posteriorly; palp typically with at least 5 long setae on medial surface of genu, but members of North American genus Scutolebertia have 4 or 5 long setae on dorsal surface of femur.",
-            "advances_to": "Family: Lebertiidae"
-          },
-          "option_b": {
-            "morphology": "Venter with suture lines between coxal plates II-III complete; palp without long setae on medial surface of genu.",
-            "advances_to": "Node 22"
-          }
-        },
-        "22": {
-          "option_a": {
-            "morphology": "Legs IV bearing claws; lateral eyes in capsules lying on anterodorsal surface of idiosoma.",
-            "advances_to": "Family: Sperchontidae"
-          },
-          "option_b": {
-            "morphology": "Claws either present or absent on legs IV; when claws present, then lateral eyes located on platelets associated with ventral shield (exception: Asian genus Bharatonia).",
-            "advances_to": "Family: Anisitsiellidae"
-          }
-        },
-        "23": {
-          "option_a": {
-            "morphology": "Dorsum and venter with series of closely fitting reticulate platelets; genital acetabula varying from 3 pairs to numerous. Known from Africa and Indonesia.",
-            "advances_to": "Family: Teratothyadidae"
-          },
-          "option_b": {
-            "morphology": "Dorsum and venter not as illustrated above.",
-            "advances_to": "Node 24"
-          }
-        },
-        "24": {
-          "option_a": {
-            "morphology": "Genital field with 3-4 pairs of genital acetabula located on outer edges of movable genital flaps; legs and palpi with numerous, short, bladelike setae, with those of legs nearly completely covering segments.",
-            "advances_to": "Family: Ctenothyadidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 25"
-          }
-        },
-        "25": {
-          "option_a": {
-            "morphology": "Numerous genital acetabula on movable genital flaps; dorsum covered either with closely fitting reticulate platelets (North and South America) or with closely fitting porous platelets (South America).",
-            "advances_to": "Family: Rhynchohydracaridae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 26"
-          }
-        },
-        "26": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; coxal plates I with 2 rows of large setae extending posteriorly from capitular bay; palpfemur with 2 long medial setae; known only from hot springs.",
-            "advances_to": "Family: Thermacaridae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 27"
-          }
-        },
-        "27": {
-          "option_a": {
-            "morphology": "Coxal plates III extending far posteriorly and excluding coxal plates IV from midline; coxal plates IV lacking glandularia; male with gonopore placed far forward and extending beyond base of capitulum; known only from Argentina.",
-            "advances_to": "Family: Ferradasiidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 28"
-          }
-        },
-        "28": {
-          "option_a": {
-            "morphology": "Integument soft; idiosoma somewhat elongated; all coxal plates grouped together, with medial edges of anterior coxal group noticeably longer than those of posterior group; suture lines between coxal plates III-IV extending at right angles to midline or slightly posterolaterally; interstitial.",
-            "advances_to": "Family: Omartacaridae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 29"
-          }
-        },
-        "29": {
-          "option_a": {
-            "morphology": "Palpfemur, with extremely rare exceptions, bearing a ventral seta; all females, and males of many genera, with genital acetabula borne on movable genital flaps.",
-            "advances_to": "Family: Limnesiidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 30"
-          }
-        },
-        "30": {
-          "option_a": {
-            "morphology": "Palpfemur bearing 2-4 ventral setae and not uncate.",
-            "advances_to": "Node 31"
-          },
-          "option_b": {
-            "morphology": "Palpfemur usually not bearing ventral setae, but when bearing ventral setae, then palp uncate.",
-            "advances_to": "Node 32"
-          }
-        },
-        "31": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; a pair of glandularia located in indentations at posterior end of ventral shield; palptibia and tarsus long, slender, and functionally fused, genu much higher than long. Known only from interstitial waters in Japan.",
-            "advances_to": "Family: Nipponacaridae"
-          },
-          "option_b": {
-            "morphology": "Dorsal and ventral shields present but without free glandularia at posterior end of ventral shield; palpgenu and tibia extremely short or fused together. Known from widely scattered areas of North America and Europe.",
-            "advances_to": "Family: Bogatiidae"
-          }
-        },
-        "32": {
-          "option_a": {
-            "morphology": "Integument soft; all coxal plates fused on their respective sides; coxal plates I and IV with short, peglike setae; male with a long petiole; female with small acetabular plates bearing 4 pairs of acetabula and flanking a long slitlike gonopore. Known only from gill cavities of freshwater crayfish in Australia.",
-            "advances_to": "Family: Astacocrotonidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 33"
-          }
-        },
-        "33": {
-          "option_a": {
-            "morphology": "Tibia I much longer than tarsus; claw of leg I flexing proximally rather than distally.",
-            "advances_to": "Family: Momoniidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 34"
-          }
-        },
-        "34": {
-          "option_a": {
-            "morphology": "Legs I with claw socket at least half as long as tarsus and with tarsus longer than tibia; idiosoma variously sclerotized but never with a bipartite dorsal shield.",
-            "advances_to": "Node 35"
-          },
-          "option_b": {
-            "morphology": "Legs I with claw socket usually less than half as long as tarsus, when more than half as long as tarsus, then either tarsus shorter than tibia or idiosoma with a bipartite dorsal shield.",
-            "advances_to": "Node 36"
-          }
-        },
-        "35": {
-          "option_a": {
-            "morphology": "Idiosoma flattened dorsoventrally; legs IV inserted medially near midline; dorsal shield consisting of a central plate surrounded by 8 or 9 paired platelets.",
-            "advances_to": "Family: Lethaxonidae"
-          },
-          "option_b": {
-            "morphology": "Idiosoma usually somewhat laterally compressed; legs IV inserted laterally; dorsal shield usually absent, but South African genus Stormaxonella has dorsal shield consisting of a central plate surrounded by 5 pairs of platelets.",
-            "advances_to": "Family: Wettinidae"
-          }
-        },
-        "36": {
-          "option_a": {
-            "morphology": "Idiosoma strongly laterally compressed; segments of legs IV dorsoventrally expanded and laterally flattened.",
-            "advances_to": "Family: Frontipodopsidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 37"
-          }
-        },
-        "37": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; genital acetabula scattered laterally in integument as well as in gonopore region; palp uncate, palptibia greatly expanded ventrally and tarsus elongate and sharply pointed. Known from West Africa and India.",
-            "advances_to": "Family: Harpagopalpidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 38"
-          }
-        },
-        "38": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; palp uncate with palptibia rotated approximately 90 relative to genu; capitulum with anterior end pointed in lateral view but wide in dorsal view and bearing a pair of long subterminal setae.",
-            "advances_to": "Family: Athienemanniidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 39"
-          }
-        },
-        "39": {
-          "option_a": {
-            "morphology": "Medial margins of combined coxal plates III-IV reduced to sharp angles, with suture line between coxal plates III-IV incomplete; all coxal plates close together with no body pores separating them; no glandularia on coxal plates IV.",
-            "advances_to": "Family: Acalyptonotidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 40"
-          }
-        },
-        "40": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; ventral shield with suture lines between coxal plates III-IV extending posteromedially to genital field region and well separated from each other medially; no glandularia on coxal plates IV; genital acetabula in single rows on each side, 3-5 pairs lying in gonopore in male, 5-9 pairs flanking gonopore in females; palpi uncate.",
-            "advances_to": "Family: Neoacaridae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 41"
-          }
-        },
-        "41": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; dorsal shield with 4 pairs of glandularia, including a pair anterior to postocular setae (at or near anterior edge of shield); ventral shield variously modified, with either margins of first 3 pairs of coxal plates rounded and without a capitular bay, median margins of coxal plates IV long, and suture line between coxal plates III-IV extending at right angles to long axis of body or with coxoglandularia 2 located at anteromedial corner of coxal plates IV; palpi various, from slightly modified to uncate, or highly modified.",
-            "advances_to": "Family: Chappuisididae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 42"
-          }
-        },
-        "42": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; coxoglandularia 1 shifted far forward on coxal plates II; genital acetabula of female either lying in gonopore or on acetabular plates closely flanking the gonopore.",
-            "advances_to": "Node 43"
-          },
-          "option_b": {
-            "morphology": "Dorsal and ventral shields present or absent; coxoglandularia 1 not shifted far forward on coxal plates II; genital acetabula variously arranged.",
-            "advances_to": "Node 44"
-          }
-        },
-        "43": {
-          "option_a": {
-            "morphology": "Suture lines between coxal plates III-IV ending far anterior to genital field region; genital field region of male not highly modified.",
-            "advances_to": "Family: Nudomideopsidae"
-          },
-          "option_b": {
-            "morphology": "Suture lines between coxal plates III-IV extending to genital field region; male genital field region highly modified.",
-            "advances_to": "Family: Mideidae"
-          }
-        },
-        "44": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; coxoglandularia 1 located slightly anterior to suture line between coxal plates II-III; male with acetabula both on acetabular plates and in gonopore and with genital field extending anteriorly to level of coxal plates II; females with genital acetabula on acetabular plates extending well lateral to gonopore.",
-            "advances_to": "Family: Laversiidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 45"
-          }
-        },
-        "45": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; palpi uncate with palpfemur bearing 2 medioventral setae in species from Old World but with patch of medial setae in a genus known from Mexico and Costa Rica; genital acetabula numerous, lying on acetabular plates flanking gonopore in females but confined to gonopore in males.",
-            "advances_to": "Family: Hungarohydracaridae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 46"
-          }
-        },
-        "46": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; openings for insertion of legs IV covered by lobed extensions of coxal plates IV; 3 pairs of genital acetabula closely flanking gonopore; dorsal shield bearing 6 pairs of glandularia. Known only from a female specimen taken in interstitial waters in Japan.",
-            "advances_to": "Family: Kantacaridae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 47"
-          }
-        },
-        "47": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; coxal plates IV with posterior suture lines obliterated and lacking projections associated with insertions of legs IV; males with 1-2 pairs of genital acetabula lying in gonopore, as well as additional acetabula present on integument posteriorly; females with all acetabula lying free in integument flanking gonopore; palptibia with slight distoventral bulge but not forming a true uncate palp. Known only from interstitial waters in North and South America.",
-            "advances_to": "Family: Arenohydracaridae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 48"
-          }
-        },
-        "48": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; palpi uncate; median margins of coxal plates IV reduced to medial angles and bearing a pair of glandularia at angles; genital acetabula located in gonopore in both sexes, openings for insertion of legs IV covered by extensions of coxal plates IV.",
-            "advances_to": "Family: Krendowskiidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 49"
-          }
-        },
-        "49": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; male genital field located at extreme posterior end of idiosoma and with 2 pairs of acetabula in gonopore and several pairs flanking it; openings for insertion of legs IV covered by projections of coxal plates IV, which extend well lateral to sides of idiosoma; males with tarsi IV greatly expanded; females with numerous genital acetabula lying on plates that flank gonopore but are separate from remainder of ventral shield; openings for insertion of legs IV with associated projections. Known only from southeastern United States.",
-            "advances_to": "Family: Amoenacaridae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 50"
-          }
-        },
-        "50": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; typically with 3 pairs of genital acetabula but in rare instances up to 7 pairs; acetabula confined to gonopore in both sexes; openings for insertion of legs IV with either no or only very small projections; palpi typically as shown in Figs. 13.35J and 13.35K, but, in rare instances (5 known species from scattered areas in Southern Hemisphere), the palpi are uncate.",
-            "advances_to": "Family: Mideopsidae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 51"
-          }
-        },
-        "51": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present; palpi uncate (with exception of a species of Micruracaropsis); genital acetabula numerous and lying on acetabular plates extending laterally from gonopore with none in gonopore (exception: a species of Thoracophoracarus from Chile in which there is 1 pair of acetabula in male gonopore); idiosoma of female relatively unmodified but posterior end of idiosoma in males moderately to extremely modified.",
-            "advances_to": "Family: Arrenuridae"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 52"
-          }
-        },
-        "52": {
-          "option_a": {
-            "morphology": "Sclerotization of dorsum varying from scattered platelets of varying size up to a complete dorsal shield; integument between coxal plates IV and genital field with 2 pairs of glandularia arranged more or less in a row; palptibia lacking a peglike seta.",
-            "advances_to": "Family: Feltriidae"
-          },
-          "option_b": {
-            "morphology": "Sclerotization of dorsum and venter variable; typically without 2 pairs of glandularia in a row between coxal plates IV and genital field; when glandularia arranged as above, then palptibia bearing a peglike seta.",
-            "advances_to": "Node 53"
-          }
-        },
-        "53": {
-          "option_a": {
-            "morphology": "A pair of glandularia present on coxal plates IV, occasionally extending far forward on anteriorly directed loops of coxal suture line.",
-            "advances_to": "Node 54"
-          },
-          "option_b": {
-            "morphology": "Glandularia absent on coxal plates IV.",
-            "advances_to": "Node 55"
-          }
-        },
-        "54": {
-          "option_a": {
-            "morphology": "Usually soft bodied, but a few scattered dorsal or ventral platelets may be present; if complete dorsal and ventral shields present (usually only in male), then with a downturned seta on tibia I.",
-            "advances_to": "Family: Hygrobatidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal and ventral shields present in both sexes; without a downturned seta on tibia I.",
-            "advances_to": "Family: Aturidae (pars)"
-          }
-        },
-        "55": {
-          "option_a": {
-            "morphology": "Dorsal and ventral shields present.",
-            "advances_to": "Node 56"
-          },
-          "option_b": {
-            "morphology": "Soft bodied or with scattered platelets but without distinct dorsal and ventral shields.",
-            "advances_to": "Node 58"
-          }
-        },
-        "56": {
-          "option_a": {
-            "morphology": "Genital acetabula numerous (more than 10 pairs); genu of leg IV either concave on one side and with numerous peglike setae or with median surface of palptibia bearing a peglike seta at distal end and coxal plates lacking well-developed projections associated with insertions of legs IV.",
-            "advances_to": "Family: Pionidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Without above combination of characters.",
-            "advances_to": "Node 57"
-          }
-        },
-        "57": {
-          "option_a": {
-            "morphology": "Openings for insertions of legs IV with large associated projections that extend laterally or only slightly posteriorly, or, when projections extend decidedly posteriorly, then palptibia with lateral projections.",
-            "advances_to": "Family: Unionicolidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Openings for insertions of legs IV with either small or no associated projections, or, when large projections present they are directed posteriorly or decidedly posterolaterally and palptibia lacks lateral projection.",
-            "advances_to": "Family: Aturidae (pars)"
-          }
-        },
-        "58": {
-          "option_a": {
-            "morphology": "Claws simple or with clawlets; legs I usually but not always with numerous long thickened setae or \"Rillborsten\"; posterior margins of coxal plates IV truncate or only slightly rounded; chelicera either fused or separate medially; most species are commensals in freshwater Mollusca (usually clams) or sponges, but there are free-living species.",
-            "advances_to": "Family: Unionicolidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Claws always with clawlets; legs I never with long thickened setae; posterior margins of coxal plates IV more or less strongly angled; chelicerae separate medially; typically free living as adults, but members of the Holarctic genus Najadicola live as commensals in freshwater Mollusca.",
-            "advances_to": "Family: Pionidae (most species)"
-          }
-        },
-        "59": {
-          "option_a": {
-            "morphology": "Pregenital tubercle present.",
-            "advances_to": "Family: Tanaupodidae"
-          },
-          "option_b": {
-            "morphology": "Pregenital tubercle absent.",
-            "advances_to": "Node 60"
-          }
-        },
-        "60": {
-          "option_a": {
-            "morphology": "Idionotum usually bearing numerous setiferous, fingerlike projections and with central area densely covered by long setae.",
-            "advances_to": "Family: Chyzeriidae"
-          },
-          "option_b": {
-            "morphology": "Idionotum lacking setiferous, fingerlike projections.",
-            "advances_to": "Node 61"
-          }
-        },
-        "61": {
-          "option_a": {
-            "morphology": "Idionotal setae trifurcate or spoon shaped.",
-            "advances_to": "Family: Neotrombidiidae"
-          },
-          "option_b": {
-            "morphology": "Idionotal setae variously shaped but not trifurcate or spoon shaped.",
-            "advances_to": "Node 62"
-          }
-        },
-        "62": {
-          "option_a": {
-            "morphology": "Idionotum either entirely surrounded by peripheral sclerotized band or bearing 2-16 circular depressions with peripheral sclerotized bands.",
-            "advances_to": "Family: Trombellidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Idionotum lacking both peripheral sclerotized band and circular depressions.",
-            "advances_to": "Node 63"
-          }
-        },
-        "63": {
-          "option_a": {
-            "morphology": "Idionotal setae borne on raised papillae.",
-            "advances_to": "Node 64"
-          },
-          "option_b": {
-            "morphology": "Idionotal setae not borne on raised papillae.",
-            "advances_to": "Node 65"
-          }
-        },
-        "64": {
-          "option_a": {
-            "morphology": "Idionotal setae borne on basal sclerites.",
-            "advances_to": "Family: Audyanidae"
-          },
-          "option_b": {
-            "morphology": "Idionotal setae not borne on basal sclerites.",
-            "advances_to": "Family: Trombellidae (pars)"
-          }
-        },
-        "65": {
-          "option_a": {
-            "morphology": "Palptibia bearing large spine ventrally or laterally; idionotal setae nude or sparsely barbed.",
-            "advances_to": "Family: Johnstonianidae"
-          },
-          "option_b": {
-            "morphology": "Palptibia lacking large spine ventrally or laterally (although large dorsal spine may be present adjacent to tibial claw); idionotal setae usually branched.",
-            "advances_to": "Node 66"
-          }
-        },
-        "66": {
-          "option_a": {
-            "morphology": "Idiosoma usually conspicuously constricted between legs II-III; palptibia bearing group of 2-3 lateral spinose setae in tandem.",
-            "advances_to": "Node 67"
-          },
-          "option_b": {
-            "morphology": "Idiosoma not constricted between legs II-III; palptibia lacking group of lateral spinose setae in tandem.",
-            "advances_to": "Node 68"
-          }
-        },
-        "67": {
-          "option_a": {
-            "morphology": "Prodorsal plate bearing 2 vi setae anteriorly; palpfemur bearing more setae than genu.",
-            "advances_to": "Family: Leeuwenhoekiidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsal plate bearing 0-1 vi setae anteriorly; palpfemur bearing about same number of setae as genu.",
-            "advances_to": "Family: Trombiculidae"
-          }
-        },
-        "68": {
-          "option_a": {
-            "morphology": "Idionotum bearing large plate posteriorly.",
-            "advances_to": "Family: Eutrombidiidae"
-          },
-          "option_b": {
-            "morphology": "Idionotum lacking plate posteriorly.",
-            "advances_to": "Node 69"
-          }
-        },
-        "69": {
-          "option_a": {
-            "morphology": "Palptibia bearing 1 or more large, spinose setae adjacent to claw and with other spinose setae arranged in conspicuous rows.",
-            "advances_to": "Node 70"
-          },
-          "option_b": {
-            "morphology": "Palptibia usually lacking large spinose setae adjacent to claw and either lacking any spinose setae or bearing spinose setae that are not arranged in rows; when bearing large spinose setae arranged in rows, then anterior edge of prodorsal plate concave.",
-            "advances_to": "Family: Trombidiidae"
-          }
-        },
-        "70": {
-          "option_a": {
-            "morphology": "Prodorsal plate bearing 1-2 setae anteriorly; eyes either absent or incorporated into prodorsal plate; idionotal setae with basal spines or bifurcate.",
-            "advances_to": "Family: Neothrombiidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsal plate usually bearing more than 2 setae anteriorly; eyes conspicuously present and not incorporated into prodorsal plate; idionotal setae setiform or highly modified.",
-            "advances_to": "Family: Microtrombidiidae"
-          }
-        },
-        "71": {
-          "option_a": {
-            "morphology": "Prodorsal area bearing 1 pair of bothridial organs.",
-            "advances_to": "Family: Calyptostomatidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsal area bearing 2 pairs of bothridial organs.",
-            "advances_to": "Node 72"
-          }
-        },
-        "72": {
-          "option_a": {
-            "morphology": "Gnathosoma entirely retractable into idiosoma; idionotal setae usually flattened, broad, and serrate.",
-            "advances_to": "Family: Smarididae"
-          },
-          "option_b": {
-            "morphology": "Gnathosoma with only chelicerae retractable into idiosoma; idionotal setae usually setiform.",
-            "advances_to": "Family: Erythraeidae"
-          }
-        }
-      }
-    },
-    "parasitengonina.to.family.larva": {
-      "title": "Family under Parasitengonina (larva)",
-      "parent": {
-        "rank": "Cohort",
-        "name": "Parasitengonina"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general",
-        "life_stage": "larva"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Palpgenu bearing 2 setae. Active in or on water and parasitic on aquatic insects.",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Palpgenu usually bearing 1 seta, rarely 2-4 setae. Active on terrestrial substrata and parasitic on terrestrial hosts.",
-            "advances_to": "Node 3"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Prodorsum bearing paired vi setae anterolaterally; venter with urstigmata sessile; palptibial claw simple or bisected; legs with claws not pectinate.",
-            "advances_to": "Node 4"
-          },
-          "option_b": {
-            "morphology": "Prodorsal plate bearing an unpaired vi seta anteromedially; venter with urstigmata stalked; palptibial claw 4-pronged; legs with claws pectinate.",
-            "advances_to": "Family: Stygothrombidiidae"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Urstigmata present between coxal plates I-II; anus usually present; coxal plates I-II contiguous or nearly so.",
-            "advances_to": "Node 41"
-          },
-          "option_b": {
-            "morphology": "Urstigmata usually absent between coxal plates I-II (exception: CALYPTOSTOMATIDAE); anus usually absent (exception: CALYPTOSTOMATIDAE); coxal plates I-II usually widely separated (exception: CALYPTOSTOMATIDAE).",
-            "advances_to": "Node 41"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Legs with 6 movable segments, with basifemur and telofemur separated.",
-            "advances_to": "Node 5"
-          },
-          "option_b": {
-            "morphology": "Legs with 5 movable segments, with basifemur and telofemur fused.",
-            "advances_to": "Node 13"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Gnathosoma with elaborate camerostome enclosing chelicerae, with palpi inserted ventrally; dorsal plate present and bearing only 2 pairs of setae (verticils-ve and vi) near anterior edge; coxal plates III located posteriorly on idiosoma with insertions of legs III located at posterolateral edges (posterior to level of excretory pore) and legs III directed posteriorly.",
-            "advances_to": "Node 6"
-          },
-          "option_b": {
-            "morphology": "Gnathosoma lacking elaborate camerostome, palpi inserted anteriorly; dorsal plate absent, or present and bearing more than 2 pairs of setae with verticils (ve and vi) and at least internal scapulars (si); coxal plates III usually located near midlength of idiosoma with insertions of legs III located anterolaterally (anterior to level of excretory pore) and legs III directed laterally (exception: APHEVIDERULICIDAE).",
-            "advances_to": "Node 7"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Dorsal plate relatively small; venter with rows of numerous small urstigmata between coxal plates I-II; coxal plates I-II separated from one another on each side and from opposite members medially; palpi massive, with tibia bearing 4 long, thick, curved setae; setae f3 often foliate.",
-            "advances_to": "Family: Hydrovolziidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal plate relatively large; venter with urstigmata inconspicuous and apparently absent; coxal plates I-II fused together to form single anterior plate; palpi moderate in size, with tibia bearing 2 slightly thickened, straight setae.",
-            "advances_to": "Family: Acherontacaridae"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Dorsal plate absent or small, covering less than 1/3 length of idiosoma and usually with internal scapular setae (si) at posterior edge; lateral eyes borne on separate platelets; leg tarsi with unmodified claws and empodium (emp).",
-            "advances_to": "Node 8"
-          },
-          "option_b": {
-            "morphology": "Dorsal plate large, covering well over 1/3 length of idiosoma and with internal scapular setae (si) near midlength; lateral eyes borne on single eye plates; leg tarsi with claws modified or reduced.",
-            "advances_to": "Node 10"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Claw (movable digit) of chelicerae over 1/2 length of basal segment; excretory pore setae (ps1 and ps2) and their alveoli absent.",
-            "advances_to": "Family: Thermacaridae"
-          },
-          "option_b": {
-            "morphology": "Claw (movable digit) of chelicerae less than 1/3 length of the basal segment; excretory pore setae (ps1 and ps2), or at least their alveoli, present.",
-            "advances_to": "Node 9"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Palptarsus with all setae slender; solenidia on leg tarsi slender.",
-            "advances_to": "Family: Hydrodromidae"
-          },
-          "option_b": {
-            "morphology": "Palptarsus with 2 thickened, bladelike setae; solenidia on tarsi I-II very thick.",
-            "advances_to": "Family: Hydryphantidae"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "Coxal plates I-III on each side all bearing 2 or more setae; tarsi of legs bearing paired claws and clawlike empodium.",
-            "advances_to": "Node 11"
-          },
-          "option_b": {
-            "morphology": "Coxal plates I-III on each side bearing 2 or 1, 1, and 1 setae respectively; tarsi of legs bearing 2 dissimilar clawlike structures terminally.",
-            "advances_to": "Family: Limnocharidae"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Coxal plates I-III on each side bearing about 25, 16, and 13 blunt, conical setae, respectively; palptrochanter, femur, genu, and tibia fused into single segment bearing 6 setae, palptarsus small and bearing only 2 setae + a solenidion.",
-            "advances_to": "Family: Apheviderulicidae"
-          },
-          "option_b": {
-            "morphology": "Coxal plates I-III on each side bearing 2, 2, and 2 setae, respectively; palpi with 5 movable segments and palptarsus bearing more than 2 setae + a solenidion.",
-            "advances_to": "Node 12"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Idionotum nearly covered by single, elongate dorsal plate in unengorged larvae, bearing 7 pairs of setae (or their alveoli); coxal plates with setae all simple; excretory pore plate elongate.",
-            "advances_to": "Family: Eylaidae"
-          },
-          "option_b": {
-            "morphology": "Idionotum with 3 separate plates bearing 5, 1, and 1 pairs of setae, respectively; coxal plates with setae 1a, 1b, 2b, and 3b blunt and conical in shape; excretory pore plate obcordate.",
-            "advances_to": "Family: Piersigiidae"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Dorsal plate bearing 8 pairs of setae, including verticils, scapulars, c3, and 3 additional pairs of hysterosomatic setae; leg tarsi lacking paired claws; excretory pore plate tiny and bearing neither setae nor their alveoli.",
-            "advances_to": "Family: Hydrachnidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal plate bearing 4-6 pairs of setae, including only verticils and scapulars or, in some cases, verticils, scapulars, and 1-2 pairs of hysterosomatic setae; leg tarsi bearing paired claws; excretory pore plate small to large, always bearing setae ps1 and ps2 or at least their alveoli.",
-            "advances_to": "Node 14"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "Coxal plates I-III on each side all separate, or all fused with plates of the two sides fused medially and dorsal plate round and bearing setae c1 laterally.",
-            "advances_to": "Node 15"
-          },
-          "option_b": {
-            "morphology": "Coxal plates I-II on each side separate and plates II-III fused at least medially, or all plates on each side fused with plates of two sides separate medially and dorsal plate elliptical and not bearing setae c1.",
-            "advances_to": "Node 27"
-          }
-        },
-        "15": {
-          "option_a": {
-            "morphology": "Tarsus III bearing 12 or more setae, including Ta8; dorsal plate usually elongate and elliptical and bearing only 4 pairs of setae (verticils and scapulars); when dorsal plate round and bearing 5 pairs of setae, including c1 laterally, then coxal plates III bearing setae pa and h2 in addition to 3a and all setae on palptarsi short and bladelike.",
-            "advances_to": "Node 16"
-          },
-          "option_b": {
-            "morphology": "Tarsus III usually bearing 11 or fewer setae, lacking at least Ta8; dorsal plate usually nearly round, rarely elongate and elliptical; when tarsus III bears 12 setae, then dorsal plate round and bearing 5 pairs of setae, including c1 laterally and coxal plates III bearing only setae 3a and at least 1 seta on palptarsi long and whiplike.",
-            "advances_to": "Node 18"
-          }
-        },
-        "16": {
-          "option_a": {
-            "morphology": "Palptarsi with no setae as long as palp; tarsi I-III bearing 13 or 14 (+1ω), 13 or 14 (+1ω), and 12 setae, respectively, lacking Ta15.",
-            "advances_to": "Family: Anisitsiellidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Palptarsi with at least 1 seta as long as palp; tarsi I-III bearing 15 (+1ω), 15 (+1ω), and 13 or 14 setae, respectively, including Ta15.",
-            "advances_to": "Node 17"
-          }
-        },
-        "17": {
-          "option_a": {
-            "morphology": "Dorsal plate longitudinally striate; coxal plates III bearing only setae 3a; excretory pore plate small and usually nearly quadrangular.",
-            "advances_to": "Family: Sperchontidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal plate with reticulate sculpturing; coxal plates III bearing 2 pairs of setae, 3a and supernumerary setae 3b; excretory pore plate relatively large and diamond shaped.",
-            "advances_to": "Family: Teutoniidae"
-          }
-        },
-        "18": {
-          "option_a": {
-            "morphology": "Coxal plates I-III on each side all fused and coxal plates of two sides fused medially, with setae 1a, 2b, and 3a reduced to vestiges; palptarsi with no setae as long as palp; dorsal plate with setae si reduced to vestiges.",
-            "advances_to": "Family: Acalyptonotidae"
-          },
-          "option_b": {
-            "morphology": "Coxal plates I-III on each side all separated by complete suture lines and coxal plates of two sides separate; palptarsi with at least 1 seta as long as palp.",
-            "advances_to": "Node 19"
-          }
-        },
-        "19": {
-          "option_a": {
-            "morphology": "Idiosoma moderately flattened dorsoventrally; gnathosoma projecting beyond anterior edge of dorsal plate, entirely exposed in dorsal view; excretory pore plate variously shaped but usually not attenuate anteriorly; palptarsi with long, thick, distal seta straight or only slightly bowed basally; leg genua with setae Ge5 borne on tubercles that usually are prominent.",
-            "advances_to": "Node 20"
-          },
-          "option_b": {
-            "morphology": "Idiosoma extremely flattened dorsoventrally; gnathosoma recessed beneath protruding anterior edge of dorsal plate, partially or entirely concealed in dorsal view (in unmounted specimens); excretory pore plate triangular with anterior apex attenuate; palptarsi with long, thick, distal seta strongly bowed, and usually lobed, basally; leg genua with setae Ge5 not borne on tubercles.",
-            "advances_to": "Node 22"
-          }
-        },
-        "20": {
-          "option_a": {
-            "morphology": "Dorsal plate bearing 4 pairs of setae (verticils and scapulars), with setae c1 on lateral membranous integument; setae c2 and d2 thick and long relative to other hysterosomatic setae; excretory pore setae ps1 and ps2 absent, represented by their alveoli on excretory pore plate; tibia I bearing 8 setae (+2ω), including Ti11; leg tarsi lacking setae Ta14.",
-            "advances_to": "Family: Momoniidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal plate bearing 5 pairs of setae, including the verticils, scapulars, and setae c1 laterally; setae c2 and d2 similar to other hysterosomatic setae; excretory pore setae ps1 and ps2 present on plate, tibia I bearing 7 setae (+2ω), lacking Ti11; leg tarsi bearing setae Ta14.",
-            "advances_to": "Node 21"
-          }
-        },
-        "21": {
-          "option_a": {
-            "morphology": "Tarsus III bearing 9 setae, lacking Ta12; tarsi II-III with setae Ta4 and Ta6 long (usually as long as respective segments); coxal plates II (and in some species coxal plates I) with conspicuous denticulate projections on posterior edges, coxal plates III with transverse muscle attachment scars; excretory pore plate subtriangular.",
-            "advances_to": "Family: Krendowskiidae"
-          },
-          "option_b": {
-            "morphology": "Tarsus III bearing at least 11 setae, including Ta12; tarsi II-III with setae Ta4 and Ta6 usually short (conspicuously shorter than respective segments); coxal plates I and II lacking denticulate projections on posterior edges, coxal plates III lacking transverse muscle attachment scars; excretory pore plate variously shaped, but rarely triangular.",
-            "advances_to": "Family: Arrenuridae"
-          }
-        },
-        "22": {
-          "option_a": {
-            "morphology": "Dorsal plate bearing 5 pairs of setae, including verticils, scapulars and setae c1 laterally.",
-            "advances_to": "Family: Mideopsidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal plate bearing 4 pairs of setae (verticils and scapulars), with setae c1 on lateral membranous integument.",
-            "advances_to": "Node 23"
-          }
-        },
-        "23": {
-          "option_a": {
-            "morphology": "Tibiae II-III bearing 9 setae (+2ω and +1ω, respectively), including both Ti10 and Ti11.",
-            "advances_to": "Node 24"
-          },
-          "option_b": {
-            "morphology": "Tibiae II-III bearing fewer than 9 setae (+2ω and +1ω, respectively), lacking either Ti10 or Ti11, or both.",
-            "advances_to": "Node 25"
-          }
-        },
-        "24": {
-          "option_a": {
-            "morphology": "Palptarsus with long, thick, distal seta bowed, but not deeply lobed or fringed basally, and with most medial seta moderately thick but not fringed; legs II-III with setae Ge5, Ti9, and Ti11 much longer than respective segments and plumose, and setae Ta4 and Ta6 much longer than respective segments.",
-            "advances_to": "Family: Mideidae"
-          },
-          "option_b": {
-            "morphology": "Palptarsus with long, thick, distal seta bowed, deeply lobed and fringed basally, and most medial seta thick and fringed; legs II-III with setae Ge5, Ti9, and Ti11 shorter than respective segments and simple, and setae Ta4 and Ta6 shorter than respective segments.",
-            "advances_to": "Family: Nudomideopsidae"
-          }
-        },
-        "25": {
-          "option_a": {
-            "morphology": "Tibia II bearing 7 setae (+2ω), lacking Ti10 and Ti11; tibia III bearing 8 setae (+1ω), lacking Ti10.",
-            "advances_to": "Family: Laversiidae"
-          },
-          "option_b": {
-            "morphology": "Tibiae II and III bearing 8 setae (+2ω and +1ω, respectively), including Ti10 but lacking Ti11.",
-            "advances_to": "Node 26"
-          }
-        },
-        "26": {
-          "option_a": {
-            "morphology": "Dorsum with setae si located well in anterior half of plate and setae c1 located in lateral integument near midlength of plate, posterior to level of setae si.",
-            "advances_to": "Family: Neoacaridae"
-          },
-          "option_b": {
-            "morphology": "Dorsum with setae si near midlength of plate and setae c1 located in lateral integument near setae c3, anterior to level of setae si.",
-            "advances_to": "Family: Athienemanniidae"
-          }
-        },
-        "27": {
-          "option_a": {
-            "morphology": "Coxal plates III bearing setae 3a and at least 1 other pair of setae (pa or 3b) and excretory pore plate bearing only setae ps1 and ps2.",
-            "advances_to": "Node 28"
-          },
-          "option_b": {
-            "morphology": "Coxal plates III usually bearing only 1 pair of setae, 3a, when coxal plates III also bearing setae pa, then excretory pore plate bearing setae h2 in addition to ps1 and ps2.",
-            "advances_to": "Node 30"
-          }
-        },
-        "28": {
-          "option_a": {
-            "morphology": "Coxal plates III truncate posteriorly, bearing 3 pairs of setae, including 3a and both pa and h2 on posterior edges; tibiae of legs I-III bearing 9 setae (+2ω, +2ω, and +1ω, respectively), including both Ti9 and Ti10; tarsi I-II bearing 14 setae (+1ω), including Ta14 and Ta15; cheliceral bases separate.",
-            "advances_to": "Family: Lebertiidae"
-          },
-          "option_b": {
-            "morphology": "Coxal plates III rounded or pointed posteriorly, bearing 2 pairs of setae, including setae 3a and either 3b laterally or pa posteromedially; tibiae I-III bearing 8 setae (+2ω, +2ω, and +1ω, respectively), lacking either Ti9 or Ti10; tarsi I-II bearing 13 setae (+1ω), lacking Ta15, or 12 setae (+1ω), lacking both Ta14 and Ta15; cheliceral bases fused.",
-            "advances_to": "Node 29"
-          }
-        },
-        "29": {
-          "option_a": {
-            "morphology": "Dorsal plate bearing 5 pairs of setae including verticils, scapulars, and setae c1 laterally; integument beneath posterior edge of dorsal plate intricately folded; coxal plates I elongate, extending posteriorly nearly to level of excretory pore plate; coxal plates III bearing setae 3b laterally; tarsi I-II bearing 12 setae (+1ω), lacking Ta14.",
-            "advances_to": "Family: Oxidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal plate bearing 4 pairs of setae (verticils and scapulars) or 5 pairs including verticils, scapulars, and setae d1 laterally; integument beneath posterior edge of dorsal plate not intricately folded; coxal plates I not elongate, extending posteriorly only to level of insertion of legs III, or fused with plates II; plates III bearing setae pa posteromedially; tarsi I-II bearing 13 setae (+1ω), including Ta14.",
-            "advances_to": "Family: Torrenticolidae"
-          }
-        },
-        "30": {
-          "option_a": {
-            "morphology": "Cheliceral bases separate; tarsus III bearing 12 setae, including Ta9; excretory pore plate very large (equal in width to coxal plates of one side), bearing setae ps1 and ps2 anteromedially and occasionally also setae h2 at posterolateral angles, and with excretory pore near anterior edge; coxal plates I separate from posterior coxal groups, coxal plates III bearing only setae 3a.",
-            "advances_to": "Family: Anisitsiellidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Cheliceral bases fused; tarsus III usually bearing 11 or fewer setae, lacking Ta9 (exception: LIMNESIIDAE); excretory pore plate small to very large, when equal in width to coxal plates of one side (measured from midline to insertion of leg III), then either excretory pore located near posterior edge of plate, or coxal plates I fused to posterior coxal groups, or coxal plates III bearing setae pa in addition to setae 3a.",
-            "advances_to": "Node 31"
-          }
-        },
-        "31": {
-          "option_a": {
-            "morphology": "Two pairs of urstigmata borne distally between coxal plates I-II; tibiae I-II bearing 7-8 setae (+2ω), including only 3 ventral setae, lacking either Ti8 and Ti9 or Ti10 and Ti11.",
-            "advances_to": "Family: Limnesiidae"
-          },
-          "option_b": {
-            "morphology": "One pair of urstigmata borne distally between coxal plates I and II; tibiae of legs I and II usually bearing 9 or more setae (+2ω), including 5 ventral setae (Ti7, Ti8, Ti9, Ti10, and Ti11) (exception: FELTRIIDAE).",
-            "advances_to": "Node 32"
-          }
-        },
-        "32": {
-          "option_a": {
-            "morphology": "Coxal plates I-III on each side all fused.",
-            "advances_to": "Family: Hygrobatidae"
-          },
-          "option_b": {
-            "morphology": "Coxal plates I separate from posterior coxal group on each side.",
-            "advances_to": "Node 33"
-          }
-        },
-        "33": {
-          "option_a": {
-            "morphology": "Tarsi I-II bearing 10 setae (+1ω), lacking Ta14 and either Ta12 or Ta9.",
-            "advances_to": "Node 34"
-          },
-          "option_b": {
-            "morphology": "Tarsi I-II bearing 11 or more setae (+1ω), including Ta9.",
-            "advances_to": "Node 35"
-          }
-        },
-        "34": {
-          "option_a": {
-            "morphology": "Dorsal and coxal plates, and leg sclerites, conspicuously longitudinally striate; coxal plates III rounded posteriorly; tibia I bearing 7 setae (+2ω), lacking Ti10 and Ti11.",
-            "advances_to": "Family: Feltriidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal and coxal plates reticulate; coxal plates III bearing pointed projections posteriorly; tibia I bearing 9 setae (+2ω), including Ti10 and Ti11.",
-            "advances_to": "Family: Unionicolidae"
-          }
-        },
-        "35": {
-          "option_a": {
-            "morphology": "Tibiae I-III bearing 7 setae (+2ω, +2ω, and +1ω, respectively), lacking Ti9 and Ti11.",
-            "advances_to": "Family: Aturidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Tibiae I-III bearing 8 or more setae (+2ω, +2ω, and +1ω, respectively), including Ti9 and Ti11.",
-            "advances_to": "Node 36"
-          }
-        },
-        "36": {
-          "option_a": {
-            "morphology": "Coxal plates III with pointed or lobed projections posteriorly and bearing 2 pairs of setae, 3a anteromedially and pa posteromedially; excretory pore plate large, bearing 3 pairs of setae, ps1 and ps2, and h2 posterolaterally.",
-            "advances_to": "Family: Aturidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Coxal plates III without projections, or with small projections, posteriorly and bearing only setae 3a; excretory pore plate small or large, bearing only setae ps1 and ps2.",
-            "advances_to": "Node 37"
-          }
-        },
-        "37": {
-          "option_a": {
-            "morphology": "Coxal plates III with small projections posteriorly; excretory pore plate small, little larger than combined area of excretory pore and bases of setae ps1 and ps2.",
-            "advances_to": "Family: Wettinidae"
-          },
-          "option_b": {
-            "morphology": "Coxal plates III without projections posteriorly; excretory pore plate considerably larger than combined area of excretory pore and bases of setae ps1 and ps2.",
-            "advances_to": "Node 38"
-          }
-        },
-        "38": {
-          "option_a": {
-            "morphology": "Tarsi I bearing 13 setae (+1ω), including Ta8; excretory pore plate large and usually triangular or obcordate.",
-            "advances_to": "Node 39"
-          },
-          "option_b": {
-            "morphology": "Tarsi I bearing 12 setae (+1ω), lacking Ta8; excretory pore plate small to large, and variously shaped.",
-            "advances_to": "Node 40"
-          }
-        },
-        "39": {
-          "option_a": {
-            "morphology": "Excretory pore plate with setae ps1 close together adjacent to excretory pore in posterior half of plate.",
-            "advances_to": "Family: Pionidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Excretory pore plate with setae ps1 widely separated and removed from excretory pore in anterior half of plate.",
-            "advances_to": "Family: Aturidae (pars)"
-          }
-        },
-        "40": {
-          "option_a": {
-            "morphology": "Excretory pore plate small and subtriangular, with setae ps2 borne near posterolateral angles of plate; suture lines between coxal plates II-III parallel to anterior edge of plate II, coxal plates without distinct lateral coxal apodemes and coxal plates III lacking medial coxal apodemes and transverse muscle attachment scars.",
-            "advances_to": "Family: Aturidae (pars)"
-          },
-          "option_b": {
-            "morphology": "Excretory pore plate variously shaped, when subtriangular with setae ps2 borne near posterolateral angles of plate then suture lines between coxal plates II-III terminating in distinct lateral coxal apodemes that are usually nearly transverse and coxal plates III bearing at least medial coxal apodemes.",
-            "advances_to": "Family: Pionidae (pars)"
-          }
-        },
-        "41": {
-          "option_a": {
-            "morphology": "Urstigmata present between coxal plates I-II; anus usually present; prodorsal region with 1 or 2 pairs of trichobothria; coxal plates I-II contiguous or nearly so.",
-            "advances_to": "Node 42"
-          },
-          "option_b": {
-            "morphology": "Urstigmata absent; anus usually absent; prodorsal region usually with 2 pairs of trichobothria; coxal plates I-II widely separated.",
-            "advances_to": "Node 54"
-          }
-        },
-        "42": {
-          "option_a": {
-            "morphology": "Prodorsal plate (scutum) present; coxal plates usually bearing 1-2 (rarely many) setae each; palpgenu usually bearing fewer than 2 setae.",
-            "advances_to": "Node 43"
-          },
-          "option_b": {
-            "morphology": "Prodorsal plate absent; coxal plates bearing 15 or more setae each; palpgenu bearing 2-4 setae.",
-            "advances_to": "Family: Calyptostomatidae"
-          }
-        },
-        "43": {
-          "option_a": {
-            "morphology": "Idionotum with unpaired prodorsal plate, and at least 1 other unpaired sclerite (scutellum) bearing at least setae c1.",
-            "advances_to": "Node 44"
-          },
-          "option_b": {
-            "morphology": "Idionotum with unpaired prodorsal sclerite but lacking scutellum, with setae c1 located on paired platelets.",
-            "advances_to": "Node 47"
-          }
-        },
-        "44": {
-          "option_a": {
-            "morphology": "Femur I bearing 5 setae; femur II usually bearing 4 (rarely 5) setae; genua of legs II-III each bearing 3-4 setae.",
-            "advances_to": "Family: Trombidiidae"
-          },
-          "option_b": {
-            "morphology": "Femur I bearing 6 setae; femur II bearing 4 or 5 setae; genua of legs II-III each usually bearing 2 (rarely 4) setae.",
-            "advances_to": "Node 45"
-          }
-        },
-        "45": {
-          "option_a": {
-            "morphology": "Femur II bearing 4 branched setae; genu of leg II lacking microseta k.",
-            "advances_to": "Family: Neothrombiidae"
-          },
-          "option_b": {
-            "morphology": "Femur II with 5 branched setae; genu II usually bearing microseta k.",
-            "advances_to": "Node 46"
-          }
-        },
-        "46": {
-          "option_a": {
-            "morphology": "Coxal plates with setae 1b, 3b, and usually 2b, thick and bifid; tarsus I with famulus usually distal to solenidia ω; parasitic on Orthoptera.",
-            "advances_to": "Family: Eutrombidiidae"
-          },
-          "option_b": {
-            "morphology": "Coxal plates with setae 1b, 2b, and 3b setiform; tarsus I with famulus proximal or distal to solenidia ω; parasitic on Diptera.",
-            "advances_to": "Family: Microtrombidiidae"
-          }
-        },
-        "47": {
-          "option_a": {
-            "morphology": "Femur I bearing 1 or more solenidia ω; parasitic on arthropods.",
-            "advances_to": "Node 52"
-          },
-          "option_b": {
-            "morphology": "Femora I-III usually lacking solenidia ω; parasitic on arthropods or vertebrates.",
-            "advances_to": "Node 48"
-          }
-        },
-        "48": {
-          "option_a": {
-            "morphology": "Anal plate present; parasitic on arthropods.",
-            "advances_to": "Node 50"
-          },
-          "option_b": {
-            "morphology": "Anal plate absent; usually parasitic on vertebrates (rarely arthropods).",
-            "advances_to": "Family: Tanaupodidae"
-          }
-        },
-        "49": {
-          "option_a": {
-            "morphology": "Coxal plates II-III each bearing 2-4 setae.",
-            "advances_to": "Family: Chyzeriidae"
-          },
-          "option_b": {
-            "morphology": "Coxal plates II-III each bearing 1 seta.",
-            "advances_to": "Node 51"
-          }
-        },
-        "50": {
-          "option_a": {
-            "morphology": "Pretarsi I-II each bearing paired claws and clawlike empodium. Parasitic on vertebrates.",
-            "advances_to": "Family: Audyanidae"
-          },
-          "option_b": {
-            "morphology": "Pretarsi I-II each with paired claws but lacking empodium. Parasitic on scorpions.",
-            "advances_to": "Node 51"
-          }
-        },
-        "51": {
-          "option_a": {
-            "morphology": "Genu II bearing 4 barbed setae; prodorsal plate usually bearing 2 (rarely 1) vi setae.",
-            "advances_to": "Family: Leeuwenhoekiidae"
-          },
-          "option_b": {
-            "morphology": "Genu II bearing 3 barbed setae; prodorsal plate bearing 0-1 vi setae.",
-            "advances_to": "Family: Trombiculidae"
-          }
-        },
-        "52": {
-          "option_a": {
-            "morphology": "Femora II-III each bearing 2 or more solenidia θ; pretarsus with empodium.",
-            "advances_to": "Node 53"
-          },
-          "option_b": {
-            "morphology": "Femora II-III each bearing 0-1 solenidia θ; pretarsus lacking empodium.",
-            "advances_to": "Family: Johnstonianidae"
-          }
-        },
-        "53": {
-          "option_a": {
-            "morphology": "Femur I bearing 7 branched setae; coxal plates distinctly reticulate.",
-            "advances_to": "Family: Neotrombidiidae"
-          },
-          "option_b": {
-            "morphology": "Femur I bearing 5-6 branched setae; coxal plates smooth.",
-            "advances_to": "Family: Trombellidae"
-          }
-        },
-        "54": {
-          "option_a": {
-            "morphology": "Leg I bearing 1 or more trichobothria on genu, tibia, and/or tarsus; tibia I bearing 3 or more solenidia.",
-            "advances_to": "Family: Smarididae"
-          },
-          "option_b": {
-            "morphology": "Legs lacking trichobothria; tibia I usually bearing 2 (rarely 3) solenidia.",
-            "advances_to": "Family: Erythraeidae"
-          }
-        }
-      }
-    },
-    "parasitiformes.to.order": {
-      "title": "Order under Parasitiformes",
-      "parent": {
-        "rank": "Superorder",
-        "name": "Parasitiformes"
-      },
-      "identifies": [
-        "Order"
-      ],
-      "endpoint_ranks": [
-        "Order"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Tarsus of palp with 1 or 2 terminal claws; adult opisthosoma with 4 pairs of dorsolateral stigmata posterior to level of coxae III; anus terminal; trochanters III and IV divided into 2 podomeres.",
-            "advances_to": "Order: Opilioacarida"
-          },
-          "option_b": {
-            "morphology": "Tarsus of palp without terminal claws, at most with a tined clawlike structure on inner basal surface; opisthosoma with 1 pair of ventrolateral stigmata in region lateral to coxae II-IV or posterior to coxa IV; anus ventral or ventro-subterminal; trochanters III and IV undivided.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Subcapitulum with hypostome modified into a piercing organ with retrorse teeth but without corniculi; tarsus of palp without a tined apotelic claw; opisthosomatic stigmata without elongate peritremes; dorsum of tarsus I with a sensory complex (Haller's organ) consisting of a deep posterior pit and a less well-defined anterior depression, both with sensory setae.",
-            "advances_to": "Order: Ixodida"
-          },
-          "option_b": {
-            "morphology": "Subcapitulum without hypostomatic modifications as above but with a pair of hornlike, setiform, or pliable corniculi; tarsus of palp usually with a tined apotelic claw; opisthosomatic stigmata usually with elongate peritremes extending anteriorly; dorsum of tarsus I without distinct Haller's organ, at most with a single pit or depression.",
-            "advances_to": "Node 3"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Venter of subcapitulum with 5 or more pairs of setae (excluding the corniculi); tritosternum absent or, if present, consisting of a pair of flagellate laciniae on a small base; anal valves of adults with 2 or more pairs of setae; bases of chelicerae enclosed by pliable cuticle, epistome (gnathotectum) lacking.",
-            "advances_to": "Order: Holothyrida"
-          },
-          "option_b": {
-            "morphology": "Venter of subcapitulum with a maximum of 4 pairs of setae (excluding the corniculi); tritosternum usually present, with a distinctive base and 1-2 setulose laciniae (these structures reduced or absent in some parasitic taxa); anal valves of adults nude or at most with 1 pair of setae; bases of chelicerae enclosed by a sclerotized ring, usually with projecting epistome.",
-            "advances_to": "Order: Mesostigmata"
-          }
-        }
-      }
-    },
-    "phyllocoptinae.to.tribe": {
-      "title": "Tribe under Phyllocoptinae",
-      "parent": {
-        "rank": "Subfamily",
-        "name": "Phyllocoptinae"
-      },
-      "identifies": [
-        "Tribe"
-      ],
-      "endpoint_ranks": [
-        "Tribe"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Empodium divided.",
-            "advances_to": "Tribe: Acaricalini"
-          },
-          "option_b": {
-            "morphology": "Empodium entire.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Scapular setae (sc) absent.",
-            "advances_to": "Tribe: Calacarini"
-          },
-          "option_b": {
-            "morphology": "Scapular setae (sc) present.",
-            "advances_to": "Node 3"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Opisthosoma when viewed dorsally with lateral lobes or pointed projections from some or all annuli, or with a plate behind prodorsal shield.",
-            "advances_to": "Tribe: Tegonotini"
-          },
-          "option_b": {
-            "morphology": "Opisthosoma without lateral lobes or plate.",
-            "advances_to": "Node 4"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Scapular tubercles ahead of or near rear shield margin; setae directed forward, up or centrad; if tubercles and setae on rear shield margin then tubercles are subcylindrical and setae projecting convergent to the rear.",
-            "advances_to": "Tribe: Phyllocoptini"
-          },
-          "option_b": {
-            "morphology": "Scapular tubercles on or near rear shield margin; setae directed to rear.",
-            "advances_to": "Tribe: Anthocoptini"
-          }
-        }
-      }
-    },
-    "phytophagous-mites.to.superfamily": {
-      "title": "Superfamily under Phytophagous Mites",
-      "parent": {
-        "rank": "Subcohort",
-        "name": "Phytophagous Mites"
-      },
-      "identifies": [
-        "Superfamily"
-      ],
-      "endpoint_ranks": [
-        "Superfamily"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Minute, elongate and worm-like (vermiform); body annulated; only 2 pairs of legs present in all life stages; no visible segmentation.",
-            "advances_to": "Superfamily: Eriophyoidea"
-          },
-          "option_b": {
-            "morphology": "Body is globus or oval with dorsal setae; larva with three pairs of legs and nymphs and adults with four pairs of legs; one pair of closely placed stigmata at the base of chelicerae or at the anterior idiosomal shoulders.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Peritreme well developed; pedipalp with thumb-claw process; body not with transverse dorsal plates; empodium and claw on pretarsus.",
-            "advances_to": "Superfamily: Tetranychoidea"
-          },
-          "option_b": {
-            "morphology": "Peritreme absent; pedipalp without thumb-claw process; body with transverse dorsal plate; prodorsum of adult females with bothridial setae.",
-            "advances_to": "Superfamily: Tarsonemoidea"
-          }
-        }
-      }
-    },
-    "prostigmata.to.cohort-family": {
-      "title": "Cohort, Family under Prostigmata",
-      "parent": {
-        "rank": "Suborder",
-        "name": "Prostigmata"
-      },
-      "identifies": [
-        "Cohort",
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Cohort",
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Adults and deutonymphs often densely hypertrichous, typically free-living predators; larvae usually strongly heteromorphic, parasitic on arthropods or vertebrates, protonymphs and tritonymphs calyptostatic. Terrestrial forms with 1 or 2 pairs of bothridial setae on a prodorsal sclerite, aquatic forms highly diverse, without bothridial setae, usually with multiple modified idiosomatic lyrifissures (glandularia) that open on small platelets or amalgamated shields.",
-            "advances_to": "Cohort: Parasitengonina"
-          },
-          "option_b": {
-            "morphology": "Adults and nymphs with or without dense hypertrichy, bothridial setae and prodorsal sclerite present or absent, without glandularia. Larvae more or less similar to other stages, free living or parasitic. Alternating calyptostasis rare.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "With undivided, heavily armored dorsal and ventral shields, coxal fields expanded and mesally contiguous. Prodorsum with 2 pairs of trichobothria (bothridial setae vi, si) and 4 additional pairs of setae; a pair of lateral ocelli (rarely absent) and an unpaired anteromedian ocellus; one or more pairs of lateral pustules. Genital and anal valves of females contiguous, those of males usually separated; 2 pairs of genital papillae. Chelicerae separate and strongly chelate, each with 2 setae (cha, chb).",
-            "advances_to": "Family: Labidostomatidae"
-          },
-          "option_b": {
-            "morphology": "Variously armored or soft bodied. Prodorsum with a maximum of 5 pairs of setae, including 0-2 pairs of bothridial setae, or hypertrichous; ocelli present or absent, lateral pustules absent. 0-3 pairs of genital papillae in adults. Chelicerae various.",
-            "advances_to": "Node 3"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Females usually with a pair of stigmata and associated tracheae anterolaterally on prodorsum and commonly with a pair of capitate bothridial setae (both usually absent in immatures and males); peritremes absent. Opisthosoma usually with a longitudinal series of 4 dorsal plates (tergites), often overlapping. Tarsi of legs II-III with stalked, smooth, padlike empodium usually flanked by paired claws, or rarely without empodium but with paired claws. Sexual dimorphism pronounced, males often with a genital capsule.",
-            "advances_to": "Node 56"
-          },
-          "option_b": {
-            "morphology": "Females and males with a pair of stigmata between cheliceral bases or on posterodorsal margin of gnathosoma and often opening into a simple to complex peritreme, or absent; prodorsal trichobothria, if present, of various forms and on immatures and adults of both sexes. Opisthosoma variously armored or soft bodied. Tarsi of legs II-III generally with setulose, rayed, or clawlike empodium, often flanked by paired claws. Sexual dimorphism strong or weak, but males without genital capsule.",
-            "advances_to": "Node 4"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "With 1-2 pairs of variously shaped prodorsal bothridial setae usually inserted in distinctly cup-shaped bothridia.",
-            "advances_to": "Node 5"
-          },
-          "option_b": {
-            "morphology": "Without prodorsal bothridial setae.",
-            "advances_to": "Node 10"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Legs III-IV absent in all stages; legs I-II ending in a highly branched empodial featherclaw; opisthosoma elongated, annulated, vermiform, or fusiform. Obligate plant parasites.",
-            "advances_to": "Node 6"
-          },
-          "option_b": {
-            "morphology": "Legs III present and legs IV usually present in postlarval instars; one or more pairs of legs typically ending in an empodium of various forms and often with a pair of lateral claws; opisthosoma variously shaped. Free living or aquatic, or associated with a variety of plant and animal hosts.",
-            "advances_to": "Node 8"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Prodorsal shield with 1, 3, 4, or 5 setae; spermathecal tubes usually long; tibia I with or without solenidion.",
-            "advances_to": "Family: Phytoptidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsal shield nude or with 1 pair of setae; spermathecal tubes short; tibia I without solenidion.",
-            "advances_to": "Node 7"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Gnathosoma large compared to body and stylets abruptly curving ventrally near base; featherclaw deeply divided medially or entire.",
-            "advances_to": "Family: Diptilomiopidae"
-          },
-          "option_b": {
-            "morphology": "Gnathosoma relatively small compared to body and stylets more or less straight; featherclaw entire, rarely divided medially.",
-            "advances_to": "Family: Eriophyidae"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Marine, brackish, and freshwater mites usually found attached to substrates (including algae and marine invertebrates) or in interstitial samples; tarsi I-IV with strongly developed lateral claws, usually with serrate margins, and often with a clawlike or bifid empodium; adults with 2 to several pairs of genital papillae on, near, or under a pair of genital valves.",
-            "advances_to": "Node 9"
-          },
-          "option_b": {
-            "morphology": "Mostly terrestrial mites, occasionally intertidal or on the surface of freshwater, or parasitic on terrestrial plants and animals; tarsal apoteles various but not modified into clawlike holdfasts with serrate margins; adults with 3 pairs of genital papillae or genital papillae absent.",
-            "advances_to": "Node 29"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "With 5-10 pairs of dorsal idiosomatic setae; marine and freshwater forms.",
-            "advances_to": "Family: Halacaridae"
-          },
-          "option_b": {
-            "morphology": "With 16-20 pairs of dorsal setae; freshwater forms.",
-            "advances_to": "Family: Pezidae"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "Prodorsal peritremes present (sometimes emergent), palptibia usually with at least 1 clawlike seta distally and often apposed to a reduced or thumblike palptarsus; if thumb-claw process absent, then body elongate and with 1 or more postpedal furrows or oval with a postpedal constriction.",
-            "advances_to": "Node 23"
-          },
-          "option_b": {
-            "morphology": "Peritremes absent, palptibia without clawlike setae or thumblike palptarsus; postpedal furrows absent.",
-            "advances_to": "Node 11"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Leg trichobothria absent; chelicerae fused or free but with little potential for lateral motion, inserted on or fused with short subcapitulum.",
-            "advances_to": "Node 13"
-          },
-          "option_b": {
-            "morphology": "Trichobothria on tibia IV, and sometimes on tibia I, tarsus III, and tarsus IV; chelicerae free and capable of considerable lateral motion, inserted on elongate subcapitular snout.",
-            "advances_to": "Node 12"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Adults with 3 pairs of genital papillae and 2 or more eugenital setae; palpi usually ending in 1-2 elongate setae and often elbowed, without strong spines or knobs; tarsi III-IV and tibia I typically with trichobothria.",
-            "advances_to": "Family: Bdellidae"
-          },
-          "option_b": {
-            "morphology": "Adults with 2 pairs of genital papillae and usually without eugenital setae; palpi usually ending in a stout spine and sometimes with strong spines or knobs; tarsi III-IV and tibia I without trichobothria.",
-            "advances_to": "Family: Cunaxidae"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Chelicerae freely articulating, digits variously formed; tarsus I with a famulus and at least 1 recumbent solenidion; idiosomatic chaetome sometimes with postlarval hypertrichy; naso usually present.",
-            "advances_to": "Node 14"
-          },
-          "option_b": {
-            "morphology": "Chelicerae closely contiguous or fused medially, fixed digit regressed and movable digit styletlike to whiplike; tarsus I without famulus, solenidia erect; idiosoma never hypertrichous, naso absent.",
-            "advances_to": "Node 20"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "Body fully sclerotized, dorsum with V- or Y-shaped furrow and an anterior epirostrum projecting over the gnathosoma.",
-            "advances_to": "Family: Penthalodidae"
-          },
-          "option_b": {
-            "morphology": "Soft bodied, without V- or Y-shaped furrow or epirostrum.",
-            "advances_to": "Node 15"
-          }
-        },
-        "15": {
-          "option_a": {
-            "morphology": "Palptibia with 6-7 setae; subcapitulum with more than 15 setae; naso-prodorsal process present and hypertrichous.",
-            "advances_to": "Family: Eriorhynchidae"
-          },
-          "option_b": {
-            "morphology": "Palptibia with 3 or fewer setae; subcapitulum typically with 2 or 4 pairs of setae; naso, when present, not enlarged, usually bearing one pair of setae.",
-            "advances_to": "Node 16"
-          }
-        },
-        "16": {
-          "option_a": {
-            "morphology": "Chelicerae strongly chelate, shearlike, with well-developed fixed digit opposed to large, often toothed, movable digit.",
-            "advances_to": "Node 17"
-          },
-          "option_b": {
-            "morphology": "Chelicerae weakly chelate, hooked, or styletlike, not shearlike.",
-            "advances_to": "Node 19"
-          }
-        },
-        "17": {
-          "option_a": {
-            "morphology": "Palpi with 5 free segments; tarsus I with 2 solenidia; empodia clawlike.",
-            "advances_to": "Family: Pentapalpidae"
-          },
-          "option_b": {
-            "morphology": "Palpi with 4 free segments; tarsus I with 3 or more solenidia; empodia padlike.",
-            "advances_to": "Node 18"
-          }
-        },
-        "18": {
-          "option_a": {
-            "morphology": "Palptibia with 3 setae; tibia I with 2 or more solenidia, prodorsum with 1 pair of bothridia and 3 pairs of setae.",
-            "advances_to": "Family: Rhagidiidae"
-          },
-          "option_b": {
-            "morphology": "Palptibia with 1 seta; tibia I with 1 solenidion, prodorsum with 1 pair of bothridia and 4 pairs of setae.",
-            "advances_to": "Family: Strandtmanniidae"
-          }
-        },
-        "19": {
-          "option_a": {
-            "morphology": "Anal opening dorsal or dorsoterminal; intercoxal region with 15 or more pairs of setae; femora IV similar to others.",
-            "advances_to": "Family: Penthaleidae"
-          },
-          "option_b": {
-            "morphology": "Anal opening ventral or terminal; intercoxal region with fewer than 10 pairs of setae; femora IV normal or strongly swollen, used in jumping.",
-            "advances_to": "Family: Eupodidae"
-          }
-        },
-        "20": {
-          "option_a": {
-            "morphology": "Tibia I with deeply recessed solenidion in saclike structure connecting to surface by narrow duct; legs and prodorsum often with netlike ornamentation; adults with 2 pairs of genital papillae.",
-            "advances_to": "Family: Ereynetidae"
-          },
-          "option_b": {
-            "morphology": "Solenidion of tibia I on surface or absent; with plicate ornamentations or sclerotized plates; adults with 0-2 pairs of genital papillae.",
-            "advances_to": "Node 21"
-          }
-        },
-        "21": {
-          "option_a": {
-            "morphology": "Adults with only 1 pair of genital papillae, or papillae absent; movable digit of chelicerae styletlike or whiplike; palptarsus usually with 3 or 4 elongated setae; males typically with an aedeagus.",
-            "advances_to": "Family: Iolinidae"
-          },
-          "option_b": {
-            "morphology": "Adults with 2 pairs of genital papillae; movable digit of chelicerae styletlike; palptarsus with no markedly elongated setae; males without aedeagus.",
-            "advances_to": "Node 22"
-          }
-        },
-        "22": {
-          "option_a": {
-            "morphology": "Legs I antenniform, apotele vestigial or absent; median eyespot consisting of subcuticular silver granules present; epimeral seta 3d absent.",
-            "advances_to": "Family: Triophtydeidae"
-          },
-          "option_b": {
-            "morphology": "Legs I with claws; median eyespot absent; epimeral seta 3d usually present.",
-            "advances_to": "Family: Tydeidae"
-          }
-        },
-        "23": {
-          "option_a": {
-            "morphology": "Genital papillae absent; palptarsus reduced; tarsal apoteles padlike, produced on annulate stalks.",
-            "advances_to": "Family: Pseudocheylidae"
-          },
-          "option_b": {
-            "morphology": "With 2-3 pairs of genital papillae; palptarsus usually well developed; tarsal apoteles sessile.",
-            "advances_to": "Node 24"
-          }
-        },
-        "24": {
-          "option_a": {
-            "morphology": "Elongate mites with 1 or more postpedal furrows; legs I-II widely separated from legs III-IV; with 1 pair of prodorsal bothridial setae.",
-            "advances_to": "Node 25"
-          },
-          "option_b": {
-            "morphology": "Oval to subrectangular mites without postpedal furrows, although sometimes with a postpedal constriction; legs I-IV closely inserted; with 2 pairs of prodorsal bothridial setae.",
-            "advances_to": "Node 26"
-          }
-        },
-        "25": {
-          "option_a": {
-            "morphology": "Palpi linear, without thumb-claw process; legs I ending in paired claws; prodorsal bothridial setae filiform.",
-            "advances_to": "Family: Paratydeidae"
-          },
-          "option_b": {
-            "morphology": "Palps with well-developed thumb-claw process; legs I without apoteles; bothridial setae clubbed.",
-            "advances_to": "Family: Stigmocheylidae"
-          }
-        },
-        "26": {
-          "option_a": {
-            "morphology": "Moderately to strongly sclerotized mites with 1-2 large dorsal shields or a complex of 8 dorsal plates.",
-            "advances_to": "Node 27"
-          },
-          "option_b": {
-            "morphology": "Soft-bodied mites with at most a weakly sclerotized prodorsal shield.",
-            "advances_to": "Node 28"
-          }
-        },
-        "27": {
-          "option_a": {
-            "morphology": "Adults leathery, with 8 heavily sclerotized dorsal shields and 3 pairs of genital papillae; legs I with strongly spinose anterolateral setae (rake-legged mites).",
-            "advances_to": "Family: Caeculidae"
-          },
-          "option_b": {
-            "morphology": "Adults with 1-2 large, moderately sclerotized dorsal shields and 2 pairs of genital papillae; legs I without spinose setae as above.",
-            "advances_to": "Family: Adamystidae"
-          }
-        },
-        "28": {
-          "option_a": {
-            "morphology": "Naso weakly developed and nude; peritremes sinuous but not emergent distally; prodorsal bothridia usually with rosette pattern; palptarsus reduced, not extending beyond palptibial claw; pretarsal empodia I-II absent.",
-            "advances_to": "Family: Teneriffiidae"
-          },
-          "option_b": {
-            "morphology": "Naso usually present and bearing setae vi; peritremes linear and often emergent distally; prodorsal bothridia simple; palptarsus usually extending beyond palptibial claw; pretarsal empodia I-II padlike or clawlike.",
-            "advances_to": "Family: Anystidae"
-          }
-        },
-        "29": {
-          "option_a": {
-            "morphology": "Adult females with 3 pairs of genital papillae, an elongate, extrusible ovipositor, a well-developed prodorsal shield, and a series of 5 dorsal hysterosomatic shields.",
-            "advances_to": "Family: Pomerantziidae"
-          },
-          "option_b": {
-            "morphology": "Genital papillae absent in all stages; ovipositor absent; dorsal shields various.",
-            "advances_to": "Node 30"
-          }
-        },
-        "30": {
-          "option_a": {
-            "morphology": "Pretarsal claws well developed or reduced but always with tenent hairs; empodium, if present, with or without tenent hairs; palpal thumb-claw process usually well developed (absent in TENUIPALPIDAE).",
-            "advances_to": "Node 31"
-          },
-          "option_b": {
-            "morphology": "Pretarsal claws lacking tenent hairs; empodia, if present, usually with tenent hairs; palpal thumb-claw process well developed, reduced, or absent.",
-            "advances_to": "Node 37"
-          }
-        },
-        "31": {
-          "option_a": {
-            "morphology": "Chelicerae independently movable, elongate, with swollen bases and hooklike movable digit with 1 or more teeth; empodia absent; peritremes emergent. Parasites of lizards, cockroaches, triatomines, and scorpions.",
-            "advances_to": "Family: Pterygosomatidae"
-          },
-          "option_b": {
-            "morphology": "Chelicerae fused basally and with short, needlelike movable digits or fully integrated into a retractable stylophore with long, whiplike digits; empodia usually present, rarely strongly reduced or seemingly absent; peritremes sessile or emergent.",
-            "advances_to": "Node 32"
-          }
-        },
-        "32": {
-          "option_a": {
-            "morphology": "Chelicerae fused basally and with short, needlelike movable digits and bearing short, 3-5 chambered peritremes on their paraxial faces; palptibial claw with a ventral tooth. Free living in soil and litter.",
-            "advances_to": "Family: Barbutiidae"
-          },
-          "option_b": {
-            "morphology": "Cheliceral bases fused into a movable stylophore that is deeply retractable into idiosoma; movable cheliceral digits elongated, whiplike, recurved basally within stylophore. Obligate plant parasites.",
-            "advances_to": "Node 33"
-          }
-        },
-        "33": {
-          "option_a": {
-            "morphology": "Setae of posterior margin of idiosoma (row h) forming a fanlike transverse row of 5 or more pairs of flagellelate or bipectinate setae; dorsal and lateral opisthosomatic setae expanded, fanlike, the anterior row (c) comprising 5 or more pairs.",
-            "advances_to": "Family: Tuckerellidae"
-          },
-          "option_b": {
-            "morphology": "Setae of posterior margin of idiosoma slender, simple, not forming a fanlike row; dorsal and lateral opisthosomatic setae variable in form, the anterior row (c) comprising at most 4 pairs.",
-            "advances_to": "Node 34"
-          }
-        },
-        "34": {
-          "option_a": {
-            "morphology": "Tarsi I-II without peg-shaped or bulbous solenidia, and with 1-2 long, slender, tapered solenidia usually closely associated with a short or minute seta to form duplex sets; stylophore attachment to idiosoma without ribbed collar; palpi 5-segmented, with thumb-claw process; palptarsus with or without one of distal eupathidia enlarged as a spinneret.",
-            "advances_to": "Family: Tetranychidae"
-          },
-          "option_b": {
-            "morphology": "Tarsi I-II with distal, peg-shaped or bulbous solenidia, and with no solenidia closely associated with a seta to form duplex sets; stylophore attached to idiosoma by retractable ribbed collar; palpi with 5 or fewer segments and with or without thumb-claw process; palptarsus without eupathidial modification as above.",
-            "advances_to": "Node 35"
-          }
-        },
-        "35": {
-          "option_a": {
-            "morphology": "Prodorsum with 4 pairs of setae (v1 present) and without eyes; anterior row (c) of opisthosomatic setae comprising 4 pairs (c1-4 present).",
-            "advances_to": "Family: Linotetranidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum with 3 pairs of setae (v1 absent) and usually with 2 pairs of eyes; anterior row (c) of opisthosomatic setae comprising at most 3 pairs (c1 or c4 absent).",
-            "advances_to": "Node 36"
-          }
-        },
-        "36": {
-          "option_a": {
-            "morphology": "Palpi linear, with 5 or fewer segments and lacking a thumb-claw process; opisthosoma with at most 13 pairs of setae dorsally and laterally (c1 usually present, c4 absent, 2 pairs h setae); anal valves with 1-3 pairs of simple pseudanal setae.",
-            "advances_to": "Family: Tenuipalpidae"
-          },
-          "option_b": {
-            "morphology": "Palpi 5-segmented, with a thumb-claw process; opisthosoma with 14 pairs of setae dorsally and laterally (c1 absent, c4 present, 3 pairs h setae); anal valves with 3 pairs of pseudanal setae, some of which are bifurcate or dendritic.",
-            "advances_to": "Family: Allochaetophoridae"
-          }
-        },
-        "37": {
-          "option_a": {
-            "morphology": "Chelicerae and subcapitulum fused into gnathosomatic capsule that is retractile within the idiosoma; legs I modified for clasping mammalian hairs; immatures with a ventral, unpaired clasper on tarsus I and femora fused to genua on all legs; female anal opening dorsal. Ectoparasites in the fur of bats, rodents, and various insectivores.",
-            "advances_to": "Family: Myobiidae"
-          },
-          "option_b": {
-            "morphology": "Chelicerae separate, fused into stylophore or incorporated into gnathosomatic capsule (if the latter, then exerted and not retractile); legs I not modified for clasping hairs; immatures without clasper on tarsus I or femoral-genual fusions as above, female anal opening typically ventral, sometimes terminal. Free-living predators, or feeding on mosses, or ectoparasitic on mammals, birds, and reptiles (rarely insects), or living in the skin pores or mucosa of mammal and reptiles (rarely birds).",
-            "advances_to": "Node 38"
-          }
-        },
-        "38": {
-          "option_a": {
-            "morphology": "Chelicerae separate, partially fused, or completely coalesced into a stylophore; tibiae and often genua of some legs with more than 3 setae; palpi with 5 free segments, thumb-claw process usually well developed, but palptarsus sometimes reduced and palptibial claw sometimes reduced or absent; legs well developed, ambulatory, and each with a pair of claws and an empodium with tenent hairs. Free-living predators, moss associates, or insect phoretics.",
-            "advances_to": "Node 39"
-          },
-          "option_b": {
-            "morphology": "Chelicerae fused into a stylophore, or fully integrated into a gnathosomatic capsule; all tibiae and genua with 3 or fewer setae; palpi often with fewer than 5 segments, palptibial claw various, typically absent in parasitic groups. Capsulate forms with well-developed legs, usually with paired claws and with tenent hairs on empodia (sometimes absent on legs I) and well-developed palpi. Free-living predators, insect associates, or parasites of vertebrates. Stylophoric forms with legs flattened, telescoped, or otherwise reduced, often with highly modified empodia; claws may be absent. Parasitic on vertebrates.",
-            "advances_to": "Node 50"
-          }
-        },
-        "39": {
-          "option_a": {
-            "morphology": "Fully armored mites with a holodorsal shield produced anteriorly into a hyaline or ornamented collar into which the narrow, elongate gnathosoma can be retracted.",
-            "advances_to": "Family: Cryptognathidae"
-          },
-          "option_b": {
-            "morphology": "Soft bodied or with an array of dorsal shields separated by striate cuticle, or with 1-2 dorsal shields; prodorsal collar absent, gnathosoma not deeply retractable.",
-            "advances_to": "Node 40"
-          }
-        },
-        "40": {
-          "option_a": {
-            "morphology": "Stigmata opening at bases of chelicerae; peritremes simple to highly convoluted, produced on cheliceral bases or on anterior edge of prodorsum.",
-            "advances_to": "Node 46"
-          },
-          "option_b": {
-            "morphology": "Peritremes and stigmata absent.",
-            "advances_to": "Node 41"
-          }
-        },
-        "41": {
-          "option_a": {
-            "morphology": "Cheliceral bases often closely associated but apparently freely movable.",
-            "advances_to": "Node 42"
-          },
-          "option_b": {
-            "morphology": "Cheliceral bases fused at their bases or coalesced into a distinct stylophore.",
-            "advances_to": "Node 43"
-          }
-        },
-        "42": {
-          "option_a": {
-            "morphology": "Fully armored and strongly hemispherical mites with a holodorsal shield bearing an arched groove posterior to the large eyes and internal flasklike or funnel-shaped structures. On surface of standing freshwater and associated vegetation or in subaquatic soils.",
-            "advances_to": "Family: Homocaligidae"
-          },
-          "option_b": {
-            "morphology": "Mostly soft bodied, or with one or more dorsal plates separated by striate cuticle, rarely with a holodorsal shield but, if present, lacking arched groove and internal structures as above; found in many habitats including mosses, vegetation, bark, soil, marshes, and freshwater habitats.",
-            "advances_to": "Node 43"
-          }
-        },
-        "43": {
-          "option_a": {
-            "morphology": "Cheliceral bases insensibly fused into stylophore.",
-            "advances_to": "Node 44"
-          },
-          "option_b": {
-            "morphology": "Cheliceral bases distinct and fused medially, at least in basal 1/3.",
-            "advances_to": "Family: Stigmaeidae (pars)"
-          }
-        },
-        "44": {
-          "option_a": {
-            "morphology": "Palpi slender, much longer than chelicerae.",
-            "advances_to": "Node 45"
-          },
-          "option_b": {
-            "morphology": "Palpi robust, subequal to chelicerae in length.",
-            "advances_to": "Family: Stigmaeidae (pars)"
-          }
-        },
-        "45": {
-          "option_a": {
-            "morphology": "Palptarsus longer than palptibia; empodia on all tarsi with 1-2 pairs of tenent hairs.",
-            "advances_to": "Family: Eupalopsellidae"
-          },
-          "option_b": {
-            "morphology": "Palptarsus shorter than palptibia; empodia on all tarsi with 3 pairs of tenent hairs.",
-            "advances_to": "Family: Mecognathidae"
-          }
-        },
-        "46": {
-          "option_a": {
-            "morphology": "Chambered peritremes embedded in dorsal surface of stylophore; coxae II narrowly to widely separated from coxae III.",
-            "advances_to": "Node 47"
-          },
-          "option_b": {
-            "morphology": "Peritremes linear on prodorsum, usually emergent; coxae II-III contiguous.",
-            "advances_to": "Family: Raphignathidae"
-          }
-        },
-        "47": {
-          "option_a": {
-            "morphology": "Leg tibiae and tarsi subequal in length; body shapes various.",
-            "advances_to": "Node 48"
-          },
-          "option_b": {
-            "morphology": "Leg tibiae about 3 times longer than respective tarsi; oval to subcircular mites with very long legs.",
-            "advances_to": "Family: Camerobiidae"
-          }
-        },
-        "48": {
-          "option_a": {
-            "morphology": "With 1 or 2 plates covering most of dorsum and bearing 15 or more pairs of setae, of which at least 6 pairs are much longer than idiosoma; palptibial claw peglike or absent.",
-            "advances_to": "Node 49"
-          },
-          "option_b": {
-            "morphology": "Soft bodied, with at most a small prodorsal shield and/or small sclerites around the setal bases; all 11-12 pairs of dorsal setae considerably shorter than idiosoma; palptibial claw usually well developed.",
-            "advances_to": "Family: Caligonellidae"
-          }
-        },
-        "49": {
-          "option_a": {
-            "morphology": "With a single holodorsal shield; palptarsus elongate and tapering; palptibial claw absent.",
-            "advances_to": "Family: Xenocaligonellididae"
-          },
-          "option_b": {
-            "morphology": "With 2 dorsal shields; palptarsus short and mound shaped; palptibial claw peglike.",
-            "advances_to": "Family: Dasythyreidae"
-          }
-        },
-        "50": {
-          "option_a": {
-            "morphology": "Cheliceral stylophore fused to subcapitulum to form a gnathosomatic capsule; peritremes elaborated on dorsal surface of capsule; genu I with solenidion.",
-            "advances_to": "Node 51"
-          },
-          "option_b": {
-            "morphology": "Cheliceral stylophore separate from subcapitulum; peritremes at base of chelicerae or absent; genu I without solenidion.",
-            "advances_to": "Node 52"
-          }
-        },
-        "51": {
-          "option_a": {
-            "morphology": "Body oval to rounded, occasionally elongate; palptibial claw present and well developed. Free living, predators, insect associates, or parasites of vertebrates.",
-            "advances_to": "Family: Cheyletidae"
-          },
-          "option_b": {
-            "morphology": "Body elongate; palptibial claw absent. Parasites within the quills of birds.",
-            "advances_to": "Family: Syringophilidae"
-          }
-        },
-        "52": {
-          "option_a": {
-            "morphology": "Gnathosoma relatively well developed, chelicerae present, movable digit styletlike; bodies oval, flattened, or wormlike. Parasites on, in, or (rarely) under the skin of vertebrates.",
-            "advances_to": "Node 54"
-          },
-          "option_b": {
-            "morphology": "Gnathosoma highly reduced, chelicerae absent. Internal parasites of reptiles (rarely birds) or small mammals.",
-            "advances_to": "Node 53"
-          }
-        },
-        "53": {
-          "option_a": {
-            "morphology": "Weakly sclerotized mites with striate opisthosomatic cuticle; gnathosoma reduced, but distinct; palpi with apical bifid claw; legs with lateral claws. Internal parasites in the tissues of shrews, moles, and mice.",
-            "advances_to": "Family: Epimyodicidae"
-          },
-          "option_b": {
-            "morphology": "Well-sclerotized mites without opisthosomatic striae; gnathosoma reduced to single-segmented palpi, each with a long, fanglike stylet apically; legs without distinct claws. Internal parasites in the tissues of reptiles and birds.",
-            "advances_to": "Family: Cloacaridae"
-          }
-        },
-        "54": {
-          "option_a": {
-            "morphology": "Body wormlike with numerous annuli; legs strongly telescoped, highly reduced, or modified into hooks. Parasites in the hair follicles, dermal glands, or subdermal regions of mammals.",
-            "advances_to": "Family: Demodicidae"
-          },
-          "option_b": {
-            "morphology": "Body oval, flattened; legs I-II well developed, legs III-IV well developed or reduced. Skin parasites of mammals, birds, and reptiles.",
-            "advances_to": "Node 55"
-          }
-        },
-        "55": {
-          "option_a": {
-            "morphology": "All legs ending in paired lateral claws and padlike or bilobed empodia; femora I-IV each with a strong ventral spur. Parasites on the skin of mammals.",
-            "advances_to": "Family: Psorergatidae"
-          },
-          "option_b": {
-            "morphology": "Legs I-II with empodial tenent hairs and with or without lateral claws, legs III-IV without lateral claws or legs IV absent; femora I-IV without strong ventral spurs. Skin parasites under the feathers of birds or under the scales of reptiles.",
-            "advances_to": "Family: Harpirhynchidae"
-          }
-        },
-        "56": {
-          "option_a": {
-            "morphology": "Cheliceral bases fused into a subconical stylophore that is not consolidated with the subcapitulum; palpi pronounced, 3-segmented, extending well beyond other gnathosomatic extremities, and with well-developed apical claw. Female genital opening large, flanked by conspicuous pair of genital valves, and functioning in oviposition.",
-            "advances_to": "Node 57"
-          },
-          "option_b": {
-            "morphology": "Cheliceral stylophore consolidated with subcapitulum to form a capsulate gnathosoma; palpi reduced, usually with no more than 2 readily distinguishable nonarticulating segments, extending to or slightly beyond other gnathosomatic extremities, and with reduced or vestigial apical claw. Female genital opening usually small and not flanked by genital valves, usually functioning in insemination but rarely in oviposition.",
-            "advances_to": "Node 58"
-          }
-        },
-        "57": {
-          "option_a": {
-            "morphology": "Prodorsum of female and male with a pair of stigmata and associated tracheae, and a pair of capitate bothridial sensilla laterally. Tarsi II-IV with paired claws and a stalked empodium, tarsus I with paired claws and no empodium. Gnathosoma with 2 pairs of dorsal setae. Free living or associated with passalid beetles.",
-            "advances_to": "Family: Tarsocheylidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum of female only with a pair of stigmata and associated tracheae laterally and a pair of ampulliform organs posteromedially; male prodorsum lacking stigmata and tracheae, and with a pair of normal setae instead of ampulliform organs. Tarsi II-IV without claws but with large discoid empodium, tarsus I without claws or empodium. Gnathosoma without dorsal setae. Subelytral associates of passalid beetles.",
-            "advances_to": "Family: Heterocheylidae"
-          }
-        },
-        "58": {
-          "option_a": {
-            "morphology": "Legs IV of female with separate femur and genu, with total of 5-12 setae on tibia and tarsus, and often with paired claws and empodium; legs IV of male 5-segmented, with symmetrically or asymmetrically paired claws or single or vestigial claw.",
-            "advances_to": "Node 59"
-          },
-          "option_b": {
-            "morphology": "Legs IV of female, when present, typically with fused femur and genu, with total of 2-3 setae on tibia and tarsus, and without claws and empodium; legs IV of male, when present, usually 4-segmented, with a single sessile or vestigial claw.",
-            "advances_to": "Node 70"
-          }
-        },
-        "59": {
-          "option_a": {
-            "morphology": "Tarsus I with paired claws; trochanters of legs I, II, IV, and usually III, lacking setae. Females lacking the pair of stigmata and associated tracheae anterolaterally on prodorsum; female genital aperture exposed, either on genital plate and flanked by paired aggenital plates or flanked by paired valves bearing genital setae. Male legs IV with pretarsus, empodium, and paired or reduced claws like those on legs II-III.",
-            "advances_to": "Node 60"
-          },
-          "option_b": {
-            "morphology": "Tarsus I with single claw or without claws; trochanters of legs I-IV usually each with a seta. Females with the pair of stigmata and associated tracheae anterolaterally on prodorsum; female genital aperture covered by posterior margin of consolidated aggenital plate. Male legs IV with claws variously shaped but often different in form from those on legs II-III.",
-            "advances_to": "Node 61"
-          }
-        },
-        "60": {
-          "option_a": {
-            "morphology": "Prodorsum of females with a pair of expansive winglike processes that overlap with similar expansions of tergite C. Female genital aperture elongate, flanked by 4 pairs of readily visible genital setae. Tarsi II-IV lacking empodium between claws. Trochanter III with a seta; setation of genua I-II-III-IV, 5-4-3-1. Associates of carabid beetles.",
-            "advances_to": "Family: Crotalomorphidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum and tergite C of females normal in form, without winglike expansions. Female genital aperture small, flanked by 1-3 pairs of minute or vestigial genital setae, or these absent. Tarsi II-IV with smooth flexible empodium between claws. Trochanter III without a seta; setation of genua I-II-III-IV, maximally 2-1-1-1. Free living or associated with insects.",
-            "advances_to": "Family: Dolichocybidae"
-          }
-        },
-        "61": {
-          "option_a": {
-            "morphology": "Trochanter IV quadrangular, generally longer than wide, different in form from subtriangular trochanter III. Female pharynx divided into 2 or 3 muscular sections. Male gnathosoma reduced, tubiform, lacking chelicerae and palpi. Larval instar active.",
-            "advances_to": "Node 62"
-          },
-          "option_b": {
-            "morphology": "Trochanter IV subtriangular, similar in form to trochanter III, or, if compressed and subquadrangular, then as wide as or wider than long. Female pharynx large, muscular, undivided. Male gnathosoma not reduced to tubiform appendage, chelicerae and palpi present. Larval instar usually inactive, calyptostatic.",
-            "advances_to": "Node 65"
-          }
-        },
-        "62": {
-          "option_a": {
-            "morphology": "Prodorsum of females not covered posteriorly by tergite C and usually with 3 pairs of setiform setae (v1 and usually v2 present). Coxisternal plates I-II together with 4-6 pairs of setae. Femur I usually with 4 setae. Male aedeagus usually relatively short, stiff.",
-            "advances_to": "Node 63"
-          },
-          "option_b": {
-            "morphology": "Prodorsum of females usually covered to greater or lesser extent by tergite C and with 1-2 pairs of setiform setae (v1 and sometimes v2 absent). Coxisternal plates I-II together with maximum of 4 pairs of setae. Femur I with 3 setae. Male aedeagus relatively long, flexible, curved, or looped.",
-            "advances_to": "Node 64"
-          }
-        },
-        "63": {
-          "option_a": {
-            "morphology": "Femur I of females with all setae slender, attenuate (seta d setiform). Coxisternal plates I-II together usually with 4 pairs of setae. Prodorsum of females with stigmata often extended into longitudinal grooves (peritremes). Plant, fungus associates.",
-            "advances_to": "Family: Siteroptidae"
-          },
-          "option_b": {
-            "morphology": "Femur I of females with seta d thickened, rigid, and bladelike, rodlike, or hooked. Coxisternal plates I-II together with 4-6 pairs of setae. Prodorsum of females with stigmata round or oval, not extended into elongate grooves. Free living or associated with fungi, insects, and animal nests.",
-            "advances_to": "Family: Pygmephoridae"
-          }
-        },
-        "64": {
-          "option_a": {
-            "morphology": "Tergite C of females expansive, covering prodorsum completely forming a roof over gnathosoma; prodorsum usually with 2 pairs of short setiform setae (covered, often difficult to discern). Idiosoma broadly oval or rounded, compact, with distance between insertions of legs II-III usually similar to that between legs III-IV. Femur I with seta d short, stout, usually branched. Male aedeagal tube apparently annulated or striated. Free living or associated with insects and animal nests.",
-            "advances_to": "Family: Scutacaridae"
-          },
-          "option_b": {
-            "morphology": "Tergite C of females covering posterior region of prodorsum to variable extent, not covering entire prodorsum and gnathosoma; prodorsum with usually 1 pair of setiform setae, a 2nd pair (v2) rudimentary or absent. Idiosoma oval, distance between insertions of legs II and III at least twice that between legs III and IV. Femur I with seta d attenuated, smooth or barbed. Male aedeagal tube apparently smooth. Free living or associated with insects and animal nests.",
-            "advances_to": "Family: Microdispidae"
-          }
-        },
-        "65": {
-          "option_a": {
-            "morphology": "Coxisternal plates I-II together with usually 6 pairs of setae. Femur I and genu I each with 5 setae. Female gnathosomatic capsule with palpi prominent, extending slightly beyond apex of stylophore. Males with incompletely formed caudal genital capsule, with exposed setigenous processes.",
-            "advances_to": "Node 66"
-          },
-          "option_b": {
-            "morphology": "Coxisternal plates I-II together with maximally 4 pairs of setae. Femur I and genu I each with 3 or usually 4 setae. Female gnathosomatic capsule with palpi usually somewhat reduced or poorly delineated, usually not extending beyond apex of stylophore. Males with fully formed caudal or ventrocaudal genital capsule, with retractable setigenous processes.",
-            "advances_to": "Node 67"
-          }
-        },
-        "66": {
-          "option_a": {
-            "morphology": "Prodorsum of females with anterior pair of vertical setae inserted posterior to stigmata; aggenital plate with 1 pair of setae; tergite EF with setae e and f aligned transversely; caudal plate PS rounded posteriorly, without a caudal protrusion. Male gnathosoma reduced, lacking chelicerae and delineated palpi; male leg I lacking claws. Associated with bees.",
-            "advances_to": "Family: Trochometridiidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum of females with anterior pair of vertical setae inserted anterior or medial to stigmata; aggenital plate with 2 or 3 pairs of setae; tergite EF with setae e and f aligned longitudinally; caudal plate PS with a caudally protruding process. Males unknown. Associated with beetles.",
-            "advances_to": "Family: Athyreacaridae"
-          }
-        },
-        "67": {
-          "option_a": {
-            "morphology": "Females with gnathosomatic capsule large, clearly wider than long. Female coxisternal plates I with a pair of discoid adhesive structures. Female legs I lacking claws, smaller than legs II-IV; legs IV with tibia and tarsus at least partially fused, and with reduced claws. Associated with carabid beetles.",
-            "advances_to": "Family: Caraboacaridae"
-          },
-          "option_b": {
-            "morphology": "Females with gnathosomatic capsule of normal or reduced size, no wider than long. Female coxisternal plates I lacking discoid structures. Female legs I with or without a single claw, similar in size to legs II-IV; legs IV with tibia and tarsus separate, and with paired claws if these present on legs II-III.",
-            "advances_to": "Node 68"
-          }
-        },
-        "68": {
-          "option_a": {
-            "morphology": "Prodorsum of females lacking bothridia and bothridial setae. Coxisternal plates I-II together with maximally 2 pairs of setae. Gnathosoma somewhat hypognathous, enclosed and partly hidden in propodosomatic camerostome; palpi not differentiated from lateral walls of gnathosoma. Male genital capsule ventrocaudal in position. Parasitoids of insect eggs.",
-            "advances_to": "Family: Acarophenacidae"
-          },
-          "option_b": {
-            "morphology": "Prodorsum of females with pair of bothridia and capitate bothridial setae. Coxisternal plates I and II together with 4 pairs of setae. Gnathosoma prognathous, well exposed from propodosoma; palpi delineated from lateral walls of gnathosoma. Male genital capsule caudal in position.",
-            "advances_to": "Node 69"
-          }
-        },
-        "69": {
-          "option_a": {
-            "morphology": "Female coxisternal plates III-IV separated from each other medially by soft cuticle that bears a separate triangular sternal plate. Male legs IV differentiated from legs II-III in being somewhat stouter and ending with a single sessile claw. Parasitoids of immature insects.",
-            "advances_to": "Family: Pyemotidae"
-          },
-          "option_b": {
-            "morphology": "Female coxisternal plates III-IV united medially, effacing separate medial plate. Male legs III differentiated from legs II and IV in being somewhat stouter and having a large, spurlike tarsal process. Associated with insects.",
-            "advances_to": "Family: Resinacaridae"
-          }
-        },
-        "70": {
-          "option_a": {
-            "morphology": "Females always with 4 pairs of legs; legs IV 3-segmented, usually much more slender than legs II-III. Males always with 4 pairs of legs; legs IV 3- or 4-segmented, always inserted ventrally; male genital capsule caudal in position. Free living or plant, fungus, or insect associates.",
-            "advances_to": "Family: Tarsonemidae"
-          },
-          "option_b": {
-            "morphology": "Females typically with 1-3 pairs of legs; legs IV, if present, 5-segmented and more slender than legs II-III. Males with 3 or 4 pairs of legs; legs IV, if present, 5-segmented and inserted ventrally or reduced and inserted dorsally; male genital capsule caudal or dorsal in position. Parasites of insects.",
-            "advances_to": "Family: Podapolipidae"
-          }
-        }
-      }
-    },
-    "sarcoptiformes.to.suborder-cohort": {
-      "title": "Suborder, Cohort under Sarcoptiformes",
-      "parent": {
-        "rank": "Order",
-        "name": "Sarcoptiformes"
-      },
-      "identifies": [
-        "Suborder",
-        "Cohort"
-      ],
-      "endpoint_ranks": [
-        "Suborder",
-        "Cohort"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Typically small, soft-bodied mites with at most an indistinct prodorsal shield; genital valves present but not sclerotized in adults; leg tarsi with unpaired empodial claw usually present; opisthosoma without lateral glands and with setae typically relatively short and often highly branched, wedge-shaped, dendritic or stellate. Either oval to globose mites with 5-6 pairs of prodorsal setae, or elongate to wormlike mites.",
-            "advances_to": "Suborder: Endeostigmata"
-          },
-          "option_b": {
-            "morphology": "Minute to large mites usually with a distinct prodorsal shield or fully sclerotized prodorsum and sometimes with extensive idiosomatic sclerotization; prodorsum with 6 or fewer pairs of setae, of which 0-1 pair is bothridial; genital valves absent or present and usually well sclerotized in adults; leg tarsi with unpaired empodial claw present and never rayed, or reduced, or absent; opisthosoma usually with lateral glands.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Prodorsum without specialized sensory organs other than setiform setae; genital aperture exposed or partially covered by paragenital flaps, inversely V, U, or Y shaped, with usually 2 pairs of genital papillae in the adult; anal aperture without conspicuous paired plates; adult idiosoma usually weakly sclerotized; palpi with only 2 segments, rarely 3; adult males with a sclerotized aedeagus, and often with a pair of copulatory adanal suckers.",
-            "advances_to": "Suborder: Oribatida (Cohort Astigmatina)"
-          },
-          "option_b": {
-            "morphology": "Prodorsum usually with a pair of specialized setae arising from sensory pits or bothridia (pseudostigmatic organs); genital aperture usually covered by paired, bomb bay-like sclerotized valves, covering usually 3 pairs of genital papillae in the adult; anal aperture similarly covered by sclerotized valves; adult idiosoma usually well sclerotized; palpi usually with 5 segments, rarely 2-4; adult males without a sclerotized aedeagus and without adanal suckers.",
-            "advances_to": "Suborder: Oribatida (excluding Astigmatina)"
-          }
-        }
-      }
-    },
-    "schizotetranychus.to.species": {
-      "title": "Species under Schizotetranychus",
-      "parent": {
-        "rank": "Genus",
-        "name": "Schizotetranychus"
-      },
-      "identifies": [
-        "Species"
-      ],
-      "endpoint_ranks": [
-        "Species"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Dorsal setae shorter, length not exceeding the consecutive setal bases.",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Dorsal setae long, length exceeding the consecutive setal bases.",
-            "advances_to": "Node 9"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Setae on hysterosoma minute, less than half the length of consecutive setal bases.",
-            "advances_to": "Node 3"
-          },
-          "option_b": {
-            "morphology": "Hysterosomal setae longer than half the length of bases of consecutive setae.",
-            "advances_to": "Node 6"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Body setae very short and inconspicuous; legs short, not exceeding the anterior margin of gnathosoma; palp unusually long.",
-            "advances_to": "Species: Schizotetranychus fluvialis"
-          },
-          "option_b": {
-            "morphology": "Setae conspicuous, legs exceeding cephalothorax, palp normal.",
-            "advances_to": "Node 4"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Terminal sensillum of palp absent; dorsal setae c3 and f2 longer than other dorsal hysterosomal setae; distance between f1-f1 about twice the width of d1-d1.",
-            "advances_to": "Node 5"
-          },
-          "option_b": {
-            "morphology": "Terminal sensillum of palp present; hysterosomal setae all similar in length, clunal setae (h1) more closely spaced than dorsocentrals; first, second, and fourth pairs of dorsocentrals equally apart, but third pair closely approximated.",
-            "advances_to": "Species: Schizotetranychus asparagi"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Idiosomal setae awl-shaped, widely placed at the base, less than half the length of consecutive setal bases.",
-            "advances_to": "Species: Schizotetranychus baltazari"
-          },
-          "option_b": {
-            "morphology": "Idiosomal setae simple, highly pubescent, set on triangular sockets, about two-thirds the length of consecutive setal bases.",
-            "advances_to": "Species: Schizotetranychus hindustanicus"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Duplex setae of tarsi I closely approximated; dorsal hysterosomal setae minutely pubescent, slender, tapering but basally wide with acute tip and slightly shorter than the longitudinal bases of consecutive setae.",
-            "advances_to": "Species: Schizotetranychus spireafolia"
-          },
-          "option_b": {
-            "morphology": "Duplex setae of tarsi I not approximated; dorsal setae not with the preceding combination of characters.",
-            "advances_to": "Node 7"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Dorsal propodosomal integument of female with reticulation; dorsal idiosomal setae awl-shaped and finely serrate; second dorsocentral (d2) longest; dorsocentral setae as long as the longitudinal bases; inner sacrals (f1-f1) almost twice the width of other dorsocentrals.",
-            "advances_to": "Species: Schizotetranychus reticulatus"
-          },
-          "option_b": {
-            "morphology": "Dorsal propodosomal integument of female without reticulation; dorsals not awl-shaped and distance between them varies.",
-            "advances_to": "Node 8"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Dorsal setae lanceolate, dorsocentral hysterosomal setae approximately as long as distance between their longitudinal bases; terminal sensillum of palp twice as long as wide.",
-            "advances_to": "Species: Schizotetranychus lespedezae"
-          },
-          "option_b": {
-            "morphology": "Hysterosomals and inner sacrals (f1) awl-shaped, dorsal hysterosomal setae much shorter than distance to their consecutive bases; outer sacrals (f2) much more widely spaced than second dorsals; terminal sensillum of palp about 1.5 times as long as wide.",
-            "advances_to": "Species: Schizotetranychus spiculus"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Length of dorsocentral and dorsolateral setae not equal.",
-            "advances_to": "Node 10"
-          },
-          "option_b": {
-            "morphology": "Length of dorsocentral and dorsolateral setae equal.",
-            "advances_to": "Node 12"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "Dorsolateral setae longer than dorsocentral setae; outer sacrals (f2) longer; genital flap and pregenital area with transverse striations.",
-            "advances_to": "Species: Schizotetranychus mansoni"
-          },
-          "option_b": {
-            "morphology": "Dorsolateral setae shorter than dorsocentral setae.",
-            "advances_to": "Node 11"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Dorsocentral seta c1 about half as long as the distance between c1 and c2; tarsi I with 2 tactile setae proximal to the proximal pair of duplex setae.",
-            "advances_to": "Species: Schizotetranychus approximatus"
-          },
-          "option_b": {
-            "morphology": "Seta c1 approximately as long as the distance between c1 and c2; tarsi I with 1 tactile seta proximal to proximal pair of duplex setae.",
-            "advances_to": "Species: Schizotetranychus laevidorsatus"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Dorsocentral setae little longer than or as long as, just approximating the bases of consecutive setae.",
-            "advances_to": "Node 13"
-          },
-          "option_b": {
-            "morphology": "Dorsocentral setae about 1.5 times to double the length of bases of consecutive setae.",
-            "advances_to": "Node 17"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Dorsocentral setae as long as or just reaching the longitudinal bases of consecutive setae; peritreme distally chambered and dorsal sensillum rounded; dorsal striation transverse except longitudinal at sacrals.",
-            "advances_to": "Species: Schizotetranychus undulatus"
-          },
-          "option_b": {
-            "morphology": "Dorsocentral setae little longer than or just passing the longitudinal bases of consecutive setae; peritreme, dorsal sensillum, and striations not with the preceding combination of characters.",
-            "advances_to": "Node 14"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "Peritreme hooked or chambered; genital flap with transverse striations.",
-            "advances_to": "Node 15"
-          },
-          "option_b": {
-            "morphology": "Peritreme simple, ending in a bulb; genital flap with transverse irregular or longitudinal striations.",
-            "advances_to": "Node 16"
-          }
-        },
-        "15": {
-          "option_a": {
-            "morphology": "Peritreme with swollen tip and chambered bent portion; dorsal sensillum spindle-shaped; dorsal setae not basally wide; tarsus I with 2 sensory and 1 tactile seta proximal to the proximal pair of duplex setae.",
-            "advances_to": "Species: Schizotetranychus schizopus"
-          },
-          "option_b": {
-            "morphology": "Peritreme hooked distally but not chambered; dorsal setae not basally wide; dorsal sensillum thin and slender; tarsus I with 2 sensory and 3 tactile setae proximal to the proximal pair of duplex setae; outer and inner sacrals (f1 and f2) of same length, clunals long and tapering.",
-            "advances_to": "Species: Schizotetranychus indicus"
-          }
-        },
-        "16": {
-          "option_a": {
-            "morphology": "Genital flap with transverse striations; terminal palp sensillum slightly longer than wide; dorsal sensillum fusiform; dorsal idiosomal setae of same length except longer humeral setae (c3); inner sacral (f1) as wide as the second dorsocentral (d1).",
-            "advances_to": "Species: Schizotetranychus andropogoni"
-          },
-          "option_b": {
-            "morphology": "Striations on genital flap anteriorly transverse and posteriorly longitudinal; terminal palp sensillum twice as long as broad; dorsal sensillum spindle-shaped; humeral not long; second dorsocentral (d1) little wider than inner sacral; tibia IV distally with long setae; empodium with Y-shaped splitting.",
-            "advances_to": "Species: Schizotetranychus recki"
-          }
-        },
-        "17": {
-          "option_a": {
-            "morphology": "Dorsal setae 1.5 times longer than the longitudinal bases of consecutive setae; tibia II with 5 tactile setae.",
-            "advances_to": "Node 18"
-          },
-          "option_b": {
-            "morphology": "Dorsal setae less than 1.5 times longer than the longitudinal bases of consecutive setae; tibia II with either 7 or 8 tactile setae.",
-            "advances_to": "Node 19"
-          }
-        },
-        "18": {
-          "option_a": {
-            "morphology": "Dorsal setae slightly serrate and broader at base; setae c1 about 1.5 times as long as the distance between c1 and c2; dorsal striation transverse except irregular between c1-c1 and longitudinal at propodosomal region; tibia I with 7 tactile setae.",
-            "advances_to": "Species: Schizotetranychus cajani"
-          },
-          "option_b": {
-            "morphology": "Dorsal setae not serrate, but pubescent; setae c1 about 3 times as long as the distance between c1 and c2; dorsum with transverse striation; tibia I with 7 or 8 tactile setae.",
-            "advances_to": "Species: Schizotetranychus kochummeni"
-          }
-        },
-        "19": {
-          "option_a": {
-            "morphology": "Striations on the hysterosoma transverse, propodosoma longitudinal and V-shaped between third dorsocentral setae (e1-e1); propodosoma ventrally without striations.",
-            "advances_to": "Species: Schizotetranychus malodhensis"
-          },
-          "option_b": {
-            "morphology": "Striations not as above.",
-            "advances_to": "Node 20"
-          }
-        },
-        "20": {
-          "option_a": {
-            "morphology": "Dorsal setae not serrate, rather pubescent; terminal palp sensillum twice as long as broad; dorsal sensillum fusiform; peritreme dilated distally; tarsi I with 5 tactile and 1 sensory seta proximal to proximal pair of duplexes; tibia II with 8 tactile setae.",
-            "advances_to": "Species: Schizotetranychus chiangmaiensis"
-          },
-          "option_b": {
-            "morphology": "Dorsal setae linear-lanceolate and serrate; terminal palp sensillum about one-third as long as broad and as long as dorsal sensillum; peritreme simple, hook-shaped, or with lobes; tarsi I with 4 tactile and 1 sensory seta proximal to proximal pair of duplexes; tibia II with 7 tactile setae.",
-            "advances_to": "Species: Schizotetranychus tephrosiae"
-          }
-        }
-      }
-    },
-    "schizotetranychus.to.species.kerala": {
-      "title": "Species under Schizotetranychus (Kerala regional paper)",
-      "parent": {
-        "rank": "Genus",
-        "name": "Schizotetranychus"
-      },
-      "identifies": [
-        "Species"
-      ],
-      "endpoint_ranks": [
-        "Species"
-      ],
-      "scope": {
-        "source_type": "regional paper",
-        "region": "Kerala"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Dorsohysterosomal setae longer than longitudinal distance between bases of consecutive pair of setae; distal portion of aedeagus turns dorsal to form a sigmoid distal end, tip slightly hooked.",
-            "advances_to": "Species: Schizotetranychus hindustanicus"
-          },
-          "option_b": {
-            "morphology": "Dorsohysterosomal setae shorter than or approximately as long as the longitudinal distance between bases of consecutive pair of setae; aedeagus not as above.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Tibia I with 8 tactile and 2 sensory setae; distal end of peritreme bulb-like; aedeagus dorsally directed but not sigmoid.",
-            "advances_to": "Species: Schizotetranychus mansoni"
-          },
-          "option_b": {
-            "morphology": "Tibia I with 7 tactile and 1 sensory seta; distal end of peritreme hooked.",
-            "advances_to": "Node 3"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Dorsal striae between third pair of dorsocentral hysterosomal setae longitudinal; aedeagus bent dorsad and dorsal margin of the tip pointed posteriorly at an angle.",
-            "advances_to": "Species: Schizotetranychus baltazari"
-          },
-          "option_b": {
-            "morphology": "Dorsal striae between third pair of dorsocentral hysterosomal setae transverse; aedeagus bent dorsad at right angle with shaft dorsal margin, with slender distal part slightly curved caudad.",
-            "advances_to": "Species: Schizotetranychus krungthepensis"
-          }
-        }
-      }
-    },
-    "sejida.to.family": {
-      "title": "Family under Sejida",
-      "parent": {
-        "rank": "Suborder",
-        "name": "Sejida"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Corniculi large, bifurcate; chelicerae massive, with few coarse teeth and lacking pilus dentilis; idiosomatic shields with scalelike ornamentation; anal opening enlarged.",
-            "advances_to": "Family: Ichthyostomatogasteridae"
-          },
-          "option_b": {
-            "morphology": "Corniculi small, horn shaped; chelicerae moderate in size, denticulate, and with setiform pilus dentilis; idiosomatic shields tuberculate to coarsely reticulate; anal opening small.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Apex of podonotum produced into a spiky knob; cheliceral digits with few teeth; female epigynal shield subrectangular, with numerous setae irregularly inserted over most of surface; opisthonotum of female with a pair of lateral shields and a pygidial shield that extends onto the mesonotal region and lacking hornlike processes posteriorly.",
-            "advances_to": "Family: Uropodellidae"
-          },
-          "option_b": {
-            "morphology": "Apex of podonotum without spiky knob; cheliceral digits serrate; female epigynal shield with 1-6 pairs of setae inserted laterally; opisthonotum of female without lateral shields but with 1 or more mesonotal shields and a pygidial shield that often has a pair of posterior, hornlike processes bearing setae.",
-            "advances_to": "Family: Sejidae"
-          }
-        }
-      }
-    },
-    "sphaerolichida.to.family": {
-      "title": "Family under Sphaerolichida",
-      "parent": {
-        "rank": "Suborder",
-        "name": "Sphaerolichida"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Anterior pair of trichobothria (vi) associated with well-developed naso, often with median eye on its underside; 0-2 pairs of lateral eyes present; pretarsus I without empodium, other empodia clawlike; chelicerae chelate, with lobelike teeth.",
-            "advances_to": "Family: Sphaerolichidae"
-          },
-          "option_b": {
-            "morphology": "Anterior pair of trichobothria (vi) in communal depression; naso absent; eyes absent; all pretarsi with padlike, setulate empodia; fixed digit of chelicera truncate, movable digit serrulate.",
-            "advances_to": "Family: Lordalycidae"
-          }
-        }
-      }
-    },
-    "tetranychidae.to.subfamily": {
-      "title": "Subfamily under Tetranychidae",
-      "parent": {
-        "rank": "Family",
-        "name": "Tetranychidae"
-      },
-      "identifies": [
-        "Subfamily"
-      ],
-      "endpoint_ranks": [
-        "Subfamily"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Empodium with tenent hairs; female with 3 pairs of anal setae (ps1-3) and male with 5 pairs of genito-anal setae.",
-            "advances_to": "Subfamily: Bryobiinae"
-          },
-          "option_b": {
-            "morphology": "Empodium (rarely absent) without tenent hairs; female with 1 or 2 pairs of anal setae and male with 3 or 4 pairs of genito-anal setae.",
-            "advances_to": "Subfamily: Tetranychinae"
-          }
-        }
-      }
-    },
-    "tetranychinae.to.tribe": {
-      "title": "Tribe under Tetranychinae",
-      "parent": {
-        "rank": "Subfamily",
-        "name": "Tetranychinae"
-      },
-      "identifies": [
-        "Tribe"
-      ],
-      "endpoint_ranks": [
-        "Tribe"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Empodium claw-like when present, tarsus 1 with loosely associated setae or with 1 pair of duplex setae; when 2 pairs of duplex setae on tarsus 1 then no pairs on tarsus 2.",
-            "advances_to": "Tribe: Eurytetranychini"
-          },
-          "option_b": {
-            "morphology": "Empodium claw-like or split distally, tarsus 1 with 2 pairs of duplex setae and tarsus 2 with 1 pair.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Opisthosoma with f1 in marginal position or absent.",
-            "advances_to": "Tribe: Tenuipalpoidini"
-          },
-          "option_b": {
-            "morphology": "Opisthosoma f1 in normal dorsal position.",
-            "advances_to": "Tribe: Tetranychini"
-          }
-        }
-      }
-    },
-    "tetranychinae.to.tribe-genus-species.kerala": {
-      "title": "Tribe, Genus, Species under Tetranychinae (Kerala regional paper)",
-      "parent": {
-        "rank": "Subfamily",
-        "name": "Tetranychinae"
-      },
-      "identifies": [
-        "Tribe",
-        "Genus",
-        "Species"
-      ],
-      "endpoint_ranks": [
-        "Genus",
-        "Species"
-      ],
-      "scope": {
-        "source_type": "regional paper",
-        "region": "Kerala"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Tarsus I dorsally with 0-1 set of duplex setae; empodium rudimentary. Eurytetranychini; aedeagus hook-like, dorsal margin of shaft slightly concave, aedeagal knob bluntly pointed without projections.",
-            "advances_to": "Species: Eutetranychus orientalis"
-          },
-          "option_b": {
-            "morphology": "Tarsus I dorsally with 2 sets of duplex setae; empodium distinct.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Para-anal setae 2 pairs (h2 and h3).",
-            "advances_to": "Node 3"
-          },
-          "option_b": {
-            "morphology": "Para-anal setae 1 pair (h2).",
-            "advances_to": "Node 5"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Empodium split bilaterally into 2 claw-like structures, usually with appendent hairs.",
-            "advances_to": "Genus: Schizotetranychus"
-          },
-          "option_b": {
-            "morphology": "Empodium split distally into hairs.",
-            "advances_to": "Node 4"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Dorsal body setae twice as long as the distance between bases of consecutive setae and set on tubercles. Aedeagal knob axis at an acute angle with the shaft, knob with an acute anterior angulation, width of knob about twice the width of aedeagal neck.",
-            "advances_to": "Species: Neotetranychus lek"
-          },
-          "option_b": {
-            "morphology": "Dorsal body setae at least as long as the distance between bases of consecutive setae, not borne on tubercles. Distal bent portion of aedeagus longer than the width of neck, knob pointed distally without projections.",
-            "advances_to": "Species: Eotetranychus sp. 1"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Tarsus I with two sets of duplex setae distal and adjacent; empodium of legs claw-like with proximoventral hairs.",
-            "advances_to": "Genus: Oligonychus"
-          },
-          "option_b": {
-            "morphology": "Tarsus I with two sets of duplex setae well separated, dividing segment into three more or less equal parts; empodium of legs claw-like, split distally into 3 pairs of hairs.",
-            "advances_to": "Genus: Tetranychus"
-          }
-        }
-      }
-    },
-    "tetranychini.to.genus": {
-      "title": "Genus under Tetranychini",
-      "parent": {
-        "rank": "Tribe",
-        "name": "Tetranychini"
-      },
-      "identifies": [
-        "Genus"
-      ],
-      "endpoint_ranks": [
-        "Genus"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "2 pairs of para-anal setae (ps1-2).",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "1 pair of para-anal setae.",
-            "advances_to": "Node 16"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Empodium claw-like.",
-            "advances_to": "Node 3"
-          },
-          "option_b": {
-            "morphology": "Empodium split distally or ending in tuft of hairs.",
-            "advances_to": "Node 11"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Empodium a single claw-like structure.",
-            "advances_to": "Node 4"
-          },
-          "option_b": {
-            "morphology": "Empodium split into 2 claw-like structures, usually with appendant hairs.",
-            "advances_to": "Node 9"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Empodium without proximoventral hairs.",
-            "advances_to": "Node 5"
-          },
-          "option_b": {
-            "morphology": "Empodium with proximoventral hairs.",
-            "advances_to": "Node 8"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Empodial claw much longer than the pads of the true claws.",
-            "advances_to": "Node 6"
-          },
-          "option_b": {
-            "morphology": "Empodial claw very short, about as long as the pads of the true claws.",
-            "advances_to": "Genus: Brevinychus"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Empodial claw strong; dorsal setae stout; integument forming reticulate pattern.",
-            "advances_to": "Node 7"
-          },
-          "option_b": {
-            "morphology": "Empodial claw thin; dorsal setae fine; integument with simple striations.",
-            "advances_to": "Genus: Sonotetranycus"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Opisthosoma with 10 pairs of dorsal setae.",
-            "advances_to": "Genus: Mixonychus"
-          },
-          "option_b": {
-            "morphology": "Opisthosoma with 9 pairs of dorsal setae.",
-            "advances_to": "Genus: Evertelia"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Empodial claw as long or longer than proximoventral hairs, which are at right angles to the claw.",
-            "advances_to": "Genus: Panonychus"
-          },
-          "option_b": {
-            "morphology": "Empodial claw shorter than proximoventral hairs, which are at less than right angles to the claw.",
-            "advances_to": "Genus: Allonychus"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Opisthosoma with 10 pairs of dorsal setae.",
-            "advances_to": "Genus: Schizotetranychus"
-          },
-          "option_b": {
-            "morphology": "Opisthosoma with 9 pairs of dorsal setae.",
-            "advances_to": "Node 10"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "c2 setae present.",
-            "advances_to": "Genus: Yunotetranycus"
-          },
-          "option_b": {
-            "morphology": "c2 setae absent.",
-            "advances_to": "Genus: Yezonychus"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Empodium split distally; dorsal body setae on tubercles.",
-            "advances_to": "Node 12"
-          },
-          "option_b": {
-            "morphology": "Empodium split near the middle into 3 pairs of hairs.",
-            "advances_to": "Node 13"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "2 pairs of anal setae (ps1-2).",
-            "advances_to": "Genus: Neotetranychus"
-          },
-          "option_b": {
-            "morphology": "1 pair of anal setae (ps3).",
-            "advances_to": "Genus: Acanthonychus"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Opisthosoma with longitudinal striae between the e1 setae; dorsal body setae serrate.",
-            "advances_to": "Genus: Mononychellus"
-          },
-          "option_b": {
-            "morphology": "Opisthosoma with transverse striae.",
-            "advances_to": "Node 14"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "Dorsal body setae much shorter than the intervals between their bases.",
-            "advances_to": "Genus: Platytetranychus"
-          },
-          "option_b": {
-            "morphology": "Dorsal body setae as long or longer than the intervals between their bases.",
-            "advances_to": "Node 15"
-          }
-        },
-        "15": {
-          "option_a": {
-            "morphology": "2 pairs of anal setae (ps1-2).",
-            "advances_to": "Genus: Eotetranychus"
-          },
-          "option_b": {
-            "morphology": "1 pair of anal setae.",
-            "advances_to": "Genus: Palmanychus"
-          }
-        },
-        "16": {
-          "option_a": {
-            "morphology": "Empodium claw-like with proximoventral hairs; duplex setae of tarsus I distal and adjacent.",
-            "advances_to": "Node 17"
-          },
-          "option_b": {
-            "morphology": "Empodium split distally, usually into 3 pairs of hairs; duplex setae of tarsus I well separated.",
-            "advances_to": "Node 20"
-          }
-        },
-        "17": {
-          "option_a": {
-            "morphology": "2 pairs of anal setae (ps1-2).",
-            "advances_to": "Node 18"
-          },
-          "option_b": {
-            "morphology": "1 pair of anal setae.",
-            "advances_to": "Genus: Atrichoproctus"
-          }
-        },
-        "18": {
-          "option_a": {
-            "morphology": "Opisthosoma with 9 pairs of dorsal setae (c2 absent).",
-            "advances_to": "Genus: Xinella"
-          },
-          "option_b": {
-            "morphology": "Opisthosoma with 10 pairs of dorsal setae.",
-            "advances_to": "Node 19"
-          }
-        },
-        "19": {
-          "option_a": {
-            "morphology": "All the legs or most of them with empodial claws as long or longer than the proximoventral hairs.",
-            "advances_to": "Genus: Oligonychus"
-          },
-          "option_b": {
-            "morphology": "All the legs or most of them with empodial claws nearly as long as the proximoventral hairs.",
-            "advances_to": "Genus: Hellenychus"
-          }
-        },
-        "20": {
-          "option_a": {
-            "morphology": "Empodial spur generally visible; peritreme recurved distally.",
-            "advances_to": "Genus: Tetranychus"
-          },
-          "option_b": {
-            "morphology": "Empodial spur absent; peritreme anastomosed distally.",
-            "advances_to": "Genus: Amphitetranychus"
-          }
-        }
-      }
-    },
-    "tetranychoidea.to.family": {
-      "title": "Family under Tetranychoidea",
-      "parent": {
-        "rank": "Superfamily",
-        "name": "Tetranychoidea"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Setae of posterior margin of idiosoma forming a fanlike transverse row of 5 or more pairs of flagellate or bipectinate setae; dorsal and lateral opisthosomatic setae expanded, fanlike.",
-            "advances_to": "Family: Tuckerellidae"
-          },
-          "option_b": {
-            "morphology": "Setae of posterior margin of idiosoma slender, simple, not forming a fanlike row; dorsal and lateral opisthosomatic setae variable in form, the anterior row comprising at most 4 pairs.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Tarsi I-II without peg-shaped or bulbous solenidia and with 1-2 long, slender, tapered solenidia usually closely associated with a short or minute seta to form duplex sets; stylophore attachment to idiosoma without ribbed collar; palpi 5-segmented, with thumb-claw process; palptarsus with or without one distal eupathidium enlarged as a spinneret.",
-            "advances_to": "Family: Tetranychidae"
-          },
-          "option_b": {
-            "morphology": "Tarsi I-II with distal, peg-shaped solenidia and with no solenidia closely associated with a seta to form duplex sets; stylophore attached to idiosoma by retractable ribbed collar; palpi 5 or fewer segments and without thumb-claw process; palptarsus without eupathidial modification as above.",
-            "advances_to": "Family: Tenuipalpidae"
-          }
-        }
-      }
-    },
-    "tetranychus.to.species": {
-      "title": "Species under Tetranychus",
-      "parent": {
-        "rank": "Genus",
-        "name": "Tetranychus"
-      },
-      "identifies": [
-        "Species"
-      ],
-      "endpoint_ranks": [
-        "Species"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Dorsal lobes extended as hair-like processes.",
-            "advances_to": "Species: T. hirsutus"
-          },
-          "option_b": {
-            "morphology": "Dorsal lobe variable in shape but not with hair-like extended processes.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Spur on empodium I of female stout, 2/3 the length of proximoventral hairs.",
-            "advances_to": "Species: T. bambusae"
-          },
-          "option_b": {
-            "morphology": "Spur on empodium I when present short, never exceeding 1/3 the length of proximoventral hairs.",
-            "advances_to": "Node 3"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Aedeagus long, slender, tapering without a distinct terminal knob.",
-            "advances_to": "Node 4"
-          },
-          "option_b": {
-            "morphology": "Aedeagus not long, not slender, not tapering; with a terminal knob.",
-            "advances_to": "Node 5"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Peritreme weakly hooked; pregenital striae entire; aedeagus exceedingly long with pointed tip.",
-            "advances_to": "Species: T. jijiensis"
-          },
-          "option_b": {
-            "morphology": "Peritreme typically hooked; pregenital striae broken; aedeagus considerably shorter and blunt at tip.",
-            "advances_to": "Species: T. taiwanicus"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Female with proximal set of duplex setae more or less in line with the proximal tactile setae.",
-            "advances_to": "Node 6"
-          },
-          "option_b": {
-            "morphology": "Female with proximal set of duplex setae well beyond the proximal four tactile setae.",
-            "advances_to": "Node 7"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Aedeagal knob with very small anterior and posterior projections; empodium II of male with proximoventral tridigitate spurs.",
-            "advances_to": "Species: T. macfarlanei"
-          },
-          "option_b": {
-            "morphology": "Aedeagal knob with acute anterior projection and without posterior projections; empodium II of male with 3 pairs of proximoventral hairs and a small distinct mediodorsal spur.",
-            "advances_to": "Species: T. ludeni"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Aedeagus with a tiny knob.",
-            "advances_to": "Node 8"
-          },
-          "option_b": {
-            "morphology": "Aedeagus with a distinct knob.",
-            "advances_to": "Node 9"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Aedeagal knob with slight anterior and posterior angulations.",
-            "advances_to": "Species: T. udaipurensis"
-          },
-          "option_b": {
-            "morphology": "Aedeagal knob without posterior angulation.",
-            "advances_to": "Species: T. hypogeae"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Female with transverse to irregularly transverse striae between 3rd pair of dorsocentral hysterosomals (e1) and longitudinal between 4th pair of dorsocentrals (f1).",
-            "advances_to": "Species: T. angloensts"
-          },
-          "option_b": {
-            "morphology": "Female with longitudinal to irregularly longitudinal striae between 3rd pair of dorsoventral hysterosomals (e1) and longitudinal between 4th pair of dorsocentrals (f1).",
-            "advances_to": "Node 10"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "Female hysterosoma with irregularly longitudinal striae between 4th pair of dorsocentral hysterosomals (e1 and f1).",
-            "advances_to": "Species: T. africindicus"
-          },
-          "option_b": {
-            "morphology": "Female hysterosoma with longitudinal striae between 4th pair of dorsocentral hysterosomals (e1), forming a more or less diamond shaped pattern between 3rd and 4th pair (e1 and f1).",
-            "advances_to": "Node 11"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Female hysterosoma with irregular longitudinal striae between 3rd pair of dorsocentrals (e1).",
-            "advances_to": "Species: T. sayedi"
-          },
-          "option_b": {
-            "morphology": "Female hysterosoma with longitudinal striae between 3rd pair of dorsocentrals (e1).",
-            "advances_to": "Node 12"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Male empodium I and II with spurs minute or absent, less than 1 µm long.",
-            "advances_to": "Node 13"
-          },
-          "option_b": {
-            "morphology": "Male empodium I and II with larger spurs, greater than 2 µm long.",
-            "advances_to": "Node 17"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Dorsum of aedeagal knob with median indentation, berry-like.",
-            "advances_to": "Node 14"
-          },
-          "option_b": {
-            "morphology": "Dorsum of aedeagal knob slightly rounded, not berry-like, without median indentation.",
-            "advances_to": "Node 15"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "Aedeagal neck not conspicuous; shaft shorter; anterior projection of the knob rounded and much bigger than posterior projection.",
-            "advances_to": "Species: T. puschelii"
-          },
-          "option_b": {
-            "morphology": "Aedeagal neck conspicuous; shaft longer; anterior and posterior projections of the knob subequal.",
-            "advances_to": "Species: T. neocaledonicus"
-          }
-        },
-        "15": {
-          "option_a": {
-            "morphology": "Dorsal surface of the knob parallel to the axis of the shaft.",
-            "advances_to": "Species: T. zoheri"
-          },
-          "option_b": {
-            "morphology": "Dorsal surface of the knob at an angle to the axis of the shaft.",
-            "advances_to": "Node 16"
-          }
-        },
-        "16": {
-          "option_a": {
-            "morphology": "Posterior angulation of knob elongated; width of the knob more than twice the width of the aedeagal neck.",
-            "advances_to": "Species: T. marianae"
-          },
-          "option_b": {
-            "morphology": "Posterior angulation of knob shorter; width of the knob one and a half times the width of the aedeagal neck.",
-            "advances_to": "Species: T. lombardinii"
-          }
-        },
-        "17": {
-          "option_a": {
-            "morphology": "Aedeagal knob with anterior projection acute.",
-            "advances_to": "Node 18"
-          },
-          "option_b": {
-            "morphology": "Aedeagal knob with anterior projection rounded.",
-            "advances_to": "Node 19"
-          }
-        },
-        "18": {
-          "option_a": {
-            "morphology": "Stylophore notched anteriorly.",
-            "advances_to": "Species: T. papayae"
-          },
-          "option_b": {
-            "morphology": "Stylophore rounded anteriorly.",
-            "advances_to": "Species: T. belloti"
-          }
-        },
-        "19": {
-          "option_a": {
-            "morphology": "Dorsal surface of the aedeagal knob not convex completely; at least posterior half of the knob with a median indentation.",
-            "advances_to": "Species: T. truncatus"
-          },
-          "option_b": {
-            "morphology": "Dorsal surface of the aedeagal knob convex or most part of it convex.",
-            "advances_to": "Node 20"
-          }
-        },
-        "20": {
-          "option_a": {
-            "morphology": "Dorsal margin of the shaft is inclined with the dorsal margin of the knob; posterior projection of the knob beak-like, whole knob looks like a bird's head.",
-            "advances_to": "Species: T. gloveri"
-          },
-          "option_b": {
-            "morphology": "Dorsal margin of the shaft is almost parallel to the dorsal margin of the knob.",
-            "advances_to": "Node 21"
-          }
-        },
-        "21": {
-          "option_a": {
-            "morphology": "Tubercles on the dorsal striae triangular in shape.",
-            "advances_to": "Species: T. urticae (variant)"
-          },
-          "option_b": {
-            "morphology": "Tubercles on the dorsal striae semicircular in shape.",
-            "advances_to": "Node 22"
-          }
-        },
-        "22": {
-          "option_a": {
-            "morphology": "Terminal sensillum of male palpus about 3–4 times as long as broad; aedeagal knob about 1/5th to 1/4th the length of the dorsal margin of the shaft.",
-            "advances_to": "Species: T. urticae"
-          },
-          "option_b": {
-            "morphology": "Terminal sensillum of male palpus about 3 times as long as broad; aedeagal knob about 1/3 the length of the dorsal margin of the shaft.",
-            "advances_to": "Species: T. kanzawai"
-          }
-        }
-      }
-    },
-    "tetranychus.to.species.kerala": {
-      "title": "Species under Tetranychus (Kerala regional paper)",
-      "parent": {
-        "rank": "Genus",
-        "name": "Tetranychus"
-      },
-      "identifies": [
-        "Species"
-      ],
-      "endpoint_ranks": [
-        "Species"
-      ],
-      "scope": {
-        "source_type": "regional paper",
-        "region": "Kerala"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Spur on empodium I of female stout, two-thirds the length of proximoventral hairs; aedeagal knob forming an acute angle with the shaft, posterior angulation acute.",
-            "advances_to": "Species: T. bambusae"
-          },
-          "option_b": {
-            "morphology": "Spur on empodium I when present short, never exceeding one-third the length of proximoventral hairs; aedeagus not as above.",
-            "advances_to": "Node 2"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Aedeagus long, slender, tapering, without a distinct terminal knob.",
-            "advances_to": "Species: T. fijiensis"
-          },
-          "option_b": {
-            "morphology": "Aedeagus not long, slender, and tapering; with a terminal knob.",
-            "advances_to": "Node 3"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Female with proximal set of duplex setae more or less in line with the proximal tactile setae.",
-            "advances_to": "Node 4"
-          },
-          "option_b": {
-            "morphology": "Female with proximal set of duplex setae well beyond the proximal four tactile setae.",
-            "advances_to": "Node 5"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Aedeagal knob with very small anterior and posterior projections; empodium II of male with proximoventral tridigitate spurs.",
-            "advances_to": "Species: T. macfarlanei"
-          },
-          "option_b": {
-            "morphology": "Aedeagal knob with acute anterior projection and without posterior projections; empodium II of male with 3 pairs of proximoventral hairs and with a small distinct mediodorsal spur.",
-            "advances_to": "Species: T. ludeni"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Aedeagus with a tiny knob; knob with slight anterior and posterior angulations.",
-            "advances_to": "Species: T. udaipurensis"
-          },
-          "option_b": {
-            "morphology": "Aedeagus with a well-developed knob; knob not as above.",
-            "advances_to": "Node 6"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Dorsum of aedeagal knob with median indentation, berry-like.",
-            "advances_to": "Node 7"
-          },
-          "option_b": {
-            "morphology": "Dorsum of aedeagal knob slightly rounded without median indentation, not berry-like.",
-            "advances_to": "Node 8"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Aedeagal neck not conspicuous; shaft shorter; anterior projection of the knob rounded and much bigger than the posterior projection.",
-            "advances_to": "Species: T. puschelii"
-          },
-          "option_b": {
-            "morphology": "Aedeagal neck conspicuous; shaft longer; anterior and posterior projections of the knob subequal.",
-            "advances_to": "Species: T. neocaledonicus"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Female empodium with strong mediodorsal spur; female terminal sensillum slightly longer than wide; aedeagal knob looks like a bird's head with posterior projection beak-like.",
-            "advances_to": "Species: T. gloveri"
-          },
-          "option_b": {
-            "morphology": "Female empodium with mediodorsal spur inconspicuous or absent; female terminal sensillum approximately twice as long as wide; aedeagal knob not as above.",
-            "advances_to": "Node 9"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Dorsal surface of aedeagal knob at an angle to the axis of the shaft.",
-            "advances_to": "Node 10"
-          },
-          "option_b": {
-            "morphology": "Dorsal surface of knob parallel to the axis of the shaft.",
-            "advances_to": "Node 11"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "Posterior angulation of knob elongated; width of the knob more than twice the width of the aedeagal neck.",
-            "advances_to": "Species: T. marianae"
-          },
-          "option_b": {
-            "morphology": "Posterior angulation of knob shorter; width of the knob one and a half times the width of the aedeagal neck.",
-            "advances_to": "Species: T. lombardinii"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Dorsal surface of the aedeagal knob not convex completely; at least posterior half of the knob with a median indentation.",
-            "advances_to": "Species: T. truncatus"
-          },
-          "option_b": {
-            "morphology": "Dorsal surface of the aedeagal knob convex or most of it convex.",
-            "advances_to": "Node 12"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Terminal sensillum of male palpus about 3-4 times as long as broad; aedeagal knob about one-fifth to one-fourth the length of the dorsal margin of the shaft.",
-            "advances_to": "Species: T. urticae"
-          },
-          "option_b": {
-            "morphology": "Terminal sensillum of male palpus about 3 times as long as broad; aedeagal knob about one-third the length of the dorsal margin of the shaft.",
-            "advances_to": "Species: T. kanzawai"
-          }
-        }
-      }
-    },
-    "trigynaspida.to.family": {
-      "title": "Family under Trigynaspida",
-      "parent": {
-        "rank": "Suborder",
-        "name": "Trigynaspida"
-      },
-      "identifies": [
-        "Family"
-      ],
-      "endpoint_ranks": [
-        "Family"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Adult female with separate podonotal, mesonotal, and pygidial shields (sometimes obscured by leathery, secondary sclerotization).",
-            "advances_to": "Node 2"
-          },
-          "option_b": {
-            "morphology": "Adult female with holonotal (entire) shield or with separate podonotal and opisthonotal shields.",
-            "advances_to": "Node 3"
-          }
-        },
-        "2": {
-          "option_a": {
-            "morphology": "Mesonotum with a single, large shield; pygidial shield small, on tail-like posterior process; metapodal shields and peritremes absent; female with well-developed and tapering vaginal sclerites. On Neotropical millipedes.",
-            "advances_to": "Family: Neotenogyniidae"
-          },
-          "option_b": {
-            "morphology": "With a pair of mesonotal shields and a well-developed pygidial shield; free metapodal shields present, distinct in teneral or lightly sclerotized adults but often obscured by secondary leathery cuticle; peritremes present and well developed; female with a pair of straplike internal genital plates with numerous large pores. Free living.",
-            "advances_to": "Family: Davacaridae"
-          }
-        },
-        "3": {
-          "option_a": {
-            "morphology": "Often yellowish to light brown in color; weakly to strongly sclerotized and with a holodorsal shield or separate podonotal and opisthonotal shields; palpgenu with 6 setae; gnathotectum denticulate, usually not coming to point and without median keel; tritosternal laciniae usually fused for half or more of length, often rodlike; chelicerae toothed; large internal sclerites in genital region absent; tarsus I with or without claws. Free living or associated with arthropods.",
-            "advances_to": "Node 4"
-          },
-          "option_b": {
-            "morphology": "Often dark reddish brown in color; strongly sclerotized and with a holodorsal shield; palpgenu with 5-7 setae; gnathotectum usually smooth, with median spur and ventral keel; tritosternal laciniae usually free; chelicerae toothed or edentate; vaginal sclerites or sternovaginal processes often present; tarsus I without claws. Associated with arthropods or reptiles.",
-            "advances_to": "Node 9"
-          }
-        },
-        "4": {
-          "option_a": {
-            "morphology": "Adults with a holodorsal shield.",
-            "advances_to": "Node 6"
-          },
-          "option_b": {
-            "morphology": "Adults with separate podonotal and opisthonotal shields.",
-            "advances_to": "Node 5"
-          }
-        },
-        "5": {
-          "option_a": {
-            "morphology": "Dorsal shields with relatively few setae; lateral idiosomal setae on marginal shields, not on platelets in soft cuticle; ventrianal shield fused posteriorly to opisthonotal and marginal shields; tarsus I with or without claws.",
-            "advances_to": "Family: Pyrosejidae"
-          },
-          "option_b": {
-            "morphology": "Dorsal shields strongly hypertrichous; lateral idiosomal setae on platelets in soft cuticle; ventrianal shield free posteriorly; tarsus I without claws.",
-            "advances_to": "Family: Cercomegistidae"
-          }
-        },
-        "6": {
-          "option_a": {
-            "morphology": "Female with separate latigynal and mesogynal shields.",
-            "advances_to": "Node 8"
-          },
-          "option_b": {
-            "morphology": "Latigynal and mesogynal shields fused, contiguous, or coalesced.",
-            "advances_to": "Node 7"
-          }
-        },
-        "7": {
-          "option_a": {
-            "morphology": "Latigynal and mesogynal shields insensibly fused into intercoxal shield; ventrianal shield fused to holodorsal shield posteriorly; plicate ventral cuticle without setae; tarsus I with claws.",
-            "advances_to": "Family: Seiodidae"
-          },
-          "option_b": {
-            "morphology": "Latigynal shields free medially but fused posterolaterally to mesogynal-opisthoventrianal shield, which is free from holodorsal shield posteriorly; plicate ventral cuticle with setae; tarsus I without claws. Associated with crabs.",
-            "advances_to": "Family: Cercomegistidae"
-          }
-        },
-        "8": {
-          "option_a": {
-            "morphology": "Anterior sternal area occupied by sclerotized sternal shield bearing st1 and st2; anal opening in small shield bearing only paranal setae; legs IV hypertrophied, modified for jumping; peritrematic shields with longitudinal groove behind coxae IV.",
-            "advances_to": "Family: Saltiseiidae"
-          },
-          "option_b": {
-            "morphology": "Anterior sternal region desclerotized, fragmented, st1 in soft or lightly sclerotized cuticle; anal opening in large ventrianal shield; legs IV normal; peritrematic shields without longitudinal groove behind coxae IV.",
-            "advances_to": "Family: Asternoseiidae"
-          }
-        },
-        "9": {
-          "option_a": {
-            "morphology": "Chelicerae edentate or with minute serrations or baleenlike comb.",
-            "advances_to": "Node 10"
-          },
-          "option_b": {
-            "morphology": "Chelicerae with well-developed, sclerotized teeth.",
-            "advances_to": "Node 18"
-          }
-        },
-        "10": {
-          "option_a": {
-            "morphology": "Fixed digit of chelicera without excrescence or membranous process; sternal shield with or without internal sternovaginal processes; latigynal shields usually extensively overlapping mesogynal region. Associated with ants.",
-            "advances_to": "Node 14"
-          },
-          "option_b": {
-            "morphology": "Fixed digit with fringed excrescence or distally membranous-denticulate or with row of small teeth; sternal shield without sternovaginal sclerites; latigynal shields various but not overlapping mesogynal shield. Associated with reptiles, beetles, or myriapods.",
-            "advances_to": "Node 11"
-          }
-        },
-        "11": {
-          "option_a": {
-            "morphology": "Fixed digit with dorsal excrescence; anal opening in small shield with 1-3 pairs of setae; mesogynal shield bearing lateral setae. Associated with carabid beetles, centipedes, or millipedes.",
-            "advances_to": "Family: Parantennulidae"
-          },
-          "option_b": {
-            "morphology": "Fixed digit without dorsal excrescence, but terminating distally in denticulate, membranous process; anal opening in large ventral or ventrianal shield with numerous setae; mesogynal shield nude or fused to setose ventral elements. Associated with beetles, myriapods, or reptiles.",
-            "advances_to": "Node 12"
-          }
-        },
-        "12": {
-          "option_a": {
-            "morphology": "Dorsal shield entire; anal opening in large ventral shield; mesogynal shield free or fused to ventral elements; setae av4, pv4 reduced in size, often minute. Associated with beetles, myriapods, or reptiles.",
-            "advances_to": "Node 13"
-          },
-          "option_b": {
-            "morphology": "Dorsal shield divided; anal opening in straplike ventrianal shield; mesogynal shield absent; setae av4, pv4 normally developed. Associated with tenebrionid beetles.",
-            "advances_to": "Family: Philodanidae"
-          }
-        },
-        "13": {
-          "option_a": {
-            "morphology": "Sternal shield entire, bearing st1-st3 and sternal pores 1-2; pregenital shield fusiform and without sternal pores 3 (pseudosternogynum); palpgenu with 6 setae. Associated with carabid or passalid beetles.",
-            "advances_to": "Family: Promegistidae"
-          },
-          "option_b": {
-            "morphology": "Sternal shield variously divided; pregenital shield divided into two subtriangular shields, sometimes narrowly joined medially and bearing sternal pores 3 (sternogynum); palpgenu with 7 setae. Associated with carabid beetles, millipedes, or reptiles.",
-            "advances_to": "Family: Paramegistidae"
-          }
-        },
-        "14": {
-          "option_a": {
-            "morphology": "Sternal shield with a pair of sternovaginal sclerites; ventrianal shield without anterior process.",
-            "advances_to": "Node 15"
-          },
-          "option_b": {
-            "morphology": "Sternal shield without sternovaginal sclerites; ventrianal shield with anterior process.",
-            "advances_to": "Family: Antennophoridae"
-          }
-        },
-        "15": {
-          "option_a": {
-            "morphology": "Latigynal shields subrectangular, with parallel, approximate mesal margins; mesogynal shield obscured or absent.",
-            "advances_to": "Family: Messoracaridae"
-          },
-          "option_b": {
-            "morphology": "Latigynal shields subtriangular, margins diverging posteriorly; mesogynal shield well developed, subtriangular.",
-            "advances_to": "Node 16"
-          }
-        },
-        "16": {
-          "option_a": {
-            "morphology": "Latigynal shields each with 2 pairs of setae; pseudoperitreme present lateral and posterior to true peritreme.",
-            "advances_to": "Family: Aenictequidae"
-          },
-          "option_b": {
-            "morphology": "Latigynal shields each with 10 or more pairs of setae; pseudoperitreme absent.",
-            "advances_to": "Node 17"
-          }
-        },
-        "17": {
-          "option_a": {
-            "morphology": "Setae st1 and associated pores on separate anterior platelets (jugularia).",
-            "advances_to": "Family: Ptochacaridae"
-          },
-          "option_b": {
-            "morphology": "Setae st1-st3 (4) and pores on an entire sternal shield.",
-            "advances_to": "Family: Physalozerconidae"
-          }
-        },
-        "18": {
-          "option_a": {
-            "morphology": "Setae st1 on separate shield from st2-st3; well-developed sternogynum (entire or divided, and sometimes setose) present; movable digit of chelicera without enlarged proximal tooth; movable digit of male without sclerotized process. Associated with passalid beetles (rarely on carabid beetles).",
-            "advances_to": "Node 19"
-          },
-          "option_b": {
-            "morphology": "Setae st1 on same shield as st2-st3; sternogynum absent (free metasternal plates sometimes present); movable digit of chelicera with enlarged proximal tooth; movable digit of male with sclerotized excrescence. Free living or associated with a variety of arthropods or reptiles.",
-            "advances_to": "Node 22"
-          }
-        },
-        "19": {
-          "option_a": {
-            "morphology": "Cheliceral digits short, with moplike mass of long, filamentous, and ribbonlike excrescences; uropodid-like mites often with pedofossae.",
-            "advances_to": "Node 20"
-          },
-          "option_b": {
-            "morphology": "Cheliceral digits robust, with dendritic or brushlike excrescences; very large, long-legged mites without pedofossae.",
-            "advances_to": "Node 21"
-          }
-        },
-        "20": {
-          "option_a": {
-            "morphology": "Latigynal and mesogynal shields well developed; male genital aperture ellipsoidal, between coxae III.",
-            "advances_to": "Family: Klinkowstroemiidae"
-          },
-          "option_b": {
-            "morphology": "Latigynal and mesogynal shields reduced and hidden by ventral plate; male genital aperture subcircular, between coxae II-III.",
-            "advances_to": "Family: Fedrizziidae"
-          }
-        },
-        "21": {
-          "option_a": {
-            "morphology": "Sternogynum narrow, divided; fused latigynal shields free from ventral shield. Neotropical.",
-            "advances_to": "Family: Hoplomegistidae"
-          },
-          "option_b": {
-            "morphology": "Sternogynum broad, divided, or entire and surrounded by straplike, fused sternal-latigynal-ventral shield. Neotropical, African, and Australasian.",
-            "advances_to": "Family: Megisthanidae"
-          }
-        },
-        "22": {
-          "option_a": {
-            "morphology": "Mesogynal shield usually small, triangular, overlapped marginally by latigynals, and free from or fused to ventral plate; latigynal shields well developed and freely hinged to ventral plate.",
-            "advances_to": "Node 23"
-          },
-          "option_b": {
-            "morphology": "Mesogynal shield fused to ventral plate, free from or fused to latigynal elements; latigynals insensibly fused to ventral plate or extended posteriorly to coxae IV and narrowly joined to ventral plate.",
-            "advances_to": "Node 25"
-          }
-        },
-        "23": {
-          "option_a": {
-            "morphology": "Anal opening on small plate separate from ventral plate. Free living or associated with insects or myriapods.",
-            "advances_to": "Node 24"
-          },
-          "option_b": {
-            "morphology": "Anal opening on large ventral plate. Adults associated with arthropods or snakes.",
-            "advances_to": "Family: Diplogyniidae"
-          }
-        },
-        "24": {
-          "option_a": {
-            "morphology": "Free ventromarginal plates present. Free living in soil litter, on bark, in bark beetle galleries, or in the nests of stingless bees; rarely on beetles.",
-            "advances_to": "Family: Triplogyniidae"
-          },
-          "option_b": {
-            "morphology": "Free ventromarginal plates absent. Associated with millipedes.",
-            "advances_to": "Family: Costacaridae"
-          }
-        },
-        "25": {
-          "option_a": {
-            "morphology": "Latigynal-mesogynal complex insensibly fused, with at most a small median notch present on anterior margin of ventral-genital plate; metasternal setae on sternal shield or on well-developed metasternal plates. Free living or associated with bark beetles.",
-            "advances_to": "Node 26"
-          },
-          "option_b": {
-            "morphology": "Latigynal and mesogynal elements free from each other mesally; metasternal setae on sternal shield or on narrow, straplike plate or plates. Associated with a variety of arthropods or snakes.",
-            "advances_to": "Node 27"
-          }
-        },
-        "26": {
-          "option_a": {
-            "morphology": "Setae st4 on large, well-developed metasternal plates; endopodal-peritrematic shields fused to ventral plate. Associated with bark and bark beetles.",
-            "advances_to": "Family: Celaenopsidae"
-          },
-          "option_b": {
-            "morphology": "Setae st4 on sternal shield; endopodal-peritrematic shields fused but free from ventral plate. Free living.",
-            "advances_to": "Family: Megacelaenopsidae"
-          }
-        },
-        "27": {
-          "option_a": {
-            "morphology": "Median separations between mesogynal and latigynal elements not extending past level of coxae III. Associated with passalid beetles and millipedes.",
-            "advances_to": "Family: Euzerconidae"
-          },
-          "option_b": {
-            "morphology": "Latigynal elements elongate, separate from mesogynal element to or beyond level of coxae IV. Associated with beetles or snakes.",
-            "advances_to": "Family: Schizogyniidae"
-          }
-        }
-      }
-    },
-    "trombidiformes.to.suborder": {
-      "title": "Suborder under Trombidiformes",
-      "parent": {
-        "rank": "Order",
-        "name": "Trombidiformes"
-      },
-      "identifies": [
-        "Suborder"
-      ],
-      "endpoint_ranks": [
-        "Suborder"
-      ],
-      "scope": {
-        "source_type": "general"
-      },
-      "couplets": {
-        "1": {
-          "option_a": {
-            "morphology": "Tracheal system with 1 pair of stigmata opening between bases of chelicerae or on anterior prodorsum usually present (secondarily absent in Eriophyoidea, Stigmaeidae, some Dolichocyboidea); prodorsum usually with 4 or fewer pairs of setae or hypertrichous, sometimes including 1-2 pairs of bothridial sensilla; chelicerae rarely chelate; coxal fields contiguous or II-III separated.",
-            "advances_to": "Suborder: Prostigmata"
-          },
-          "option_b": {
-            "morphology": "Tracheal system absent; prodorsum with 3 or 6 pairs of setae, including 2 pairs of filamentous bothridial sensilla, sometimes in a common pit; chelicerae chelate and with elaborate dentition; coxal fields contiguous.",
-            "advances_to": "Suborder: Sphaerolichida"
-          }
-        }
-      }
-    }
-  },
-  "hierarchy": {
-    "Kingdom:Animalia": {
-      "rank": "Kingdom",
-      "name": "Animalia",
-      "keys": [
-        "animalia.to.phylum"
-      ],
-      "children": [
-        {
-          "rank": "Phylum",
-          "name": "Arthropoda"
-        }
-      ]
-    },
-    "Phylum:Arthropoda": {
-      "rank": "Phylum",
-      "name": "Arthropoda",
-      "keys": [
-        "arthropoda.to.class"
-      ],
-      "children": [
-        {
-          "rank": "Class",
-          "name": "Arachnida"
-        }
-      ]
-    },
-    "Class:Arachnida": {
-      "rank": "Class",
-      "name": "Arachnida",
-      "keys": [
-        "arachnida.to.subclass-order"
-      ],
-      "children": [
-        {
-          "rank": "Subclass",
-          "name": "Acari"
-        },
-        {
-          "rank": "Order",
-          "name": "Amblypygi, Solifugae, Opiliones"
-        },
-        {
-          "rank": "Order",
-          "name": "Araneae"
-        },
-        {
-          "rank": "Order",
-          "name": "Ricinulei, Pseudoscorpionida"
-        },
-        {
-          "rank": "Order",
-          "name": "Scorpiones, Uropygi, Palpigradi, Schizomida"
-        }
-      ]
-    },
-    "Subclass:Acari": {
-      "rank": "Subclass",
-      "name": "Acari",
-      "keys": [
-        "acari.to.order",
-        "acari.to.superorder"
-      ],
-      "children": [
-        {
-          "rank": "Superorder",
-          "name": "Acariformes"
-        },
-        {
-          "rank": "Superorder",
-          "name": "Parasitiformes"
-        },
-        {
-          "rank": "Order",
-          "name": "Ixodida"
-        },
-        {
-          "rank": "Order",
-          "name": "Mesostigmata"
-        },
-        {
-          "rank": "Order",
-          "name": "Sarcoptiformes"
-        },
-        {
-          "rank": "Order",
-          "name": "Trombidiformes"
-        }
-      ]
-    },
-    "Superorder:Acariformes": {
-      "rank": "Superorder",
-      "name": "Acariformes",
-      "keys": [
-        "acariformes.to.order"
-      ],
-      "children": [
-        {
-          "rank": "Order",
-          "name": "Sarcoptiformes"
-        },
-        {
-          "rank": "Order",
-          "name": "Trombidiformes"
-        }
-      ]
-    },
-    "Superorder:Parasitiformes": {
-      "rank": "Superorder",
-      "name": "Parasitiformes",
-      "keys": [
-        "parasitiformes.to.order"
-      ],
-      "children": [
-        {
-          "rank": "Order",
-          "name": "Holothyrida"
-        },
-        {
-          "rank": "Order",
-          "name": "Ixodida"
-        },
-        {
-          "rank": "Order",
-          "name": "Mesostigmata"
-        },
-        {
-          "rank": "Order",
-          "name": "Opilioacarida"
-        }
-      ]
-    },
-    "Order:Amblypygi, Solifugae, Opiliones": {
-      "rank": "Order",
-      "name": "Amblypygi, Solifugae, Opiliones",
-      "keys": [],
-      "children": []
-    },
-    "Order:Araneae": {
-      "rank": "Order",
-      "name": "Araneae",
-      "keys": [],
-      "children": []
-    },
-    "Order:Holothyrida": {
-      "rank": "Order",
-      "name": "Holothyrida",
-      "keys": [],
-      "children": []
-    },
-    "Order:Ixodida": {
-      "rank": "Order",
-      "name": "Ixodida",
-      "keys": [
-        "ixodida.to.family"
-      ],
-      "children": [
-        {
-          "rank": "Family",
-          "name": "Argasidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ixodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nuttalliellidae"
-        }
-      ]
-    },
-    "Order:Mesostigmata": {
-      "rank": "Order",
-      "name": "Mesostigmata",
-      "keys": [
-        "mesostigmata.to.family",
-        "mesostigmata.to.suborder"
-      ],
-      "children": [
-        {
-          "rank": "Suborder",
-          "name": "Monogynaspida"
-        },
-        {
-          "rank": "Suborder",
-          "name": "Sejida"
-        },
-        {
-          "rank": "Suborder",
-          "name": "Trigynaspida"
-        },
-        {
-          "rank": "Family",
-          "name": "Aenictequidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ameroseiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Antennophoridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Arctacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ascidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Asternoseiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Blattisociidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Celaenopsidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cercomegistidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Coprozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Costacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dasyponyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Davacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dermanyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Diarthrophallidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Digamasellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dinychidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Diplogyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Discozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dithinozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Entonyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Epicriidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Euzerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eviphididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Fedrizziidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Halarachnidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Halolaelapidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Heatherellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Heterozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hoplomegistidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hystrichonyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ichthyostomatogasteridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Iphiopsididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ixodorhynchidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Klinkowstroemiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Laelapidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Laelaptonyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Larvamimidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Macrochelidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Macronyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Manitherionyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Megacelaenopsidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Megisthanidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Melicharidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Messoracaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Metagynuridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Microgyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Neotenogyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nothogyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ologamasidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Omentolaelapidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Oplitidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Otopheidomenidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pachylaelapidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Paramegistidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Parantennulidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Parasitidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Parholaspididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Philodanidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Physalozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Phytoseiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Podocinidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Polyaspididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Promegistidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Protodinychidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ptochacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pyrosejidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Rhinonyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Rhodacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Saltiseiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Schizogyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Seiodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Sejidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Spelaeorhynchidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Spinturnicidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Thinozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trachytidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trachyuropodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trematuridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Triplogyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Uroactiniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Uropodellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Uropodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Varroidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Veigaiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Zerconidae"
-        }
-      ]
-    },
-    "Order:Opilioacarida": {
-      "rank": "Order",
-      "name": "Opilioacarida",
-      "keys": [],
-      "children": []
-    },
-    "Order:Ricinulei, Pseudoscorpionida": {
-      "rank": "Order",
-      "name": "Ricinulei, Pseudoscorpionida",
-      "keys": [],
-      "children": []
-    },
-    "Order:Sarcoptiformes": {
-      "rank": "Order",
-      "name": "Sarcoptiformes",
-      "keys": [
-        "sarcoptiformes.to.suborder-cohort"
-      ],
-      "children": [
-        {
-          "rank": "Suborder",
-          "name": "Endeostigmata"
-        },
-        {
-          "rank": "Suborder",
-          "name": "Oribatida"
-        },
-        {
-          "rank": "Cohort",
-          "name": "Astigmatina"
-        }
-      ]
-    },
-    "Order:Scorpiones, Uropygi, Palpigradi, Schizomida": {
-      "rank": "Order",
-      "name": "Scorpiones, Uropygi, Palpigradi, Schizomida",
-      "keys": [],
-      "children": []
-    },
-    "Order:Trombidiformes": {
-      "rank": "Order",
-      "name": "Trombidiformes",
-      "keys": [
-        "trombidiformes.to.suborder"
-      ],
-      "children": [
-        {
-          "rank": "Suborder",
-          "name": "Prostigmata"
-        },
-        {
-          "rank": "Suborder",
-          "name": "Sphaerolichida"
-        }
-      ]
-    },
-    "Suborder:Endeostigmata": {
-      "rank": "Suborder",
-      "name": "Endeostigmata",
-      "keys": [
-        "endeostigmata.to.family"
-      ],
-      "children": [
-        {
-          "rank": "Family",
-          "name": "Alicorhagiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Alycidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Grandjeanicidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Micropsammidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nanorchestidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nematalycidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Oehserchestidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Proteonematalycidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Proterorhagiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Terpnacaridae"
-        }
-      ]
-    },
-    "Suborder:Monogynaspida": {
-      "rank": "Suborder",
-      "name": "Monogynaspida",
-      "keys": [
-        "monogynaspida.to.family"
-      ],
-      "children": [
-        {
-          "rank": "Family",
-          "name": "Ameroseiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Arctacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ascidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Blattisociidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Coprozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dasyponyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dermanyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Diarthrophallidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Digamasellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dinychidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Discozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dithinozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Entonyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Epicriidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eviphididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Halarachnidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Halolaelapidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Heatherellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Heterozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hystrichonyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Iphiopsididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ixodorhynchidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Laelapidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Laelaptonyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Larvamimidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Macrochelidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Macronyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Manitherionyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Melicharidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Metagynuridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Microgyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nothogyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ologamasidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Omentolaelapidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Oplitidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Otopheidomenidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pachylaelapidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Parasitidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Parholaspididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Phytoseiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Podocinidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Polyaspididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Protodinychidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Rhinonyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Rhodacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Spelaeorhynchidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Spinturnicidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Thinozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trachytidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trachyuropodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trematuridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Uroactiniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Uropodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Varroidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Veigaiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Zerconidae"
-        }
-      ]
-    },
-    "Suborder:Oribatida": {
-      "rank": "Suborder",
-      "name": "Oribatida",
-      "keys": [
-        "oribatida.to.family.excluding.astigmatina"
-      ],
-      "children": [
-        {
-          "rank": "Family",
-          "name": "Acaronychidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Achipteriidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Adelphacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Adhaesozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Aleurodamaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ameridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Amerobelbidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ameronothridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Anderemaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Aphelacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Arborichthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Arceremaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Archeonothridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Aribatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Astegistidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Atopochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Autognetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Basilobelbidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Brachychthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Caleremaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Caloppiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Camisiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Campbellobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Carabocepheidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Carabodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cepheidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ceratokalummidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ceratozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cerocepheidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Chamobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Charassobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Chaviniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Collohmanniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cosmochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Crassoribatulidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Crotoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ctenacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ctenobelbidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cymbaeremaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Damaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Damaeolidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dampfiellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Drymobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Elliptochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Enantioppiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eniochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Epactozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Epilohmanniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Epimerellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eremaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eremaeozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eremellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eremobelbidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eremulidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eulohmanniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Euphthiracaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eutegaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Euzetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Fortuyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Galumnellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Galumnidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Gehypochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Granuloppiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Gustaviidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Gymnodamaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Haplochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Haplozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hermanniellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hermanniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Heterobelbidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Heterochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hexoppiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Humerobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hungarobelbidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hydrozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hypochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Idiodamaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Idiozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Kodiakellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Lamellareidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Liacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Licneremaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Licnobelbidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Licnodamaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Limnozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Lohmanniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Luxtoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Lyrifissellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Machadobelbidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Machuellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Malaconothridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Maudheimiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Megeremaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Mesoplophoridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Micreremidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Microtegeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Microzetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Mochlozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Multoribulidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Mycobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nacunansellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nanhermanniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nasobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nehypochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Neoliodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Neotrichozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nesozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Niphocepheidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nippobodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nodocepheidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nosybelbidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nothridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Onychobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Oppiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Oribatellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Oribatulidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Oribotritiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Oripodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Otocepheidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Oxyameridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Palaeacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Papillonotidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Parakalummidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Parhypochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Passalozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pediculochelidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pedrocortesellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Peloppiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Perlohmanniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Phenopelopidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pheroliodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Phthiracaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Phyllochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Plasmobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Plateremaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Platyameridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Podopterotegaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Polypterozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Protoplophoridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pterobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pterochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Quadroppiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Rhynchoribatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Scheloribatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Scutoverticidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Selenoribatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Sellnickiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Sphaerochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Spinozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Staurobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Stelechobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Sternoppiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Suctobelbidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Symbioribatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Synichotritiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tectocepheidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tegeocranellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tegoribatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tenuialidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Teratoppiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Thyrisomidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tokunocepheidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trhypochthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trichthoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trizetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tubulozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tumerozetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tuparezetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Unduloribatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Zetomimidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Zetomotrichidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Zetorchestidae"
-        }
-      ]
-    },
-    "Suborder:Prostigmata": {
-      "rank": "Suborder",
-      "name": "Prostigmata",
-      "keys": [
-        "prostigmata.to.cohort-family"
-      ],
-      "children": [
-        {
-          "rank": "Cohort",
-          "name": "Parasitengonina"
-        },
-        {
-          "rank": "Family",
-          "name": "Acarophenacidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Adamystidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Allochaetophoridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Anystidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Athyreacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Barbutiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Bdellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Caeculidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Caligonellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Camerobiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Caraboacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cheyletidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cloacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Crotalomorphidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cryptognathidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cunaxidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dasythyreidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Demodicidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Diptilomiopidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dolichocybidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Epimyodicidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ereynetidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eriophyidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eriorhynchidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eupalopsellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eupodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Halacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Harpirhynchidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Heterocheylidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Homocaligidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Iolinidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Labidostomatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Linotetranidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Mecognathidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Microdispidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Myobiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Paratydeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pentapalpidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Penthaleidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Penthalodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pezidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Phytoptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Podapolipidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pomerantziidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pseudocheylidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Psorergatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pterygosomatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pyemotidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pygmephoridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Raphignathidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Resinacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Rhagidiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Scutacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Siteroptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Stigmaeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Stigmocheylidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Strandtmanniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Syringophilidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tarsocheylidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tarsonemidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Teneriffiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tenuipalpidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tetranychidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Triophtydeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trochometridiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tuckerellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tydeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Xenocaligonellididae"
-        }
-      ]
-    },
-    "Suborder:Sejida": {
-      "rank": "Suborder",
-      "name": "Sejida",
-      "keys": [
-        "sejida.to.family"
-      ],
-      "children": [
-        {
-          "rank": "Family",
-          "name": "Ichthyostomatogasteridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Sejidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Uropodellidae"
-        }
-      ]
-    },
-    "Suborder:Sphaerolichida": {
-      "rank": "Suborder",
-      "name": "Sphaerolichida",
-      "keys": [
-        "sphaerolichida.to.family"
-      ],
-      "children": [
-        {
-          "rank": "Family",
-          "name": "Lordalycidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Sphaerolichidae"
-        }
-      ]
-    },
-    "Suborder:Trigynaspida": {
-      "rank": "Suborder",
-      "name": "Trigynaspida",
-      "keys": [
-        "trigynaspida.to.family"
-      ],
-      "children": [
-        {
-          "rank": "Family",
-          "name": "Aenictequidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Antennophoridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Asternoseiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Celaenopsidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cercomegistidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Costacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Davacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Diplogyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Euzerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Fedrizziidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hoplomegistidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Klinkowstroemiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Megacelaenopsidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Megisthanidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Messoracaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Neotenogyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Paramegistidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Parantennulidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Philodanidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Physalozerconidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Promegistidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ptochacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pyrosejidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Saltiseiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Schizogyniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Seiodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Triplogyniidae"
-        }
-      ]
-    },
-    "Cohort:Astigmatina": {
-      "rank": "Cohort",
-      "name": "Astigmatina",
-      "keys": [
-        "astigmatina.to.family"
-      ],
-      "children": [
-        {
-          "rank": "Family",
-          "name": "Acaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Aeroglyphidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Algophagidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Alloptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Analgidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Apionacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ascouracaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Atopomelidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Avenzoariidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Canestriniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Carpoglyphidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Caudiferidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Chaetodactylidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Chetochelacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cheylabididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Chirodiscidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Chirorhynchobiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Chortoglyphidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Crypturoptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Cytoditidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dermationidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Dermoglyphidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Echimyopodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Epidermoptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Euglycyphagidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eustathiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Falculiferidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Freyanidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Gabuciniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Gastronyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Gaudiellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Gaudoglyphidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Glycacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Glycyphagidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Guanolichidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hemisarcoptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Heterocoptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Histiostomatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hyadesiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hypoderatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Kiwilichidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Kramerellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Laminosioptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Lardoglyphidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Lemanniellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Lemurnyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Listrophoridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Lobalgidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Meliponocoptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Myocoptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ochrolichidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Oconnoriidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pneumocoptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Proctophyllodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Psoroptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Psoroptoididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pteronyssidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ptiloxenidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ptyssalgidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pyroglyphidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Rectijanuidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Rhyncoptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Rosensteiniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Sarcoptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Scatoglyphidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Suidasidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Syringobiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Thoracosathesidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Thysanocercidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trouessartiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Turbinoptidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Vexillariidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Winterschmidtiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Xolalgidae"
-        }
-      ]
-    },
-    "Cohort:Parasitengonina": {
-      "rank": "Cohort",
-      "name": "Parasitengonina",
-      "keys": [
-        "parasitengonina.to.family.adult",
-        "parasitengonina.to.family.larva"
-      ],
-      "children": [
-        {
-          "rank": "Family",
-          "name": "Acalyptonotidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Acherontacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Amoenacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Anisitsiellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Apheviderulicidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Arenohydracaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Arrenuridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Astacocrotonidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Athienemanniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Aturidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Audyanidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Bogatiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Calyptostomatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Chappuisididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Chyzeriidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ctenothyadidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Erythraeidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eutrombidiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eylaidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Feltriidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Ferradasiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Frontipodopsidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Harpagopalpidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hungarohydracaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hydrachnidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hydrodromidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hydrovolziidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hydryphantidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Hygrobatidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Johnstonianidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Kantacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Krendowskiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Laversiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Lebertiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Leeuwenhoekiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Lethaxonidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Limnesiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Limnocharidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Microtrombidiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Mideidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Mideopsidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Momoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Neoacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Neothrombiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Neotrombidiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nipponacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Nudomideopsidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Omartacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Oxidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Piersigiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pionidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Pontarachnidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Rhynchohydracaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Rutripalpidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Smarididae"
-        },
-        {
-          "rank": "Family",
-          "name": "Sperchontidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Stygothrombidiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Stygotoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tanaupodidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Teratothyadidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Teutoniidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Thermacaridae"
-        },
-        {
-          "rank": "Family",
-          "name": "Torrenticolidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trombellidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trombiculidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Trombidiidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Unionicolidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Wettinidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Zelandothyadidae"
-        }
-      ]
-    },
-    "Subcohort:Phytophagous Mites": {
-      "rank": "Subcohort",
-      "name": "Phytophagous Mites",
-      "keys": [
-        "phytophagous-mites.to.superfamily"
-      ],
-      "children": [
-        {
-          "rank": "Superfamily",
-          "name": "Eriophyoidea"
-        },
-        {
-          "rank": "Superfamily",
-          "name": "Tarsonemoidea"
-        },
-        {
-          "rank": "Superfamily",
-          "name": "Tetranychoidea"
-        }
-      ]
-    },
-    "Superfamily:Eriophyoidea": {
-      "rank": "Superfamily",
-      "name": "Eriophyoidea",
-      "keys": [
-        "eriophyoidea.to.family"
-      ],
-      "children": [
-        {
-          "rank": "Family",
-          "name": "Diptilomiopidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Eriophyidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Phytoptidae"
-        }
-      ]
-    },
-    "Superfamily:Tarsonemoidea": {
-      "rank": "Superfamily",
-      "name": "Tarsonemoidea",
-      "keys": [],
-      "children": []
-    },
-    "Superfamily:Tetranychoidea": {
-      "rank": "Superfamily",
-      "name": "Tetranychoidea",
-      "keys": [
-        "tetranychoidea.to.family"
-      ],
-      "children": [
-        {
-          "rank": "Family",
-          "name": "Tenuipalpidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tetranychidae"
-        },
-        {
-          "rank": "Family",
-          "name": "Tuckerellidae"
-        }
-      ]
-    },
-    "Family:Acalyptonotidae": {
-      "rank": "Family",
-      "name": "Acalyptonotidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Acaridae": {
-      "rank": "Family",
-      "name": "Acaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Acaronychidae": {
-      "rank": "Family",
-      "name": "Acaronychidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Acarophenacidae": {
-      "rank": "Family",
-      "name": "Acarophenacidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Acherontacaridae": {
-      "rank": "Family",
-      "name": "Acherontacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Achipteriidae": {
-      "rank": "Family",
-      "name": "Achipteriidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Adamystidae": {
-      "rank": "Family",
-      "name": "Adamystidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Adelphacaridae": {
-      "rank": "Family",
-      "name": "Adelphacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Adhaesozetidae": {
-      "rank": "Family",
-      "name": "Adhaesozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Aenictequidae": {
-      "rank": "Family",
-      "name": "Aenictequidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Aeroglyphidae": {
-      "rank": "Family",
-      "name": "Aeroglyphidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Aleurodamaeidae": {
-      "rank": "Family",
-      "name": "Aleurodamaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Algophagidae": {
-      "rank": "Family",
-      "name": "Algophagidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Alicorhagiidae": {
-      "rank": "Family",
-      "name": "Alicorhagiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Allochaetophoridae": {
-      "rank": "Family",
-      "name": "Allochaetophoridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Alloptidae": {
-      "rank": "Family",
-      "name": "Alloptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Alycidae": {
-      "rank": "Family",
-      "name": "Alycidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ameridae": {
-      "rank": "Family",
-      "name": "Ameridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Amerobelbidae": {
-      "rank": "Family",
-      "name": "Amerobelbidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ameronothridae": {
-      "rank": "Family",
-      "name": "Ameronothridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ameroseiidae": {
-      "rank": "Family",
-      "name": "Ameroseiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Amoenacaridae": {
-      "rank": "Family",
-      "name": "Amoenacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Analgidae": {
-      "rank": "Family",
-      "name": "Analgidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Anderemaeidae": {
-      "rank": "Family",
-      "name": "Anderemaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Anisitsiellidae": {
-      "rank": "Family",
-      "name": "Anisitsiellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Antennophoridae": {
-      "rank": "Family",
-      "name": "Antennophoridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Anystidae": {
-      "rank": "Family",
-      "name": "Anystidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Aphelacaridae": {
-      "rank": "Family",
-      "name": "Aphelacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Apheviderulicidae": {
-      "rank": "Family",
-      "name": "Apheviderulicidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Apionacaridae": {
-      "rank": "Family",
-      "name": "Apionacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Arborichthoniidae": {
-      "rank": "Family",
-      "name": "Arborichthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Arceremaeidae": {
-      "rank": "Family",
-      "name": "Arceremaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Archeonothridae": {
-      "rank": "Family",
-      "name": "Archeonothridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Arctacaridae": {
-      "rank": "Family",
-      "name": "Arctacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Arenohydracaridae": {
-      "rank": "Family",
-      "name": "Arenohydracaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Argasidae": {
-      "rank": "Family",
-      "name": "Argasidae",
-      "keys": [
-        "argasidae.to.genus"
-      ],
-      "children": [
-        {
-          "rank": "Genus",
-          "name": "Antricola"
-        },
-        {
-          "rank": "Genus",
-          "name": "Argas"
-        },
-        {
-          "rank": "Genus",
-          "name": "Nothoaspis"
-        },
-        {
-          "rank": "Genus",
-          "name": "Ornithodoros"
-        },
-        {
-          "rank": "Genus",
-          "name": "Otobius"
-        }
-      ]
-    },
-    "Family:Aribatidae": {
-      "rank": "Family",
-      "name": "Aribatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Arrenuridae": {
-      "rank": "Family",
-      "name": "Arrenuridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ascidae": {
-      "rank": "Family",
-      "name": "Ascidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ascouracaridae": {
-      "rank": "Family",
-      "name": "Ascouracaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Astacocrotonidae": {
-      "rank": "Family",
-      "name": "Astacocrotonidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Astegistidae": {
-      "rank": "Family",
-      "name": "Astegistidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Asternoseiidae": {
-      "rank": "Family",
-      "name": "Asternoseiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Athienemanniidae": {
-      "rank": "Family",
-      "name": "Athienemanniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Athyreacaridae": {
-      "rank": "Family",
-      "name": "Athyreacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Atopochthoniidae": {
-      "rank": "Family",
-      "name": "Atopochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Atopomelidae": {
-      "rank": "Family",
-      "name": "Atopomelidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Aturidae": {
-      "rank": "Family",
-      "name": "Aturidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Audyanidae": {
-      "rank": "Family",
-      "name": "Audyanidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Autognetidae": {
-      "rank": "Family",
-      "name": "Autognetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Avenzoariidae": {
-      "rank": "Family",
-      "name": "Avenzoariidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Barbutiidae": {
-      "rank": "Family",
-      "name": "Barbutiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Basilobelbidae": {
-      "rank": "Family",
-      "name": "Basilobelbidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Bdellidae": {
-      "rank": "Family",
-      "name": "Bdellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Blattisociidae": {
-      "rank": "Family",
-      "name": "Blattisociidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Bogatiidae": {
-      "rank": "Family",
-      "name": "Bogatiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Brachychthoniidae": {
-      "rank": "Family",
-      "name": "Brachychthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Caeculidae": {
-      "rank": "Family",
-      "name": "Caeculidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Caleremaeidae": {
-      "rank": "Family",
-      "name": "Caleremaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Caligonellidae": {
-      "rank": "Family",
-      "name": "Caligonellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Caloppiidae": {
-      "rank": "Family",
-      "name": "Caloppiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Calyptostomatidae": {
-      "rank": "Family",
-      "name": "Calyptostomatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Camerobiidae": {
-      "rank": "Family",
-      "name": "Camerobiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Camisiidae": {
-      "rank": "Family",
-      "name": "Camisiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Campbellobatidae": {
-      "rank": "Family",
-      "name": "Campbellobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Canestriniidae": {
-      "rank": "Family",
-      "name": "Canestriniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Caraboacaridae": {
-      "rank": "Family",
-      "name": "Caraboacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Carabocepheidae": {
-      "rank": "Family",
-      "name": "Carabocepheidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Carabodidae": {
-      "rank": "Family",
-      "name": "Carabodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Carpoglyphidae": {
-      "rank": "Family",
-      "name": "Carpoglyphidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Caudiferidae": {
-      "rank": "Family",
-      "name": "Caudiferidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Celaenopsidae": {
-      "rank": "Family",
-      "name": "Celaenopsidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Cepheidae": {
-      "rank": "Family",
-      "name": "Cepheidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ceratokalummidae": {
-      "rank": "Family",
-      "name": "Ceratokalummidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ceratozetidae": {
-      "rank": "Family",
-      "name": "Ceratozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Cercomegistidae": {
-      "rank": "Family",
-      "name": "Cercomegistidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Cerocepheidae": {
-      "rank": "Family",
-      "name": "Cerocepheidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Chaetodactylidae": {
-      "rank": "Family",
-      "name": "Chaetodactylidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Chamobatidae": {
-      "rank": "Family",
-      "name": "Chamobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Chappuisididae": {
-      "rank": "Family",
-      "name": "Chappuisididae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Charassobatidae": {
-      "rank": "Family",
-      "name": "Charassobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Chaviniidae": {
-      "rank": "Family",
-      "name": "Chaviniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Chetochelacaridae": {
-      "rank": "Family",
-      "name": "Chetochelacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Cheylabididae": {
-      "rank": "Family",
-      "name": "Cheylabididae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Cheyletidae": {
-      "rank": "Family",
-      "name": "Cheyletidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Chirodiscidae": {
-      "rank": "Family",
-      "name": "Chirodiscidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Chirorhynchobiidae": {
-      "rank": "Family",
-      "name": "Chirorhynchobiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Chortoglyphidae": {
-      "rank": "Family",
-      "name": "Chortoglyphidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Chyzeriidae": {
-      "rank": "Family",
-      "name": "Chyzeriidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Cloacaridae": {
-      "rank": "Family",
-      "name": "Cloacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Collohmanniidae": {
-      "rank": "Family",
-      "name": "Collohmanniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Coprozerconidae": {
-      "rank": "Family",
-      "name": "Coprozerconidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Cosmochthoniidae": {
-      "rank": "Family",
-      "name": "Cosmochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Costacaridae": {
-      "rank": "Family",
-      "name": "Costacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Crassoribatulidae": {
-      "rank": "Family",
-      "name": "Crassoribatulidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Crotalomorphidae": {
-      "rank": "Family",
-      "name": "Crotalomorphidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Crotoniidae": {
-      "rank": "Family",
-      "name": "Crotoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Cryptognathidae": {
-      "rank": "Family",
-      "name": "Cryptognathidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Crypturoptidae": {
-      "rank": "Family",
-      "name": "Crypturoptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ctenacaridae": {
-      "rank": "Family",
-      "name": "Ctenacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ctenobelbidae": {
-      "rank": "Family",
-      "name": "Ctenobelbidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ctenothyadidae": {
-      "rank": "Family",
-      "name": "Ctenothyadidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Cunaxidae": {
-      "rank": "Family",
-      "name": "Cunaxidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Cymbaeremaeidae": {
-      "rank": "Family",
-      "name": "Cymbaeremaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Cytoditidae": {
-      "rank": "Family",
-      "name": "Cytoditidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Damaeidae": {
-      "rank": "Family",
-      "name": "Damaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Damaeolidae": {
-      "rank": "Family",
-      "name": "Damaeolidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Dampfiellidae": {
-      "rank": "Family",
-      "name": "Dampfiellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Dasyponyssidae": {
-      "rank": "Family",
-      "name": "Dasyponyssidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Dasythyreidae": {
-      "rank": "Family",
-      "name": "Dasythyreidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Davacaridae": {
-      "rank": "Family",
-      "name": "Davacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Demodicidae": {
-      "rank": "Family",
-      "name": "Demodicidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Dermanyssidae": {
-      "rank": "Family",
-      "name": "Dermanyssidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Dermationidae": {
-      "rank": "Family",
-      "name": "Dermationidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Dermoglyphidae": {
-      "rank": "Family",
-      "name": "Dermoglyphidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Diarthrophallidae": {
-      "rank": "Family",
-      "name": "Diarthrophallidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Digamasellidae": {
-      "rank": "Family",
-      "name": "Digamasellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Dinychidae": {
-      "rank": "Family",
-      "name": "Dinychidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Diplogyniidae": {
-      "rank": "Family",
-      "name": "Diplogyniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Diptilomiopidae": {
-      "rank": "Family",
-      "name": "Diptilomiopidae",
-      "keys": [
-        "diptilomiopidae.to.subfamily"
-      ],
-      "children": [
-        {
-          "rank": "Subfamily",
-          "name": "Diptilomiopinae"
-        },
-        {
-          "rank": "Subfamily",
-          "name": "Rhyncaphytoptinae"
-        }
-      ]
-    },
-    "Family:Discozerconidae": {
-      "rank": "Family",
-      "name": "Discozerconidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Dithinozerconidae": {
-      "rank": "Family",
-      "name": "Dithinozerconidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Dolichocybidae": {
-      "rank": "Family",
-      "name": "Dolichocybidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Drymobatidae": {
-      "rank": "Family",
-      "name": "Drymobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Echimyopodidae": {
-      "rank": "Family",
-      "name": "Echimyopodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Elliptochthoniidae": {
-      "rank": "Family",
-      "name": "Elliptochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Enantioppiidae": {
-      "rank": "Family",
-      "name": "Enantioppiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eniochthoniidae": {
-      "rank": "Family",
-      "name": "Eniochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Entonyssidae": {
-      "rank": "Family",
-      "name": "Entonyssidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Epactozetidae": {
-      "rank": "Family",
-      "name": "Epactozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Epicriidae": {
-      "rank": "Family",
-      "name": "Epicriidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Epidermoptidae": {
-      "rank": "Family",
-      "name": "Epidermoptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Epilohmanniidae": {
-      "rank": "Family",
-      "name": "Epilohmanniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Epimerellidae": {
-      "rank": "Family",
-      "name": "Epimerellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Epimyodicidae": {
-      "rank": "Family",
-      "name": "Epimyodicidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eremaeidae": {
-      "rank": "Family",
-      "name": "Eremaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eremaeozetidae": {
-      "rank": "Family",
-      "name": "Eremaeozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eremellidae": {
-      "rank": "Family",
-      "name": "Eremellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eremobelbidae": {
-      "rank": "Family",
-      "name": "Eremobelbidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eremulidae": {
-      "rank": "Family",
-      "name": "Eremulidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ereynetidae": {
-      "rank": "Family",
-      "name": "Ereynetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eriophyidae": {
-      "rank": "Family",
-      "name": "Eriophyidae",
-      "keys": [
-        "eriophyidae.to.subfamily"
-      ],
-      "children": [
-        {
-          "rank": "Subfamily",
-          "name": "Aberoptinae"
-        },
-        {
-          "rank": "Subfamily",
-          "name": "Ashieldopinae"
-        },
-        {
-          "rank": "Subfamily",
-          "name": "Cecidophyinae"
-        },
-        {
-          "rank": "Subfamily",
-          "name": "Eriophyinae"
-        },
-        {
-          "rank": "Subfamily",
-          "name": "Nothopodinae"
-        },
-        {
-          "rank": "Subfamily",
-          "name": "Phyllocoptinae"
-        }
-      ]
-    },
-    "Family:Eriorhynchidae": {
-      "rank": "Family",
-      "name": "Eriorhynchidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Erythraeidae": {
-      "rank": "Family",
-      "name": "Erythraeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Euglycyphagidae": {
-      "rank": "Family",
-      "name": "Euglycyphagidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eulohmanniidae": {
-      "rank": "Family",
-      "name": "Eulohmanniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eupalopsellidae": {
-      "rank": "Family",
-      "name": "Eupalopsellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Euphthiracaridae": {
-      "rank": "Family",
-      "name": "Euphthiracaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eupodidae": {
-      "rank": "Family",
-      "name": "Eupodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eustathiidae": {
-      "rank": "Family",
-      "name": "Eustathiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eutegaeidae": {
-      "rank": "Family",
-      "name": "Eutegaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eutrombidiidae": {
-      "rank": "Family",
-      "name": "Eutrombidiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Euzerconidae": {
-      "rank": "Family",
-      "name": "Euzerconidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Euzetidae": {
-      "rank": "Family",
-      "name": "Euzetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eviphididae": {
-      "rank": "Family",
-      "name": "Eviphididae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Eylaidae": {
-      "rank": "Family",
-      "name": "Eylaidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Falculiferidae": {
-      "rank": "Family",
-      "name": "Falculiferidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Fedrizziidae": {
-      "rank": "Family",
-      "name": "Fedrizziidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Feltriidae": {
-      "rank": "Family",
-      "name": "Feltriidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ferradasiidae": {
-      "rank": "Family",
-      "name": "Ferradasiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Fortuyniidae": {
-      "rank": "Family",
-      "name": "Fortuyniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Freyanidae": {
-      "rank": "Family",
-      "name": "Freyanidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Frontipodopsidae": {
-      "rank": "Family",
-      "name": "Frontipodopsidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Gabuciniidae": {
-      "rank": "Family",
-      "name": "Gabuciniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Galumnellidae": {
-      "rank": "Family",
-      "name": "Galumnellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Galumnidae": {
-      "rank": "Family",
-      "name": "Galumnidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Gastronyssidae": {
-      "rank": "Family",
-      "name": "Gastronyssidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Gaudiellidae": {
-      "rank": "Family",
-      "name": "Gaudiellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Gaudoglyphidae": {
-      "rank": "Family",
-      "name": "Gaudoglyphidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Gehypochthoniidae": {
-      "rank": "Family",
-      "name": "Gehypochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Glycacaridae": {
-      "rank": "Family",
-      "name": "Glycacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Glycyphagidae": {
-      "rank": "Family",
-      "name": "Glycyphagidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Grandjeanicidae": {
-      "rank": "Family",
-      "name": "Grandjeanicidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Granuloppiidae": {
-      "rank": "Family",
-      "name": "Granuloppiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Guanolichidae": {
-      "rank": "Family",
-      "name": "Guanolichidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Gustaviidae": {
-      "rank": "Family",
-      "name": "Gustaviidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Gymnodamaeidae": {
-      "rank": "Family",
-      "name": "Gymnodamaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Halacaridae": {
-      "rank": "Family",
-      "name": "Halacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Halarachnidae": {
-      "rank": "Family",
-      "name": "Halarachnidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Halolaelapidae": {
-      "rank": "Family",
-      "name": "Halolaelapidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Haplochthoniidae": {
-      "rank": "Family",
-      "name": "Haplochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Haplozetidae": {
-      "rank": "Family",
-      "name": "Haplozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Harpagopalpidae": {
-      "rank": "Family",
-      "name": "Harpagopalpidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Harpirhynchidae": {
-      "rank": "Family",
-      "name": "Harpirhynchidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Heatherellidae": {
-      "rank": "Family",
-      "name": "Heatherellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hemisarcoptidae": {
-      "rank": "Family",
-      "name": "Hemisarcoptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hermanniellidae": {
-      "rank": "Family",
-      "name": "Hermanniellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hermanniidae": {
-      "rank": "Family",
-      "name": "Hermanniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Heterobelbidae": {
-      "rank": "Family",
-      "name": "Heterobelbidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Heterocheylidae": {
-      "rank": "Family",
-      "name": "Heterocheylidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Heterochthoniidae": {
-      "rank": "Family",
-      "name": "Heterochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Heterocoptidae": {
-      "rank": "Family",
-      "name": "Heterocoptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Heterozerconidae": {
-      "rank": "Family",
-      "name": "Heterozerconidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hexoppiidae": {
-      "rank": "Family",
-      "name": "Hexoppiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Histiostomatidae": {
-      "rank": "Family",
-      "name": "Histiostomatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Homocaligidae": {
-      "rank": "Family",
-      "name": "Homocaligidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hoplomegistidae": {
-      "rank": "Family",
-      "name": "Hoplomegistidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Humerobatidae": {
-      "rank": "Family",
-      "name": "Humerobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hungarobelbidae": {
-      "rank": "Family",
-      "name": "Hungarobelbidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hungarohydracaridae": {
-      "rank": "Family",
-      "name": "Hungarohydracaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hyadesiidae": {
-      "rank": "Family",
-      "name": "Hyadesiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hydrachnidae": {
-      "rank": "Family",
-      "name": "Hydrachnidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hydrodromidae": {
-      "rank": "Family",
-      "name": "Hydrodromidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hydrovolziidae": {
-      "rank": "Family",
-      "name": "Hydrovolziidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hydrozetidae": {
-      "rank": "Family",
-      "name": "Hydrozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hydryphantidae": {
-      "rank": "Family",
-      "name": "Hydryphantidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hygrobatidae": {
-      "rank": "Family",
-      "name": "Hygrobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hypochthoniidae": {
-      "rank": "Family",
-      "name": "Hypochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hypoderatidae": {
-      "rank": "Family",
-      "name": "Hypoderatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Hystrichonyssidae": {
-      "rank": "Family",
-      "name": "Hystrichonyssidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ichthyostomatogasteridae": {
-      "rank": "Family",
-      "name": "Ichthyostomatogasteridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Idiodamaeidae": {
-      "rank": "Family",
-      "name": "Idiodamaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Idiozetidae": {
-      "rank": "Family",
-      "name": "Idiozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Iolinidae": {
-      "rank": "Family",
-      "name": "Iolinidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Iphiopsididae": {
-      "rank": "Family",
-      "name": "Iphiopsididae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ixodidae": {
-      "rank": "Family",
-      "name": "Ixodidae",
-      "keys": [
-        "ixodidae.to.genus"
-      ],
-      "children": [
-        {
-          "rank": "Genus",
-          "name": "Amblyomma"
-        },
-        {
-          "rank": "Genus",
-          "name": "Anomalohimalaya"
-        },
-        {
-          "rank": "Genus",
-          "name": "Bothriocroton"
-        },
-        {
-          "rank": "Genus",
-          "name": "Cosmiomma"
-        },
-        {
-          "rank": "Genus",
-          "name": "Dermacentor"
-        },
-        {
-          "rank": "Genus",
-          "name": "Haemaphysalis"
-        },
-        {
-          "rank": "Genus",
-          "name": "Hyalomma"
-        },
-        {
-          "rank": "Genus",
-          "name": "Ixodes"
-        },
-        {
-          "rank": "Genus",
-          "name": "Margaropus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Nosomma"
-        },
-        {
-          "rank": "Genus",
-          "name": "Rhipicentor"
-        },
-        {
-          "rank": "Genus",
-          "name": "Rhipicephalus"
-        }
-      ]
-    },
-    "Family:Ixodorhynchidae": {
-      "rank": "Family",
-      "name": "Ixodorhynchidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Johnstonianidae": {
-      "rank": "Family",
-      "name": "Johnstonianidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Kantacaridae": {
-      "rank": "Family",
-      "name": "Kantacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Kiwilichidae": {
-      "rank": "Family",
-      "name": "Kiwilichidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Klinkowstroemiidae": {
-      "rank": "Family",
-      "name": "Klinkowstroemiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Kodiakellidae": {
-      "rank": "Family",
-      "name": "Kodiakellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Kramerellidae": {
-      "rank": "Family",
-      "name": "Kramerellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Krendowskiidae": {
-      "rank": "Family",
-      "name": "Krendowskiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Labidostomatidae": {
-      "rank": "Family",
-      "name": "Labidostomatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Laelapidae": {
-      "rank": "Family",
-      "name": "Laelapidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Laelaptonyssidae": {
-      "rank": "Family",
-      "name": "Laelaptonyssidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Lamellareidae": {
-      "rank": "Family",
-      "name": "Lamellareidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Laminosioptidae": {
-      "rank": "Family",
-      "name": "Laminosioptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Lardoglyphidae": {
-      "rank": "Family",
-      "name": "Lardoglyphidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Larvamimidae": {
-      "rank": "Family",
-      "name": "Larvamimidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Laversiidae": {
-      "rank": "Family",
-      "name": "Laversiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Lebertiidae": {
-      "rank": "Family",
-      "name": "Lebertiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Leeuwenhoekiidae": {
-      "rank": "Family",
-      "name": "Leeuwenhoekiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Lemanniellidae": {
-      "rank": "Family",
-      "name": "Lemanniellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Lemurnyssidae": {
-      "rank": "Family",
-      "name": "Lemurnyssidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Lethaxonidae": {
-      "rank": "Family",
-      "name": "Lethaxonidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Liacaridae": {
-      "rank": "Family",
-      "name": "Liacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Licneremaeidae": {
-      "rank": "Family",
-      "name": "Licneremaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Licnobelbidae": {
-      "rank": "Family",
-      "name": "Licnobelbidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Licnodamaeidae": {
-      "rank": "Family",
-      "name": "Licnodamaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Limnesiidae": {
-      "rank": "Family",
-      "name": "Limnesiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Limnocharidae": {
-      "rank": "Family",
-      "name": "Limnocharidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Limnozetidae": {
-      "rank": "Family",
-      "name": "Limnozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Linotetranidae": {
-      "rank": "Family",
-      "name": "Linotetranidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Listrophoridae": {
-      "rank": "Family",
-      "name": "Listrophoridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Lobalgidae": {
-      "rank": "Family",
-      "name": "Lobalgidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Lohmanniidae": {
-      "rank": "Family",
-      "name": "Lohmanniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Lordalycidae": {
-      "rank": "Family",
-      "name": "Lordalycidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Luxtoniidae": {
-      "rank": "Family",
-      "name": "Luxtoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Lyrifissellidae": {
-      "rank": "Family",
-      "name": "Lyrifissellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Machadobelbidae": {
-      "rank": "Family",
-      "name": "Machadobelbidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Machuellidae": {
-      "rank": "Family",
-      "name": "Machuellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Macrochelidae": {
-      "rank": "Family",
-      "name": "Macrochelidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Macronyssidae": {
-      "rank": "Family",
-      "name": "Macronyssidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Malaconothridae": {
-      "rank": "Family",
-      "name": "Malaconothridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Manitherionyssidae": {
-      "rank": "Family",
-      "name": "Manitherionyssidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Maudheimiidae": {
-      "rank": "Family",
-      "name": "Maudheimiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Mecognathidae": {
-      "rank": "Family",
-      "name": "Mecognathidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Megacelaenopsidae": {
-      "rank": "Family",
-      "name": "Megacelaenopsidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Megeremaeidae": {
-      "rank": "Family",
-      "name": "Megeremaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Megisthanidae": {
-      "rank": "Family",
-      "name": "Megisthanidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Melicharidae": {
-      "rank": "Family",
-      "name": "Melicharidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Meliponocoptidae": {
-      "rank": "Family",
-      "name": "Meliponocoptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Mesoplophoridae": {
-      "rank": "Family",
-      "name": "Mesoplophoridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Messoracaridae": {
-      "rank": "Family",
-      "name": "Messoracaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Metagynuridae": {
-      "rank": "Family",
-      "name": "Metagynuridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Micreremidae": {
-      "rank": "Family",
-      "name": "Micreremidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Microdispidae": {
-      "rank": "Family",
-      "name": "Microdispidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Microgyniidae": {
-      "rank": "Family",
-      "name": "Microgyniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Micropsammidae": {
-      "rank": "Family",
-      "name": "Micropsammidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Microtegeidae": {
-      "rank": "Family",
-      "name": "Microtegeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Microtrombidiidae": {
-      "rank": "Family",
-      "name": "Microtrombidiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Microzetidae": {
-      "rank": "Family",
-      "name": "Microzetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Mideidae": {
-      "rank": "Family",
-      "name": "Mideidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Mideopsidae": {
-      "rank": "Family",
-      "name": "Mideopsidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Mochlozetidae": {
-      "rank": "Family",
-      "name": "Mochlozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Momoniidae": {
-      "rank": "Family",
-      "name": "Momoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Multoribulidae": {
-      "rank": "Family",
-      "name": "Multoribulidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Mycobatidae": {
-      "rank": "Family",
-      "name": "Mycobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Myobiidae": {
-      "rank": "Family",
-      "name": "Myobiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Myocoptidae": {
-      "rank": "Family",
-      "name": "Myocoptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nacunansellidae": {
-      "rank": "Family",
-      "name": "Nacunansellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nanhermanniidae": {
-      "rank": "Family",
-      "name": "Nanhermanniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nanorchestidae": {
-      "rank": "Family",
-      "name": "Nanorchestidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nasobatidae": {
-      "rank": "Family",
-      "name": "Nasobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nehypochthoniidae": {
-      "rank": "Family",
-      "name": "Nehypochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nematalycidae": {
-      "rank": "Family",
-      "name": "Nematalycidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Neoacaridae": {
-      "rank": "Family",
-      "name": "Neoacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Neoliodidae": {
-      "rank": "Family",
-      "name": "Neoliodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Neotenogyniidae": {
-      "rank": "Family",
-      "name": "Neotenogyniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Neothrombiidae": {
-      "rank": "Family",
-      "name": "Neothrombiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Neotrichozetidae": {
-      "rank": "Family",
-      "name": "Neotrichozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Neotrombidiidae": {
-      "rank": "Family",
-      "name": "Neotrombidiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nesozetidae": {
-      "rank": "Family",
-      "name": "Nesozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Niphocepheidae": {
-      "rank": "Family",
-      "name": "Niphocepheidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nippobodidae": {
-      "rank": "Family",
-      "name": "Nippobodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nipponacaridae": {
-      "rank": "Family",
-      "name": "Nipponacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nodocepheidae": {
-      "rank": "Family",
-      "name": "Nodocepheidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nosybelbidae": {
-      "rank": "Family",
-      "name": "Nosybelbidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nothogyniidae": {
-      "rank": "Family",
-      "name": "Nothogyniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nothridae": {
-      "rank": "Family",
-      "name": "Nothridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nudomideopsidae": {
-      "rank": "Family",
-      "name": "Nudomideopsidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Nuttalliellidae": {
-      "rank": "Family",
-      "name": "Nuttalliellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ochrolichidae": {
-      "rank": "Family",
-      "name": "Ochrolichidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Oconnoriidae": {
-      "rank": "Family",
-      "name": "Oconnoriidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Oehserchestidae": {
-      "rank": "Family",
-      "name": "Oehserchestidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ologamasidae": {
-      "rank": "Family",
-      "name": "Ologamasidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Omartacaridae": {
-      "rank": "Family",
-      "name": "Omartacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Omentolaelapidae": {
-      "rank": "Family",
-      "name": "Omentolaelapidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Onychobatidae": {
-      "rank": "Family",
-      "name": "Onychobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Oplitidae": {
-      "rank": "Family",
-      "name": "Oplitidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Oppiidae": {
-      "rank": "Family",
-      "name": "Oppiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Oribatellidae": {
-      "rank": "Family",
-      "name": "Oribatellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Oribatulidae": {
-      "rank": "Family",
-      "name": "Oribatulidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Oribotritiidae": {
-      "rank": "Family",
-      "name": "Oribotritiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Oripodidae": {
-      "rank": "Family",
-      "name": "Oripodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Otocepheidae": {
-      "rank": "Family",
-      "name": "Otocepheidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Otopheidomenidae": {
-      "rank": "Family",
-      "name": "Otopheidomenidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Oxidae": {
-      "rank": "Family",
-      "name": "Oxidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Oxyameridae": {
-      "rank": "Family",
-      "name": "Oxyameridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pachylaelapidae": {
-      "rank": "Family",
-      "name": "Pachylaelapidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Palaeacaridae": {
-      "rank": "Family",
-      "name": "Palaeacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Papillonotidae": {
-      "rank": "Family",
-      "name": "Papillonotidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Parakalummidae": {
-      "rank": "Family",
-      "name": "Parakalummidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Paramegistidae": {
-      "rank": "Family",
-      "name": "Paramegistidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Parantennulidae": {
-      "rank": "Family",
-      "name": "Parantennulidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Parasitidae": {
-      "rank": "Family",
-      "name": "Parasitidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Paratydeidae": {
-      "rank": "Family",
-      "name": "Paratydeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Parholaspididae": {
-      "rank": "Family",
-      "name": "Parholaspididae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Parhypochthoniidae": {
-      "rank": "Family",
-      "name": "Parhypochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Passalozetidae": {
-      "rank": "Family",
-      "name": "Passalozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pediculochelidae": {
-      "rank": "Family",
-      "name": "Pediculochelidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pedrocortesellidae": {
-      "rank": "Family",
-      "name": "Pedrocortesellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Peloppiidae": {
-      "rank": "Family",
-      "name": "Peloppiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pentapalpidae": {
-      "rank": "Family",
-      "name": "Pentapalpidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Penthaleidae": {
-      "rank": "Family",
-      "name": "Penthaleidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Penthalodidae": {
-      "rank": "Family",
-      "name": "Penthalodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Perlohmanniidae": {
-      "rank": "Family",
-      "name": "Perlohmanniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pezidae": {
-      "rank": "Family",
-      "name": "Pezidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Phenopelopidae": {
-      "rank": "Family",
-      "name": "Phenopelopidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pheroliodidae": {
-      "rank": "Family",
-      "name": "Pheroliodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Philodanidae": {
-      "rank": "Family",
-      "name": "Philodanidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Phthiracaridae": {
-      "rank": "Family",
-      "name": "Phthiracaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Phyllochthoniidae": {
-      "rank": "Family",
-      "name": "Phyllochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Physalozerconidae": {
-      "rank": "Family",
-      "name": "Physalozerconidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Phytoptidae": {
-      "rank": "Family",
-      "name": "Phytoptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Phytoseiidae": {
-      "rank": "Family",
-      "name": "Phytoseiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Piersigiidae": {
-      "rank": "Family",
-      "name": "Piersigiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pionidae": {
-      "rank": "Family",
-      "name": "Pionidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Plasmobatidae": {
-      "rank": "Family",
-      "name": "Plasmobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Plateremaeidae": {
-      "rank": "Family",
-      "name": "Plateremaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Platyameridae": {
-      "rank": "Family",
-      "name": "Platyameridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pneumocoptidae": {
-      "rank": "Family",
-      "name": "Pneumocoptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Podapolipidae": {
-      "rank": "Family",
-      "name": "Podapolipidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Podocinidae": {
-      "rank": "Family",
-      "name": "Podocinidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Podopterotegaeidae": {
-      "rank": "Family",
-      "name": "Podopterotegaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Polyaspididae": {
-      "rank": "Family",
-      "name": "Polyaspididae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Polypterozetidae": {
-      "rank": "Family",
-      "name": "Polypterozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pomerantziidae": {
-      "rank": "Family",
-      "name": "Pomerantziidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pontarachnidae": {
-      "rank": "Family",
-      "name": "Pontarachnidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Proctophyllodidae": {
-      "rank": "Family",
-      "name": "Proctophyllodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Promegistidae": {
-      "rank": "Family",
-      "name": "Promegistidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Proteonematalycidae": {
-      "rank": "Family",
-      "name": "Proteonematalycidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Proterorhagiidae": {
-      "rank": "Family",
-      "name": "Proterorhagiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Protodinychidae": {
-      "rank": "Family",
-      "name": "Protodinychidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Protoplophoridae": {
-      "rank": "Family",
-      "name": "Protoplophoridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pseudocheylidae": {
-      "rank": "Family",
-      "name": "Pseudocheylidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Psorergatidae": {
-      "rank": "Family",
-      "name": "Psorergatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Psoroptidae": {
-      "rank": "Family",
-      "name": "Psoroptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Psoroptoididae": {
-      "rank": "Family",
-      "name": "Psoroptoididae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pterobatidae": {
-      "rank": "Family",
-      "name": "Pterobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pterochthoniidae": {
-      "rank": "Family",
-      "name": "Pterochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pteronyssidae": {
-      "rank": "Family",
-      "name": "Pteronyssidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pterygosomatidae": {
-      "rank": "Family",
-      "name": "Pterygosomatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ptiloxenidae": {
-      "rank": "Family",
-      "name": "Ptiloxenidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ptochacaridae": {
-      "rank": "Family",
-      "name": "Ptochacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Ptyssalgidae": {
-      "rank": "Family",
-      "name": "Ptyssalgidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pyemotidae": {
-      "rank": "Family",
-      "name": "Pyemotidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pygmephoridae": {
-      "rank": "Family",
-      "name": "Pygmephoridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pyroglyphidae": {
-      "rank": "Family",
-      "name": "Pyroglyphidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Pyrosejidae": {
-      "rank": "Family",
-      "name": "Pyrosejidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Quadroppiidae": {
-      "rank": "Family",
-      "name": "Quadroppiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Raphignathidae": {
-      "rank": "Family",
-      "name": "Raphignathidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Rectijanuidae": {
-      "rank": "Family",
-      "name": "Rectijanuidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Resinacaridae": {
-      "rank": "Family",
-      "name": "Resinacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Rhagidiidae": {
-      "rank": "Family",
-      "name": "Rhagidiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Rhinonyssidae": {
-      "rank": "Family",
-      "name": "Rhinonyssidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Rhodacaridae": {
-      "rank": "Family",
-      "name": "Rhodacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Rhynchohydracaridae": {
-      "rank": "Family",
-      "name": "Rhynchohydracaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Rhynchoribatidae": {
-      "rank": "Family",
-      "name": "Rhynchoribatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Rhyncoptidae": {
-      "rank": "Family",
-      "name": "Rhyncoptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Rosensteiniidae": {
-      "rank": "Family",
-      "name": "Rosensteiniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Rutripalpidae": {
-      "rank": "Family",
-      "name": "Rutripalpidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Saltiseiidae": {
-      "rank": "Family",
-      "name": "Saltiseiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Sarcoptidae": {
-      "rank": "Family",
-      "name": "Sarcoptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Scatoglyphidae": {
-      "rank": "Family",
-      "name": "Scatoglyphidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Scheloribatidae": {
-      "rank": "Family",
-      "name": "Scheloribatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Schizogyniidae": {
-      "rank": "Family",
-      "name": "Schizogyniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Scutacaridae": {
-      "rank": "Family",
-      "name": "Scutacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Scutoverticidae": {
-      "rank": "Family",
-      "name": "Scutoverticidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Seiodidae": {
-      "rank": "Family",
-      "name": "Seiodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Sejidae": {
-      "rank": "Family",
-      "name": "Sejidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Selenoribatidae": {
-      "rank": "Family",
-      "name": "Selenoribatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Sellnickiidae": {
-      "rank": "Family",
-      "name": "Sellnickiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Siteroptidae": {
-      "rank": "Family",
-      "name": "Siteroptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Smarididae": {
-      "rank": "Family",
-      "name": "Smarididae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Spelaeorhynchidae": {
-      "rank": "Family",
-      "name": "Spelaeorhynchidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Sperchontidae": {
-      "rank": "Family",
-      "name": "Sperchontidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Sphaerochthoniidae": {
-      "rank": "Family",
-      "name": "Sphaerochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Sphaerolichidae": {
-      "rank": "Family",
-      "name": "Sphaerolichidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Spinozetidae": {
-      "rank": "Family",
-      "name": "Spinozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Spinturnicidae": {
-      "rank": "Family",
-      "name": "Spinturnicidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Staurobatidae": {
-      "rank": "Family",
-      "name": "Staurobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Stelechobatidae": {
-      "rank": "Family",
-      "name": "Stelechobatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Sternoppiidae": {
-      "rank": "Family",
-      "name": "Sternoppiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Stigmaeidae": {
-      "rank": "Family",
-      "name": "Stigmaeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Stigmocheylidae": {
-      "rank": "Family",
-      "name": "Stigmocheylidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Strandtmanniidae": {
-      "rank": "Family",
-      "name": "Strandtmanniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Stygothrombidiidae": {
-      "rank": "Family",
-      "name": "Stygothrombidiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Stygotoniidae": {
-      "rank": "Family",
-      "name": "Stygotoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Suctobelbidae": {
-      "rank": "Family",
-      "name": "Suctobelbidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Suidasidae": {
-      "rank": "Family",
-      "name": "Suidasidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Symbioribatidae": {
-      "rank": "Family",
-      "name": "Symbioribatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Synichotritiidae": {
-      "rank": "Family",
-      "name": "Synichotritiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Syringobiidae": {
-      "rank": "Family",
-      "name": "Syringobiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Syringophilidae": {
-      "rank": "Family",
-      "name": "Syringophilidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tanaupodidae": {
-      "rank": "Family",
-      "name": "Tanaupodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tarsocheylidae": {
-      "rank": "Family",
-      "name": "Tarsocheylidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tarsonemidae": {
-      "rank": "Family",
-      "name": "Tarsonemidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tectocepheidae": {
-      "rank": "Family",
-      "name": "Tectocepheidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tegeocranellidae": {
-      "rank": "Family",
-      "name": "Tegeocranellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tegoribatidae": {
-      "rank": "Family",
-      "name": "Tegoribatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Teneriffiidae": {
-      "rank": "Family",
-      "name": "Teneriffiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tenuialidae": {
-      "rank": "Family",
-      "name": "Tenuialidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tenuipalpidae": {
-      "rank": "Family",
-      "name": "Tenuipalpidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Teratoppiidae": {
-      "rank": "Family",
-      "name": "Teratoppiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Teratothyadidae": {
-      "rank": "Family",
-      "name": "Teratothyadidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Terpnacaridae": {
-      "rank": "Family",
-      "name": "Terpnacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tetranychidae": {
-      "rank": "Family",
-      "name": "Tetranychidae",
-      "keys": [
-        "tetranychidae.to.subfamily"
-      ],
-      "children": [
-        {
-          "rank": "Subfamily",
-          "name": "Bryobiinae"
-        },
-        {
-          "rank": "Subfamily",
-          "name": "Tetranychinae"
-        }
-      ]
-    },
-    "Family:Teutoniidae": {
-      "rank": "Family",
-      "name": "Teutoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Thermacaridae": {
-      "rank": "Family",
-      "name": "Thermacaridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Thinozerconidae": {
-      "rank": "Family",
-      "name": "Thinozerconidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Thoracosathesidae": {
-      "rank": "Family",
-      "name": "Thoracosathesidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Thyrisomidae": {
-      "rank": "Family",
-      "name": "Thyrisomidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Thysanocercidae": {
-      "rank": "Family",
-      "name": "Thysanocercidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tokunocepheidae": {
-      "rank": "Family",
-      "name": "Tokunocepheidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Torrenticolidae": {
-      "rank": "Family",
-      "name": "Torrenticolidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Trachytidae": {
-      "rank": "Family",
-      "name": "Trachytidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Trachyuropodidae": {
-      "rank": "Family",
-      "name": "Trachyuropodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Trematuridae": {
-      "rank": "Family",
-      "name": "Trematuridae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Trhypochthoniidae": {
-      "rank": "Family",
-      "name": "Trhypochthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Trichthoniidae": {
-      "rank": "Family",
-      "name": "Trichthoniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Triophtydeidae": {
-      "rank": "Family",
-      "name": "Triophtydeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Triplogyniidae": {
-      "rank": "Family",
-      "name": "Triplogyniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Trizetidae": {
-      "rank": "Family",
-      "name": "Trizetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Trochometridiidae": {
-      "rank": "Family",
-      "name": "Trochometridiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Trombellidae": {
-      "rank": "Family",
-      "name": "Trombellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Trombiculidae": {
-      "rank": "Family",
-      "name": "Trombiculidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Trombidiidae": {
-      "rank": "Family",
-      "name": "Trombidiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Trouessartiidae": {
-      "rank": "Family",
-      "name": "Trouessartiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tubulozetidae": {
-      "rank": "Family",
-      "name": "Tubulozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tuckerellidae": {
-      "rank": "Family",
-      "name": "Tuckerellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tumerozetidae": {
-      "rank": "Family",
-      "name": "Tumerozetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tuparezetidae": {
-      "rank": "Family",
-      "name": "Tuparezetidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Turbinoptidae": {
-      "rank": "Family",
-      "name": "Turbinoptidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Tydeidae": {
-      "rank": "Family",
-      "name": "Tydeidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Unduloribatidae": {
-      "rank": "Family",
-      "name": "Unduloribatidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Unionicolidae": {
-      "rank": "Family",
-      "name": "Unionicolidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Uroactiniidae": {
-      "rank": "Family",
-      "name": "Uroactiniidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Uropodellidae": {
-      "rank": "Family",
-      "name": "Uropodellidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Uropodidae": {
-      "rank": "Family",
-      "name": "Uropodidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Varroidae": {
-      "rank": "Family",
-      "name": "Varroidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Veigaiidae": {
-      "rank": "Family",
-      "name": "Veigaiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Vexillariidae": {
-      "rank": "Family",
-      "name": "Vexillariidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Wettinidae": {
-      "rank": "Family",
-      "name": "Wettinidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Winterschmidtiidae": {
-      "rank": "Family",
-      "name": "Winterschmidtiidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Xenocaligonellididae": {
-      "rank": "Family",
-      "name": "Xenocaligonellididae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Xolalgidae": {
-      "rank": "Family",
-      "name": "Xolalgidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Zelandothyadidae": {
-      "rank": "Family",
-      "name": "Zelandothyadidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Zerconidae": {
-      "rank": "Family",
-      "name": "Zerconidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Zetomimidae": {
-      "rank": "Family",
-      "name": "Zetomimidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Zetomotrichidae": {
-      "rank": "Family",
-      "name": "Zetomotrichidae",
-      "keys": [],
-      "children": []
-    },
-    "Family:Zetorchestidae": {
-      "rank": "Family",
-      "name": "Zetorchestidae",
-      "keys": [],
-      "children": []
-    },
-    "Subfamily:Aberoptinae": {
-      "rank": "Subfamily",
-      "name": "Aberoptinae",
-      "keys": [],
-      "children": []
-    },
-    "Subfamily:Ashieldopinae": {
-      "rank": "Subfamily",
-      "name": "Ashieldopinae",
-      "keys": [],
-      "children": []
-    },
-    "Subfamily:Bryobiinae": {
-      "rank": "Subfamily",
-      "name": "Bryobiinae",
-      "keys": [],
-      "children": []
-    },
-    "Subfamily:Cecidophyinae": {
-      "rank": "Subfamily",
-      "name": "Cecidophyinae",
-      "keys": [],
-      "children": []
-    },
-    "Subfamily:Diptilomiopinae": {
-      "rank": "Subfamily",
-      "name": "Diptilomiopinae",
-      "keys": [],
-      "children": []
-    },
-    "Subfamily:Eriophyinae": {
-      "rank": "Subfamily",
-      "name": "Eriophyinae",
-      "keys": [],
-      "children": []
-    },
-    "Subfamily:Nothopodinae": {
-      "rank": "Subfamily",
-      "name": "Nothopodinae",
-      "keys": [
-        "nothopodinae.to.tribe"
-      ],
-      "children": [
-        {
-          "rank": "Tribe",
-          "name": "Nothopodini"
-        }
-      ]
-    },
-    "Subfamily:Phyllocoptinae": {
-      "rank": "Subfamily",
-      "name": "Phyllocoptinae",
-      "keys": [
-        "phyllocoptinae.to.tribe"
-      ],
-      "children": [
-        {
-          "rank": "Tribe",
-          "name": "Acaricalini"
-        },
-        {
-          "rank": "Tribe",
-          "name": "Anthocoptini"
-        },
-        {
-          "rank": "Tribe",
-          "name": "Calacarini"
-        },
-        {
-          "rank": "Tribe",
-          "name": "Phyllocoptini"
-        },
-        {
-          "rank": "Tribe",
-          "name": "Tegonotini"
-        }
-      ]
-    },
-    "Subfamily:Rhyncaphytoptinae": {
-      "rank": "Subfamily",
-      "name": "Rhyncaphytoptinae",
-      "keys": [],
-      "children": []
-    },
-    "Subfamily:Tetranychinae": {
-      "rank": "Subfamily",
-      "name": "Tetranychinae",
-      "keys": [
-        "tetranychinae.to.tribe",
-        "tetranychinae.to.tribe-genus-species.kerala"
-      ],
-      "children": [
-        {
-          "rank": "Tribe",
-          "name": "Eurytetranychini"
-        },
-        {
-          "rank": "Tribe",
-          "name": "Tenuipalpoidini"
-        },
-        {
-          "rank": "Tribe",
-          "name": "Tetranychini"
-        },
-        {
-          "rank": "Genus",
-          "name": "Oligonychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Schizotetranychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Tetranychus"
-        },
-        {
-          "rank": "Species",
-          "name": "Eotetranychus sp. 1"
-        },
-        {
-          "rank": "Species",
-          "name": "Eutetranychus orientalis"
-        },
-        {
-          "rank": "Species",
-          "name": "Neotetranychus lek"
-        }
-      ]
-    },
-    "Tribe:Acaricalini": {
-      "rank": "Tribe",
-      "name": "Acaricalini",
-      "keys": [],
-      "children": []
-    },
-    "Tribe:Anthocoptini": {
-      "rank": "Tribe",
-      "name": "Anthocoptini",
-      "keys": [],
-      "children": []
-    },
-    "Tribe:Calacarini": {
-      "rank": "Tribe",
-      "name": "Calacarini",
-      "keys": [],
-      "children": []
-    },
-    "Tribe:Eurytetranychini": {
-      "rank": "Tribe",
-      "name": "Eurytetranychini",
-      "keys": [],
-      "children": []
-    },
-    "Tribe:Nothopodini": {
-      "rank": "Tribe",
-      "name": "Nothopodini",
-      "keys": [],
-      "children": []
-    },
-    "Tribe:Phyllocoptini": {
-      "rank": "Tribe",
-      "name": "Phyllocoptini",
-      "keys": [],
-      "children": []
-    },
-    "Tribe:Tegonotini": {
-      "rank": "Tribe",
-      "name": "Tegonotini",
-      "keys": [],
-      "children": []
-    },
-    "Tribe:Tenuipalpoidini": {
-      "rank": "Tribe",
-      "name": "Tenuipalpoidini",
-      "keys": [],
-      "children": []
-    },
-    "Tribe:Tetranychini": {
-      "rank": "Tribe",
-      "name": "Tetranychini",
-      "keys": [
-        "tetranychini.to.genus"
-      ],
-      "children": [
-        {
-          "rank": "Genus",
-          "name": "Acanthonychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Allonychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Amphitetranychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Atrichoproctus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Brevinychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Eotetranychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Evertelia"
-        },
-        {
-          "rank": "Genus",
-          "name": "Hellenychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Mixonychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Mononychellus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Neotetranychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Oligonychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Palmanychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Panonychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Platytetranychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Schizotetranychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Sonotetranycus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Tetranychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Xinella"
-        },
-        {
-          "rank": "Genus",
-          "name": "Yezonychus"
-        },
-        {
-          "rank": "Genus",
-          "name": "Yunotetranycus"
-        }
-      ]
-    },
-    "Genus:Acanthonychus": {
-      "rank": "Genus",
-      "name": "Acanthonychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Allonychus": {
-      "rank": "Genus",
-      "name": "Allonychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Amblyomma": {
-      "rank": "Genus",
-      "name": "Amblyomma",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Amphitetranychus": {
-      "rank": "Genus",
-      "name": "Amphitetranychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Anomalohimalaya": {
-      "rank": "Genus",
-      "name": "Anomalohimalaya",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Antricola": {
-      "rank": "Genus",
-      "name": "Antricola",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Argas": {
-      "rank": "Genus",
-      "name": "Argas",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Atrichoproctus": {
-      "rank": "Genus",
-      "name": "Atrichoproctus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Bothriocroton": {
-      "rank": "Genus",
-      "name": "Bothriocroton",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Brevinychus": {
-      "rank": "Genus",
-      "name": "Brevinychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Cosmiomma": {
-      "rank": "Genus",
-      "name": "Cosmiomma",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Dermacentor": {
-      "rank": "Genus",
-      "name": "Dermacentor",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Eotetranychus": {
-      "rank": "Genus",
-      "name": "Eotetranychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Evertelia": {
-      "rank": "Genus",
-      "name": "Evertelia",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Haemaphysalis": {
-      "rank": "Genus",
-      "name": "Haemaphysalis",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Hellenychus": {
-      "rank": "Genus",
-      "name": "Hellenychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Hyalomma": {
-      "rank": "Genus",
-      "name": "Hyalomma",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Ixodes": {
-      "rank": "Genus",
-      "name": "Ixodes",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Margaropus": {
-      "rank": "Genus",
-      "name": "Margaropus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Mixonychus": {
-      "rank": "Genus",
-      "name": "Mixonychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Mononychellus": {
-      "rank": "Genus",
-      "name": "Mononychellus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Neotetranychus": {
-      "rank": "Genus",
-      "name": "Neotetranychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Nosomma": {
-      "rank": "Genus",
-      "name": "Nosomma",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Nothoaspis": {
-      "rank": "Genus",
-      "name": "Nothoaspis",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Oligonychus": {
-      "rank": "Genus",
-      "name": "Oligonychus",
-      "keys": [
-        "oligonychus.to.species",
-        "oligonychus.to.species.kerala"
-      ],
-      "children": [
-        {
-          "rank": "Species",
-          "name": "O. biharensis"
-        },
-        {
-          "rank": "Species",
-          "name": "O. grypus"
-        },
-        {
-          "rank": "Species",
-          "name": "O. indicus"
-        },
-        {
-          "rank": "Species",
-          "name": "O. neotylus"
-        },
-        {
-          "rank": "Species",
-          "name": "O. oryzae"
-        },
-        {
-          "rank": "Species",
-          "name": "O. punicae"
-        },
-        {
-          "rank": "Species",
-          "name": "O. sacchari"
-        },
-        {
-          "rank": "Species",
-          "name": "O. tylus"
-        }
-      ]
-    },
-    "Genus:Ornithodoros": {
-      "rank": "Genus",
-      "name": "Ornithodoros",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Otobius": {
-      "rank": "Genus",
-      "name": "Otobius",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Palmanychus": {
-      "rank": "Genus",
-      "name": "Palmanychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Panonychus": {
-      "rank": "Genus",
-      "name": "Panonychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Platytetranychus": {
-      "rank": "Genus",
-      "name": "Platytetranychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Rhipicentor": {
-      "rank": "Genus",
-      "name": "Rhipicentor",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Rhipicephalus": {
-      "rank": "Genus",
-      "name": "Rhipicephalus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Schizotetranychus": {
-      "rank": "Genus",
-      "name": "Schizotetranychus",
-      "keys": [
-        "schizotetranychus.to.species",
-        "schizotetranychus.to.species.kerala"
-      ],
-      "children": [
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus andropogoni"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus approximatus"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus asparagi"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus baltazari"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus cajani"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus chiangmaiensis"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus fluvialis"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus hindustanicus"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus indicus"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus kochummeni"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus krungthepensis"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus laevidorsatus"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus lespedezae"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus malodhensis"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus mansoni"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus recki"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus reticulatus"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus schizopus"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus spiculus"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus spireafolia"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus tephrosiae"
-        },
-        {
-          "rank": "Species",
-          "name": "Schizotetranychus undulatus"
-        }
-      ]
-    },
-    "Genus:Sonotetranycus": {
-      "rank": "Genus",
-      "name": "Sonotetranycus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Tetranychus": {
-      "rank": "Genus",
-      "name": "Tetranychus",
-      "keys": [
-        "tetranychus.to.species",
-        "tetranychus.to.species.kerala"
-      ],
-      "children": [
-        {
-          "rank": "Species",
-          "name": "T. africindicus"
-        },
-        {
-          "rank": "Species",
-          "name": "T. angloensts"
-        },
-        {
-          "rank": "Species",
-          "name": "T. bambusae"
-        },
-        {
-          "rank": "Species",
-          "name": "T. belloti"
-        },
-        {
-          "rank": "Species",
-          "name": "T. fijiensis"
-        },
-        {
-          "rank": "Species",
-          "name": "T. gloveri"
-        },
-        {
-          "rank": "Species",
-          "name": "T. hirsutus"
-        },
-        {
-          "rank": "Species",
-          "name": "T. hypogeae"
-        },
-        {
-          "rank": "Species",
-          "name": "T. jijiensis"
-        },
-        {
-          "rank": "Species",
-          "name": "T. kanzawai"
-        },
-        {
-          "rank": "Species",
-          "name": "T. lombardinii"
-        },
-        {
-          "rank": "Species",
-          "name": "T. ludeni"
-        },
-        {
-          "rank": "Species",
-          "name": "T. macfarlanei"
-        },
-        {
-          "rank": "Species",
-          "name": "T. marianae"
-        },
-        {
-          "rank": "Species",
-          "name": "T. neocaledonicus"
-        },
-        {
-          "rank": "Species",
-          "name": "T. papayae"
-        },
-        {
-          "rank": "Species",
-          "name": "T. puschelii"
-        },
-        {
-          "rank": "Species",
-          "name": "T. sayedi"
-        },
-        {
-          "rank": "Species",
-          "name": "T. taiwanicus"
-        },
-        {
-          "rank": "Species",
-          "name": "T. truncatus"
-        },
-        {
-          "rank": "Species",
-          "name": "T. udaipurensis"
-        },
-        {
-          "rank": "Species",
-          "name": "T. urticae"
-        },
-        {
-          "rank": "Species",
-          "name": "T. zoheri"
-        }
-      ]
-    },
-    "Genus:Xinella": {
-      "rank": "Genus",
-      "name": "Xinella",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Yezonychus": {
-      "rank": "Genus",
-      "name": "Yezonychus",
-      "keys": [],
-      "children": []
-    },
-    "Genus:Yunotetranycus": {
-      "rank": "Genus",
-      "name": "Yunotetranycus",
-      "keys": [],
-      "children": []
-    },
-    "Species:Eotetranychus sp. 1": {
-      "rank": "Species",
-      "name": "Eotetranychus sp. 1",
-      "keys": [],
-      "children": []
-    },
-    "Species:Eutetranychus orientalis": {
-      "rank": "Species",
-      "name": "Eutetranychus orientalis",
-      "keys": [],
-      "children": []
-    },
-    "Species:Neotetranychus lek": {
-      "rank": "Species",
-      "name": "Neotetranychus lek",
-      "keys": [],
-      "children": []
-    },
-    "Species:O. biharensis": {
-      "rank": "Species",
-      "name": "O. biharensis",
-      "keys": [],
-      "children": []
-    },
-    "Species:O. grypus": {
-      "rank": "Species",
-      "name": "O. grypus",
-      "keys": [],
-      "children": []
-    },
-    "Species:O. indicus": {
-      "rank": "Species",
-      "name": "O. indicus",
-      "keys": [],
-      "children": []
-    },
-    "Species:O. neotylus": {
-      "rank": "Species",
-      "name": "O. neotylus",
-      "keys": [],
-      "children": []
-    },
-    "Species:O. oryzae": {
-      "rank": "Species",
-      "name": "O. oryzae",
-      "keys": [],
-      "children": []
-    },
-    "Species:O. punicae": {
-      "rank": "Species",
-      "name": "O. punicae",
-      "keys": [],
-      "children": []
-    },
-    "Species:O. sacchari": {
-      "rank": "Species",
-      "name": "O. sacchari",
-      "keys": [],
-      "children": []
-    },
-    "Species:O. tylus": {
-      "rank": "Species",
-      "name": "O. tylus",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus andropogoni": {
-      "rank": "Species",
-      "name": "Schizotetranychus andropogoni",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus approximatus": {
-      "rank": "Species",
-      "name": "Schizotetranychus approximatus",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus asparagi": {
-      "rank": "Species",
-      "name": "Schizotetranychus asparagi",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus baltazari": {
-      "rank": "Species",
-      "name": "Schizotetranychus baltazari",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus cajani": {
-      "rank": "Species",
-      "name": "Schizotetranychus cajani",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus chiangmaiensis": {
-      "rank": "Species",
-      "name": "Schizotetranychus chiangmaiensis",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus fluvialis": {
-      "rank": "Species",
-      "name": "Schizotetranychus fluvialis",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus hindustanicus": {
-      "rank": "Species",
-      "name": "Schizotetranychus hindustanicus",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus indicus": {
-      "rank": "Species",
-      "name": "Schizotetranychus indicus",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus kochummeni": {
-      "rank": "Species",
-      "name": "Schizotetranychus kochummeni",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus krungthepensis": {
-      "rank": "Species",
-      "name": "Schizotetranychus krungthepensis",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus laevidorsatus": {
-      "rank": "Species",
-      "name": "Schizotetranychus laevidorsatus",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus lespedezae": {
-      "rank": "Species",
-      "name": "Schizotetranychus lespedezae",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus malodhensis": {
-      "rank": "Species",
-      "name": "Schizotetranychus malodhensis",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus mansoni": {
-      "rank": "Species",
-      "name": "Schizotetranychus mansoni",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus recki": {
-      "rank": "Species",
-      "name": "Schizotetranychus recki",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus reticulatus": {
-      "rank": "Species",
-      "name": "Schizotetranychus reticulatus",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus schizopus": {
-      "rank": "Species",
-      "name": "Schizotetranychus schizopus",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus spiculus": {
-      "rank": "Species",
-      "name": "Schizotetranychus spiculus",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus spireafolia": {
-      "rank": "Species",
-      "name": "Schizotetranychus spireafolia",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus tephrosiae": {
-      "rank": "Species",
-      "name": "Schizotetranychus tephrosiae",
-      "keys": [],
-      "children": []
-    },
-    "Species:Schizotetranychus undulatus": {
-      "rank": "Species",
-      "name": "Schizotetranychus undulatus",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. africindicus": {
-      "rank": "Species",
-      "name": "T. africindicus",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. angloensts": {
-      "rank": "Species",
-      "name": "T. angloensts",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. bambusae": {
-      "rank": "Species",
-      "name": "T. bambusae",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. belloti": {
-      "rank": "Species",
-      "name": "T. belloti",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. fijiensis": {
-      "rank": "Species",
-      "name": "T. fijiensis",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. gloveri": {
-      "rank": "Species",
-      "name": "T. gloveri",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. hirsutus": {
-      "rank": "Species",
-      "name": "T. hirsutus",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. hypogeae": {
-      "rank": "Species",
-      "name": "T. hypogeae",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. jijiensis": {
-      "rank": "Species",
-      "name": "T. jijiensis",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. kanzawai": {
-      "rank": "Species",
-      "name": "T. kanzawai",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. lombardinii": {
-      "rank": "Species",
-      "name": "T. lombardinii",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. ludeni": {
-      "rank": "Species",
-      "name": "T. ludeni",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. macfarlanei": {
-      "rank": "Species",
-      "name": "T. macfarlanei",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. marianae": {
-      "rank": "Species",
-      "name": "T. marianae",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. neocaledonicus": {
-      "rank": "Species",
-      "name": "T. neocaledonicus",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. papayae": {
-      "rank": "Species",
-      "name": "T. papayae",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. puschelii": {
-      "rank": "Species",
-      "name": "T. puschelii",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. sayedi": {
-      "rank": "Species",
-      "name": "T. sayedi",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. taiwanicus": {
-      "rank": "Species",
-      "name": "T. taiwanicus",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. truncatus": {
-      "rank": "Species",
-      "name": "T. truncatus",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. udaipurensis": {
-      "rank": "Species",
-      "name": "T. udaipurensis",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. urticae": {
-      "rank": "Species",
-      "name": "T. urticae",
-      "keys": [],
-      "children": []
-    },
-    "Species:T. zoheri": {
-      "rank": "Species",
-      "name": "T. zoheri",
-      "keys": [],
-      "children": []
-    }
-  }
+    "Species",
+]
+PATH_LEVELS = [rank for rank in TAXONOMIC_LEVELS if rank != "Kingdom"]
+BLANK_OPTION = "— (leave blank)"
+ALL_LEVELS_OPTION = "All available levels"
+ALL_GROUPS_OPTION = "All taxa"
+KEY_NAME_RE = re.compile(r"^Key_to_(?P<target>.+?)_of_(?P<parent>.+)$")
+RANK_ORDER = {rank: index for index, rank in enumerate(TAXONOMIC_LEVELS)}
+PLURAL_TO_RANK = {
+    "Phyla": "Phylum",
+    "Classes": "Class",
+    "Subclasses": "Subclass",
+    "Superorders": "Superorder",
+    "Orders": "Order",
+    "Suborders": "Suborder",
+    "Supercohorts": "Supercohort",
+    "Cohorts": "Cohort",
+    "Subcohorts": "Subcohort",
+    "Superfamilies": "Superfamily",
+    "Families": "Family",
+    "Subfamilies": "Subfamily",
+    "Tribes": "Tribe",
+    "Subtribes": "Subtribe",
+    "Genera": "Genus",
+    "Species": "Species",
 }
+FAMILY_GROUP_SUFFIXES = [
+    ("Superfamily", ("oidea",)),
+    ("Family", ("idae",)),
+    ("Subfamily", ("inae",)),
+    ("Tribe", ("ini",)),
+    ("Subtribe", ("ina",)),
+]
+FAMILY_GROUP_RANKS = {rank for rank, _ in FAMILY_GROUP_SUFFIXES}
+
+
+def parse_taxonomic_result(text):
+    """
+    Convert:
+    'Phylum: Arthropoda'
+    to
+    ('Phylum', 'Arthropoda')
+    """
+    if not isinstance(text, str):
+        return None, None
+
+    if ":" not in text:
+        return None, None
+
+    rank, name = text.split(":", 1)
+
+    return rank.strip(), name.strip()
+
+
+def build_taxonomic_path(history, final_result):
+    """
+    Extract taxonomy from diagnostic history.
+    """
+    taxonomy = {}
+
+    for step in history:
+        result = step.get("advanced_to", "")
+        rank, name = parse_taxonomic_result(result)
+
+        if rank and name:
+            taxonomy[rank] = name
+
+    rank, name = parse_taxonomic_result(final_result)
+
+    if rank and name:
+        taxonomy[rank] = name
+
+    return taxonomy
+
+
+def create_mind_map(taxonomy, keys_db=None):
+    """
+    Create Graphviz hierarchy — compact horizontal layout.
+    Green  = identified AND a deeper key exists.
+    Yellow = identified but no deeper key loaded.
+    Grey   = not selected / blank.
+    """
+    dot = Digraph()
+    dot.attr(rankdir="LR")   # left-to-right = much more compact vertically
+    dot.attr("graph", bgcolor="white", pad="0.15", ranksep="0.3", nodesep="0.2")
+    dot.attr(
+        "node",
+        fontname="Helvetica",
+        fontsize="8",
+        shape="box",
+        style="filled,rounded",
+        width="0.9",
+        height="0.35",
+        fixedsize="false",
+        margin="0.06,0.04",
+    )
+    dot.attr("edge", arrowsize="0.5", color="#aaaaaa")
+
+    previous_node = None
+    keys_db = keys_db or {}
+
+    for rank in TAXONOMIC_LEVELS:
+        value = taxonomy.get(rank, "")
+        node_id = rank
+
+        if value:
+            has_key = taxon_has_deeper_key(rank, value, keys_db)
+            fillcolor, color, fontcolor = (
+                ("#74c476", "#238b45", "black") if has_key
+                else ("#fdd835", "#f57f17", "black")
+            )
+            label = f"{rank}: {value}"
+            dot.node(node_id, label,
+                     fillcolor=fillcolor, color=color, fontcolor=fontcolor)
+        else:
+            dot.node(node_id, rank,
+                     fillcolor="#eeeeee", color="#bdbdbd", fontcolor="#9e9e9e")
+
+        if previous_node:
+            dot.edge(previous_node, node_id)
+
+        previous_node = node_id
+
+    return dot
+
+
+def build_full_key_tree(keys_db: dict) -> Digraph:
+    """
+    Build a mind-map of ALL keys loaded in keys.json.
+    Each key becomes a node.  Edges follow the NEXT_KEY_ALIASES links
+    and the tier-fallback naming convention.
+    Nodes with a key file are green; nodes that are referenced but have
+    no key file are shown in orange.
+    """
+    dot = Digraph()
+    dot.attr(rankdir="TB")
+    dot.attr("graph", bgcolor="white", pad="0.5", ranksep="0.6", nodesep="0.4")
+    dot.attr("node", fontname="Helvetica", fontsize="10", shape="box", style="filled,rounded")
+
+    all_key_names = set(key_ids(keys_db))
+
+    # Collect every key name referenced anywhere (alias targets + tier matches)
+    referenced: set[str] = set()
+    for targets in NEXT_KEY_ALIASES.values():
+        referenced.update(targets)
+
+    # Add keys derived from tier-fallback naming
+    for key_name in list(all_key_names):
+        for targets in NEXT_KEY_ALIASES.values():
+            referenced.update(targets)
+
+    all_nodes = all_key_names | (referenced & all_key_names)
+
+    # Draw nodes
+    for key_name in sorted(all_nodes):
+        label = format_key_name(key_name, keys_db).replace(" ", "\n", 2)  # wrap long names
+        if key_name in all_key_names:
+            dot.node(key_name, label, fillcolor="#74c476", color="#238b45", fontcolor="black")
+        else:
+            dot.node(key_name, label, fillcolor="#ffb74d", color="#e65100", fontcolor="black")
+
+    # Draw edges: for each key, find what keys it can lead to
+    for result_label, target_keys in NEXT_KEY_ALIASES.items():
+        # Find which source key(s) produce this result
+        for source_key in all_key_names:
+            for target_key in target_keys:
+                if target_key in all_key_names:
+                    dot.edge(source_key, target_key, label=result_label.split(": ")[-1],
+                             fontsize="8", color="#555555")
+
+    # Also link keys via tier fallback: Key_to_X → Key_to_Y_of_Z
+    for key_name in sorted(all_key_names):
+        suffix_match = re.search(r"of_(.+)$", key_name)
+        if not suffix_match:
+            continue
+        taxon = suffix_match.group(1)
+        for other_key in sorted(all_key_names):
+            if other_key == key_name:
+                continue
+            if other_key.endswith(f"_of_{taxon}") or other_key.endswith(f"_{taxon}"):
+                continue
+            # link if the other key covers a parent tier
+            for tier, children in TIER_FALLBACKS.items():
+                expected = [f"Key_to_{child}_of_{taxon}" for child in children]
+                if key_name in expected and other_key.endswith(f"_{taxon}"):
+                    dot.edge(other_key, key_name, color="#aaaaaa")
+
+    return dot
+
+def collect_taxa_by_rank(keys_db: dict) -> dict[str, list[str]]:
+    """
+    Scan every advances_to value in keys_db and group unique taxon names
+    by their rank.  Returns e.g. {"Class": ["Arachnida", ...], ...}
+    """
+    by_rank: dict[str, set[str]] = {rank: set() for rank in TAXONOMIC_LEVELS}
+    if is_hierarchy_keybook(keys_db):
+        for node in keys_db.get("hierarchy", {}).values():
+            rank = node.get("rank")
+            name = clean_taxon_name(node.get("name", ""))
+            if rank in by_rank and name:
+                by_rank[rank].add(name)
+
+    for _, couplets in iter_key_couplets(keys_db):
+        if not isinstance(couplets, dict):
+            continue
+        for couplet in couplets.values():
+            for opt in ("option_a", "option_b"):
+                target = couplet.get(opt, {}).get("advances_to", "")
+                if not target or target.startswith("Node "):
+                    continue
+                rank, name = parse_taxonomic_result(target)
+                if rank and name and rank in by_rank:
+                    # strip parenthetical qualifiers for cleaner dropdown labels
+                    clean = name.split("(")[0].strip()
+                    if clean:
+                        by_rank[rank].add(clean)
+    return {rank: sorted(names) for rank, names in by_rank.items()}
+
+
+def rank_sort_key(rank: str) -> int:
+    return RANK_ORDER.get(rank, len(TAXONOMIC_LEVELS) + 1)
+
+
+def clean_taxon_name(name: str) -> str:
+    if not isinstance(name, str):
+        return ""
+    return re.sub(r"\s+", " ", name.split("(")[0]).strip()
+
+
+def normalize_taxon_name(name: str) -> str:
+    return clean_taxon_name(name).casefold()
+
+
+def infer_family_group_rank_from_suffix(name: str) -> str | None:
+    clean = clean_taxon_name(name)
+    if not clean:
+        return None
+
+    # Suffix rules are applied only as inference/fallback. Explicit ranks in
+    # keys.json still win, which protects non-family-group names like
+    # Cohort: Parasitengonina.
+    for rank, suffixes in FAMILY_GROUP_SUFFIXES:
+        if any(clean.endswith(suffix) for suffix in suffixes):
+            return rank
+    return None
+
+
+def key_fragment_label(fragment: str, strip_context: bool = False) -> tuple[str, str | None]:
+    label = fragment.replace("_", " ").strip()
+    explicit_rank = None
+    for rank in TAXONOMIC_LEVELS:
+        prefix = f"{rank} "
+        if label.startswith(prefix):
+            explicit_rank = rank
+            label = label[len(prefix):].strip()
+            break
+
+    if strip_context:
+        label = re.sub(r"\s+excluding\s+.*$", "", label, flags=re.IGNORECASE).strip()
+        label = re.sub(r"\s+(Adults|Larvae)$", "", label, flags=re.IGNORECASE).strip()
+
+    return clean_taxon_name(label), explicit_rank
+
+
+def parse_key_name(key_name: str) -> dict:
+    match = KEY_NAME_RE.match(key_name)
+    if not match:
+        return {
+            "target_part": "",
+            "parent_fragment": "",
+            "parent_label": "",
+            "parent_taxon": "",
+            "explicit_parent_rank": None,
+        }
+
+    parent_fragment = match.group("parent")
+    parent_label, explicit_rank = key_fragment_label(parent_fragment)
+    parent_taxon, stripped_rank = key_fragment_label(parent_fragment, strip_context=True)
+    return {
+        "target_part": match.group("target"),
+        "parent_fragment": parent_fragment,
+        "parent_label": parent_label,
+        "parent_taxon": parent_taxon,
+        "explicit_parent_rank": explicit_rank or stripped_rank,
+    }
+
+
+def implied_child_ranks_from_target_part(target_part: str) -> list[str]:
+    matches = []
+    for plural, rank in PLURAL_TO_RANK.items():
+        match = re.search(rf"(^|_){re.escape(plural)}($|_)", target_part)
+        if match:
+            matches.append((match.start(), rank))
+    return [rank for _, rank in sorted(matches)]
+
+
+def merge_rank_lists(*rank_lists: list[str]) -> list[str]:
+    merged = {
+        rank
+        for ranks in rank_lists
+        for rank in ranks
+        if rank in TAXONOMIC_LEVELS
+    }
+    return sorted(merged, key=rank_sort_key)
+
+
+def implied_parent_rank_from_target_part(target_part: str) -> str | None:
+    implied_child_ranks = implied_child_ranks_from_target_part(target_part)
+    if not implied_child_ranks:
+        return None
+    first_child_index = rank_sort_key(implied_child_ranks[0])
+    if first_child_index > 0:
+        return TAXONOMIC_LEVELS[first_child_index - 1]
+    return None
+
+
+def fallback_parent_rank_from_child_ranks(child_ranks: list[str]) -> str | None:
+    if not child_ranks:
+        return None
+    first_child_rank = min(child_ranks, key=rank_sort_key)
+    child_index = rank_sort_key(first_child_rank)
+    if child_index > 0:
+        return TAXONOMIC_LEVELS[child_index - 1]
+    return None
+
+
+def collect_key_targets(couplets: dict) -> tuple[list[str], dict[str, list[str]]]:
+    targets_by_rank: dict[str, set[str]] = {rank: set() for rank in TAXONOMIC_LEVELS}
+    if not isinstance(couplets, dict):
+        return [], {rank: [] for rank in TAXONOMIC_LEVELS}
+
+    for couplet in couplets.values():
+        if not isinstance(couplet, dict):
+            continue
+        for option_name in ("option_a", "option_b"):
+            target = couplet.get(option_name, {}).get("advances_to", "")
+            rank, name = parse_taxonomic_result(target)
+            name = clean_taxon_name(name)
+            if rank in targets_by_rank and name:
+                targets_by_rank[rank].add(name)
+
+    ranks = [rank for rank in TAXONOMIC_LEVELS if targets_by_rank[rank]]
+    return ranks, {rank: sorted(names) for rank, names in targets_by_rank.items()}
+
+
+def collect_known_taxon_ranks(keys_db: dict) -> dict[str, set[str]]:
+    lookup: dict[str, set[str]] = {}
+
+    def add(rank: str | None, name: str) -> None:
+        if not rank or rank not in TAXONOMIC_LEVELS or not name:
+            return
+        lookup.setdefault(normalize_taxon_name(name), set()).add(rank)
+
+    for rank, names in collect_taxa_by_rank(keys_db).items():
+        for name in names:
+            add(rank, name)
+
+    for key_name, couplets in iter_key_couplets(keys_db):
+        parts = parse_key_name(key_name)
+        child_ranks, _ = collect_key_targets(couplets)
+        parent_taxon = parts["parent_taxon"]
+        parent_key = normalize_taxon_name(parent_taxon)
+        if not parent_taxon:
+            continue
+
+        if parts["explicit_parent_rank"]:
+            add(parts["explicit_parent_rank"], parent_taxon)
+        elif parent_key not in lookup:
+            add(
+                infer_family_group_rank_from_suffix(parent_taxon)
+                or implied_parent_rank_from_target_part(parts["target_part"])
+                or fallback_parent_rank_from_child_ranks(child_ranks),
+                parent_taxon,
+            )
+
+    return lookup
+
+
+def infer_parent_rank(
+    parent_name: str,
+    explicit_rank: str | None,
+    implied_rank: str | None,
+    child_ranks: list[str],
+    rank_lookup: dict[str, set[str]],
+) -> str | None:
+    if explicit_rank:
+        return explicit_rank
+
+    known_ranks = rank_lookup.get(normalize_taxon_name(parent_name), set())
+    suffix_rank = infer_family_group_rank_from_suffix(parent_name)
+    if known_ranks:
+        if len(known_ranks) == 1:
+            return next(iter(known_ranks))
+        if suffix_rank in known_ranks:
+            return suffix_rank
+        fallback_rank = fallback_parent_rank_from_child_ranks(child_ranks)
+        if fallback_rank in known_ranks:
+            return fallback_rank
+        if implied_rank in known_ranks:
+            return implied_rank
+        return max(known_ranks, key=rank_sort_key)
+
+    if suffix_rank:
+        return suffix_rank
+
+    if implied_rank:
+        return implied_rank
+
+    return fallback_parent_rank_from_child_ranks(child_ranks)
+
+
+def collect_key_metadata(keys_db: dict) -> list[dict]:
+    if is_hierarchy_keybook(keys_db):
+        metadata = []
+        for key_name, record in keys_db["keys"].items():
+            parent = record.get("parent", {})
+            child_ranks, targets_by_rank = collect_key_targets(record.get("couplets", {}))
+            endpoint_ranks = record.get("endpoint_ranks") or child_ranks
+            display_ranks = record.get("identifies") or endpoint_ranks
+            metadata.append(
+                {
+                    "key": key_name,
+                    "label": record.get("title") or format_key_name(key_name, keys_db),
+                    "target_part": "",
+                    "output_ranks": endpoint_ranks,
+                    "display_ranks": display_ranks,
+                    "primary_rank": max(endpoint_ranks, key=rank_sort_key) if endpoint_ranks else "",
+                    "parent_rank": parent.get("rank"),
+                    "parent_label": parent.get("name", ""),
+                    "parent_taxon": parent.get("name", ""),
+                    "targets_by_rank": targets_by_rank,
+                    "scope": record.get("scope", {}),
+                }
+            )
+        return metadata
+
+    rank_lookup = collect_known_taxon_ranks(keys_db)
+    metadata = []
+    for key_name, couplets in iter_key_couplets(keys_db):
+        parts = parse_key_name(key_name)
+        child_ranks, targets_by_rank = collect_key_targets(couplets)
+
+        if not child_ranks and parts["target_part"] in PLURAL_TO_RANK:
+            child_ranks = [PLURAL_TO_RANK[parts["target_part"]]]
+
+        title_ranks = implied_child_ranks_from_target_part(parts["target_part"])
+        display_ranks = merge_rank_lists(title_ranks, child_ranks)
+        parent_rank = infer_parent_rank(
+            parts["parent_taxon"],
+            parts["explicit_parent_rank"],
+            implied_parent_rank_from_target_part(parts["target_part"]),
+            child_ranks,
+            rank_lookup,
+        )
+        primary_rank = max(child_ranks, key=rank_sort_key) if child_ranks else ""
+        metadata.append(
+            {
+                "key": key_name,
+                "label": format_key_name(key_name),
+                "target_part": parts["target_part"],
+                "output_ranks": child_ranks,
+                "display_ranks": display_ranks,
+                "primary_rank": primary_rank,
+                "parent_rank": parent_rank,
+                "parent_label": parts["parent_label"],
+                "parent_taxon": parts["parent_taxon"],
+                "targets_by_rank": targets_by_rank,
+            }
+        )
+
+    return metadata
+
+
+def key_level_label(rank: str) -> str:
+    return f"{rank} level" if rank else "Unknown level"
+
+
+def metadata_for_key(metadata: list[dict], key_name: str) -> dict | None:
+    for item in metadata:
+        if item["key"] == key_name:
+            return item
+    return None
+
+
+def metadata_display_ranks(item: dict) -> list[str]:
+    return item.get("display_ranks") or item.get("output_ranks", [])
+
+
+def key_scope_label(item: dict) -> str:
+    scope = item.get("scope", {})
+    if scope.get("region"):
+        return f"{scope['region']} regional paper"
+    if scope.get("life_stage"):
+        return f"{scope['life_stage'].title()} key"
+    target_part = item.get("target_part", "")
+    if re.search(r"(^|_)from_Kerala($|_)", target_part):
+        return "Kerala regional paper"
+    return "General"
+
+
+def home_group_key(item: dict) -> tuple[str, str, str]:
+    display_ranks = metadata_display_ranks(item)
+    first_rank = display_ranks[0] if display_ranks else item.get("primary_rank", "")
+    return (
+        item.get("parent_rank") or "",
+        item.get("parent_taxon") or item.get("parent_label") or "",
+        first_rank,
+    )
+
+
+def build_home_start_rows(metadata: list[dict]) -> list[dict]:
+    grouped: dict[tuple[str, str, str], list[dict]] = {}
+    for item in metadata:
+        grouped.setdefault(home_group_key(item), []).append(item)
+
+    rows = []
+    for items in grouped.values():
+        has_regional = any(key_scope_label(item) != "General" for item in items)
+        display_items = items if has_regional else []
+        if not display_items:
+            display_items = items
+
+        if has_regional:
+            row_items = display_items
+            parent_label = row_items[0].get("parent_label", "")
+            key_group = f"{parent_label} keys" if parent_label else row_items[0]["label"]
+        else:
+            row_items = [display_items[0]]
+            parent_label = row_items[0].get("parent_label", "")
+            key_group = row_items[0]["label"]
+
+        ranks = merge_rank_lists(*[metadata_display_ranks(item) for item in row_items])
+        scopes = sorted({key_scope_label(item) for item in row_items})
+        scope_text = "; ".join(scopes)
+        included_keys = "; ".join(item["label"] for item in row_items)
+
+        rows.append(
+            {
+                "Classification step": key_group,
+                "Identifies": ", ".join(ranks) or "Unknown",
+                "Taxon covered": parent_label,
+                "Scope": scope_text,
+                "Keys included": included_keys,
+            }
+        )
+
+        if not has_regional and len(display_items) > 1:
+            for item in display_items[1:]:
+                rows.append(
+                    {
+                        "Classification step": item["label"],
+                        "Identifies": ", ".join(metadata_display_ranks(item)) or "Unknown",
+                        "Taxon covered": item.get("parent_label", ""),
+                        "Scope": key_scope_label(item),
+                        "Keys included": item["label"],
+                    }
+                )
+
+    return sorted(rows, key=lambda row: (row["Taxon covered"], row["Classification step"]))
+
+
+def build_taxonomy_relationships(keys_db: dict) -> dict[tuple[str, str], dict[str, set[str]]]:
+    relationships: dict[tuple[str, str], dict[str, set[str]]] = {}
+    if is_hierarchy_keybook(keys_db):
+        for node in keys_db.get("hierarchy", {}).values():
+            parent_rank = node.get("rank")
+            parent_name = clean_taxon_name(node.get("name", ""))
+            if parent_rank not in RANK_ORDER or not parent_name:
+                continue
+
+            child_map = relationships.setdefault((parent_rank, parent_name), {})
+            for child in node.get("children", []):
+                child_rank = child.get("rank")
+                child_name = clean_taxon_name(child.get("name", ""))
+                if child_rank in RANK_ORDER and child_name:
+                    child_map.setdefault(child_rank, set()).add(child_name)
+
+    for meta in collect_key_metadata(keys_db):
+        parent_rank = meta.get("parent_rank")
+        parent_name = meta.get("parent_taxon")
+        if not parent_rank or not parent_name:
+            continue
+
+        parent = (parent_rank, parent_name)
+        child_map = relationships.setdefault(parent, {})
+        for child_rank, names in meta["targets_by_rank"].items():
+            for name in names:
+                if name:
+                    child_map.setdefault(child_rank, set()).add(name)
+
+    return relationships
+
+
+def collect_descendants_for_rank(
+    relationships: dict[tuple[str, str], dict[str, set[str]]],
+    start_rank: str,
+    start_name: str,
+    target_rank: str,
+) -> list[str]:
+    queue = [(start_rank, start_name)]
+    seen: set[tuple[str, str]] = set()
+    descendants: set[str] = set()
+
+    while queue:
+        current = queue.pop(0)
+        if current in seen:
+            continue
+        seen.add(current)
+
+        for child_rank, names in relationships.get(current, {}).items():
+            for name in names:
+                if child_rank == target_rank:
+                    descendants.add(name)
+                if rank_sort_key(child_rank) < rank_sort_key(target_rank):
+                    queue.append((child_rank, name))
+
+    return sorted(descendants)
+
+
+def collect_all_descendants(
+    relationships: dict[tuple[str, str], dict[str, set[str]]],
+    start_rank: str,
+    start_name: str,
+) -> dict[str, set[str]]:
+    queue = [(start_rank, start_name)]
+    seen: set[tuple[str, str]] = set()
+    descendants: dict[str, set[str]] = {}
+
+    while queue:
+        current_rank, current_name = queue.pop(0)
+        current = (current_rank, current_name)
+        if current in seen:
+            continue
+        seen.add(current)
+
+        for child_rank, names in relationships.get(current, {}).items():
+            for name in names:
+                if not name:
+                    continue
+                descendants.setdefault(child_rank, set()).add(name)
+                if rank_sort_key(child_rank) > rank_sort_key(current_rank):
+                    queue.append((child_rank, name))
+
+    return descendants
+
+
+def collect_intermediate_family_group_options(
+    relationships: dict[tuple[str, str], dict[str, set[str]]],
+    start_rank: str,
+    start_name: str,
+    target_rank: str,
+) -> list[str]:
+    if target_rank not in FAMILY_GROUP_RANKS:
+        return []
+
+    start_descendants = collect_all_descendants(relationships, start_rank, start_name)
+    if not start_descendants:
+        return []
+
+    options: set[str] = set()
+    for candidate_rank, candidate_name in relationships:
+        if candidate_rank != target_rank:
+            continue
+
+        candidate_descendants = collect_all_descendants(relationships, candidate_rank, candidate_name)
+        for descendant_rank, descendant_names in candidate_descendants.items():
+            if rank_sort_key(descendant_rank) <= rank_sort_key(target_rank):
+                continue
+            if descendant_names & start_descendants.get(descendant_rank, set()):
+                options.add(candidate_name)
+                break
+
+    return sorted(options)
+
+
+def infer_species_for_genus(genus: str, all_species: list[str]) -> list[str]:
+    genus = clean_taxon_name(genus)
+    if not genus:
+        return []
+    abbreviation = f"{genus[0]}." if genus else ""
+    return sorted(
+        species
+        for species in all_species
+        if species.startswith(f"{genus} ") or species.startswith(f"{abbreviation} ")
+    )
+
+
+def mind_map_options_for_rank(
+    rank: str,
+    selected_taxonomy: dict[str, str],
+    taxa_by_rank: dict[str, list[str]],
+    relationships: dict[tuple[str, str], dict[str, set[str]]],
+) -> list[str]:
+    prior_selected = [
+        (prior_rank, selected_taxonomy[prior_rank])
+        for prior_rank in TAXONOMIC_LEVELS
+        if rank_sort_key(prior_rank) < rank_sort_key(rank) and selected_taxonomy.get(prior_rank)
+    ]
+
+    for prior_rank, prior_name in reversed(prior_selected):
+        options = collect_descendants_for_rank(relationships, prior_rank, prior_name, rank)
+        if not options:
+            options = collect_intermediate_family_group_options(
+                relationships,
+                prior_rank,
+                prior_name,
+                rank,
+            )
+        if options:
+            return options
+
+    if rank == "Species" and selected_taxonomy.get("Genus"):
+        return infer_species_for_genus(selected_taxonomy["Genus"], taxa_by_rank.get("Species", []))
+
+    if prior_selected:
+        return []
+
+    return taxa_by_rank.get(rank, [])
+
+
+def key_counts_by_rank(metadata: list[dict]) -> dict[str, int]:
+    counts = {rank: 0 for rank in TAXONOMIC_LEVELS}
+    for item in metadata:
+        for rank in metadata_display_ranks(item):
+            if rank in counts:
+                counts[rank] += 1
+    return counts
+
+
+def clear_mind_map_state() -> None:
+    for rank in TAXONOMIC_LEVELS:
+        st.session_state[f"mm_{rank}"] = BLANK_OPTION
+    st.session_state["mm_show_map"] = False
+
+
+def parse_result(result: str) -> tuple[str | None, str | None]:
+    return parse_taxonomic_result(result)
+
+
+def key_fragment(value: str) -> str:
+    cleaned = "".join(char if char.isalnum() else "_" for char in value)
+    return "_".join(part for part in cleaned.split("_") if part)
+
+
+def taxon_has_deeper_key(rank: str, name: str, keys_db: dict) -> bool:
+    clean_name = clean_taxon_name(name)
+    if not rank or not clean_name:
+        return False
+
+    if is_hierarchy_keybook(keys_db):
+        node = keys_db.get("hierarchy", {}).get(f"{rank}:{clean_name}", {})
+        if node.get("keys"):
+            return True
+
+    normalized_name = normalize_taxon_name(clean_name)
+    for item in collect_key_metadata(keys_db):
+        if item.get("parent_rank") != rank:
+            continue
+        if normalize_taxon_name(item.get("parent_taxon", "")) == normalized_name:
+            return True
+
+    taxon_frag = key_fragment(clean_name)
+    return any(
+        key_name.endswith(f"_{taxon_frag}") or key_name.endswith(f"of_{taxon_frag}")
+        for key_name in key_ids(keys_db)
+    )
+
+
+def append_candidate(candidates: list[str], key_name: str, keys_db: dict) -> None:
+    if key_exists(keys_db, key_name) and key_name not in candidates:
+        candidates.append(key_name)
+
+
+def append_taxon_join_candidates(candidates: list[str], rank: str, name: str, keys_db: dict) -> None:
+    target_name = normalize_taxon_name(name)
+    for item in collect_key_metadata(keys_db):
+        if item.get("parent_rank") != rank:
+            continue
+        if normalize_taxon_name(item.get("parent_taxon", "")) != target_name:
+            continue
+        append_candidate(candidates, item["key"], keys_db)
+
+
+def get_next_key_candidates(result: str, keys_db: dict) -> list[str]:
+    rank, name = parse_result(result)
+    if not rank or not name:
+        return []
+
+    candidates = []
+    for key_name in NEXT_KEY_ALIASES.get(result, []):
+        append_candidate(candidates, key_name, keys_db)
+
+    append_taxon_join_candidates(candidates, rank, name, keys_db)
+
+    if is_hierarchy_keybook(keys_db):
+        return candidates
+
+    taxon = key_fragment(name)
+    for tier in TIER_FALLBACKS.get(rank, []):
+        append_candidate(candidates, f"Key_to_{tier}_of_{taxon}", keys_db)
+
+    suffix = f"_of_{taxon}"
+    for key_name in key_ids(keys_db):
+        if key_name.endswith(suffix):
+            append_candidate(candidates, key_name, keys_db)
+
+    return candidates
+
+
+def secret_value(name: str, default: str = "") -> str:
+    try:
+        value = st.secrets.get(name, default)
+    except Exception:
+        return default
+    return str(value) if value is not None else default
+
+
+def github_config() -> dict:
+    return {
+        "token": secret_value("github_token"),
+        "repo": secret_value("github_repo"),
+        "branch": secret_value("github_branch", "main"),
+    }
+
+
+def github_enabled() -> bool:
+    config = github_config()
+    return bool(config["token"] and config["repo"])
+
+
+def github_api(path: str, method: str = "GET", payload: dict | None = None) -> dict:
+    config = github_config()
+    url = f"https://api.github.com/repos/{config['repo']}/contents/{path}"
+    if method == "GET":
+        url = f"{url}?ref={config['branch']}"
+    data = json.dumps(payload).encode("utf-8") if payload else None
+    api_request = request.Request(
+        url,
+        data=data,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {config['token']}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Content-Type": "application/json",
+        },
+    )
+    with request.urlopen(api_request, timeout=20) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def github_file_sha(repo_path: str) -> str | None:
+    try:
+        return github_api(repo_path).get("sha")
+    except error.HTTPError as api_error:
+        if api_error.code == 404:
+            return None
+        raise
+
+
+def commit_file_to_github(repo_path: str, content: bytes, message: str) -> None:
+    config = github_config()
+    payload = {
+        "message": message,
+        "content": base64.b64encode(content).decode("ascii"),
+        "branch": config["branch"],
+    }
+    sha = github_file_sha(repo_path)
+    if sha:
+        payload["sha"] = sha
+    github_api(repo_path, method="PUT", payload=payload)
+
+
+def persist_keys_to_github(message: str) -> None:
+    commit_file_to_github(KEYS_PATH.as_posix(), KEYS_PATH.read_bytes(), message)
+
+
+def slugify(value: str) -> str:
+    slug = "".join(char.lower() if char.isalnum() else "-" for char in value)
+    return "-".join(part for part in slug.split("-") if part) or "item"
+
+
+def safe_uploaded_filename(uploaded_file, key_name: str, node_id: str, option_name: str) -> str:
+    extension = Path(uploaded_file.name).suffix.lower()
+    if extension.lstrip(".") not in IMAGE_TYPES:
+        extension = ".png"
+    return (
+        f"{slugify(key_name)}-node-{slugify(node_id)}-"
+        f"{option_name}-{uuid4().hex[:8]}{extension}"
+    )
+
+
+def save_uploaded_image(uploaded_file, key_name: str, node_id: str, option_name: str, caption: str) -> dict:
+    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    filename = safe_uploaded_filename(uploaded_file, key_name, node_id, option_name)
+    path = IMAGE_DIR / filename
+    content = uploaded_file.getvalue()
+    path.write_bytes(content)
+
+    image_record = {
+        "path": path.as_posix(),
+        "caption": caption.strip(),
+        "uploaded_at": datetime.now().isoformat(timespec="seconds"),
+        "original_name": uploaded_file.name,
+        "mime_type": uploaded_file.type or mimetypes.guess_type(filename)[0] or "image/png",
+    }
+
+    if github_enabled():
+        commit_file_to_github(
+            path.as_posix(),
+            content,
+            f"Add morphology image for {format_key_name(key_name)} node {node_id} {option_name}",
+        )
+        image_record["persisted_to_github"] = True
+
+    return image_record
+
+
+def option_images(option: dict) -> list[dict]:
+    images = option.get("images", [])
+    return images if isinstance(images, list) else []
+
+
+def render_option_images(option: dict) -> None:
+    images = option_images(option)
+    if not images:
+        st.caption("No morphology reference photo is attached yet.")
+        return
+
+    for image in images:
+        caption = image.get("caption") or None
+        url = image.get("url", "").strip()
+        path = image.get("path", "").strip()
+        if url:
+            st.image(url, caption=caption, width="stretch")
+        elif path and Path(path).exists():
+            st.image(path, caption=caption, width="stretch")
+        elif path:
+            st.warning(f"Image is listed but missing from app files: {path}")
+
+
+def validate_keys(keys_db: dict) -> list[str]:
+    warnings = []
+    for key_name, couplets in iter_key_couplets(keys_db):
+        if not isinstance(couplets, dict):
+            warnings.append(f"{key_name} must contain couplet nodes.")
+            continue
+
+        for node_id, couplet in couplets.items():
+            for option_name in ("option_a", "option_b"):
+                option = couplet.get(option_name)
+                if not option:
+                    warnings.append(f"{key_name} node {node_id} is missing {option_name}.")
+                    continue
+
+                target = option.get("advances_to", "")
+                if isinstance(target, str) and target.startswith("Node "):
+                    next_node = target.replace("Node ", "").strip()
+                    if next_node not in couplets:
+                        warnings.append(
+                            f"{key_name} node {node_id} points to missing node {next_node}."
+                        )
+    return warnings
+
+
+def taxonomy_from_stack(stack: list[dict]) -> dict[str, str]:
+    taxonomy: dict[str, str] = {}
+    for item in stack:
+        rank = item.get("rank")
+        name = item.get("name")
+        if rank in TAXONOMIC_LEVELS and name:
+            taxonomy[rank] = name
+    return taxonomy
+
+
+def sync_taxonomy_path() -> None:
+    st.session_state.taxonomy_path = taxonomy_from_stack(st.session_state.get("taxonomy_stack", []))
+
+
+def remember_taxonomic_checkpoint(result: str) -> None:
+    rank, name = parse_taxonomic_result(result)
+    name = clean_taxon_name(name)
+    if rank in TAXONOMIC_LEVELS and name:
+        st.session_state.taxonomy_stack.append({"rank": rank, "name": name, "result": result})
+        sync_taxonomy_path()
+
+
+def forget_taxonomic_checkpoint(result: str) -> None:
+    stack = st.session_state.get("taxonomy_stack", [])
+    for index in range(len(stack) - 1, -1, -1):
+        if stack[index].get("result") == result:
+            stack.pop(index)
+            break
+    sync_taxonomy_path()
+
+
+def render_taxonomy_ribbon(taxonomy: dict[str, str], title: str = "Taxonomy path") -> None:
+    st.markdown(f"**{title}**")
+    chips = []
+    for rank in PATH_LEVELS:
+        value = taxonomy.get(rank, "")
+        rank_html = escape(rank)
+        if value:
+            chips.append(
+                "<div style='min-width:116px;flex:1 1 116px;"
+                "border:1px solid #b7d7bd;background:#edf8ef;border-radius:8px;"
+                "padding:8px 10px;'>"
+                f"<div style='font-size:11px;color:#4b5563;'>{rank_html}</div>"
+                f"<div style='font-weight:650;color:#111827;'>{escape(value)}</div>"
+                "</div>"
+            )
+        else:
+            chips.append(
+                "<div style='min-width:116px;flex:1 1 116px;"
+                "border:1px solid #d7dbe2;background:#f6f7f9;border-radius:8px;"
+                "padding:8px 10px;'>"
+                f"<div style='font-size:11px;color:#6b7280;'>{rank_html}</div>"
+                "<div style='color:#9ca3af;'>Not reached</div>"
+                "</div>"
+            )
+
+    st.markdown(
+        "<div style='display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px 0;'>"
+        + "".join(chips)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def initialize_state(keys_db: dict) -> None:
+    available_keys = key_ids(keys_db)
+    default_key = (
+        DEFAULT_KEY
+        if key_exists(keys_db, DEFAULT_KEY)
+        else LEGACY_DEFAULT_KEY
+        if key_exists(keys_db, LEGACY_DEFAULT_KEY)
+        else next(iter(available_keys), "")
+    )
+    st.session_state.setdefault("current_key", default_key)
+    st.session_state.setdefault("current_node", "1")
+    st.session_state.setdefault("history", [])
+    st.session_state.setdefault("taxonomy_stack", [])
+    st.session_state.setdefault("taxonomy_path", taxonomy_from_stack(st.session_state.taxonomy_stack))
+    st.session_state.setdefault("diagnosis_complete", False)
+    st.session_state.setdefault("final_result", "")
+    st.session_state.setdefault("specimen_code", "")
+    st.session_state.setdefault("observer_notes", "")
+    st.session_state.setdefault("mm_show_map", False)
+
+    if not key_exists(keys_db, st.session_state.current_key):
+        restart(default_key)
+
+
+def restart(key_name: str, clear_notes: bool = False, reset_taxonomy: bool = True) -> None:
+    st.session_state.current_key = key_name
+    st.session_state.current_node = "1"
+    st.session_state.history = []
+    st.session_state.diagnosis_complete = False
+    st.session_state.final_result = ""
+    if reset_taxonomy:
+        st.session_state.taxonomy_stack = []
+        st.session_state.taxonomy_path = {}
+    if clear_notes:
+        st.session_state.specimen_code = ""
+        st.session_state.observer_notes = ""
+
+
+def advance(option_label: str, morphology: str, target: str, images: list[dict] | None = None) -> None:
+    st.session_state.history.append(
+        {
+            "key": st.session_state.current_key,
+            "node": st.session_state.current_node,
+            "option": option_label,
+            "morphology": morphology,
+            "advanced_to": target,
+            "images": images or [],
+        }
+    )
+
+    if isinstance(target, str) and target.startswith("Node "):
+        st.session_state.current_node = target.replace("Node ", "").strip()
+    else:
+        st.session_state.diagnosis_complete = True
+        st.session_state.final_result = target
+        remember_taxonomic_checkpoint(target)
+
+
+def undo() -> None:
+    if not st.session_state.history:
+        return
+
+    previous = st.session_state.history.pop()
+    forget_taxonomic_checkpoint(previous.get("advanced_to", ""))
+    st.session_state.current_key = previous["key"]
+    st.session_state.current_node = previous["node"]
+    st.session_state.diagnosis_complete = False
+    st.session_state.final_result = ""
+
+
+def observation_record() -> dict:
+    return {
+        "specimen_code": st.session_state.specimen_code,
+        "observer_notes": st.session_state.observer_notes,
+        "current_key": st.session_state.current_key,
+        "final_result": st.session_state.final_result,
+        "taxonomy": st.session_state.get("taxonomy_path", {}),
+        "path": st.session_state.history,
+        "saved_at": datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+def save_record(record: dict) -> Path:
+    OBSERVATION_DIR.mkdir(parents=True, exist_ok=True)
+    safe_code = "".join(
+        char for char in record["specimen_code"] if char.isalnum() or char in ("-", "_")
+    ).strip()
+    filename_code = safe_code or "specimen"
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    path = OBSERVATION_DIR / f"{filename_code}-{timestamp}.json"
+    path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    return path
+
+
+def render_path(keys_db: dict) -> None:
+    st.subheader("Diagnostic Path")
+    taxonomy = st.session_state.get("taxonomy_path", {})
+    if taxonomy:
+        render_taxonomy_ribbon(taxonomy, "Phylum to species path")
+
+    if not st.session_state.history:
+        st.caption("No choices selected yet.")
+        return
+
+    st.markdown("**Current key choices**")
+    for index, step in enumerate(st.session_state.history, start=1):
+        st.markdown(
+            f"**{index}. {format_key_name(step['key'], keys_db)}, couplet {step['node']}**  \n"
+            f"{step['option']}: {step['morphology']}"
+        )
+
+
+def admin_is_allowed() -> bool:
+    password = secret_value("admin_password")
+    if not password:
+        st.warning("Admin password is not configured. Add admin_password in Streamlit secrets before public use.")
+        return True
+
+    entered = st.text_input("Admin password", type="password")
+    if entered != password:
+        st.info("Enter the admin password to manage morphology photos.")
+        return False
+    return True
+
+
+def save_admin_changes(keys_db: dict, message: str) -> None:
+    save_keys(keys_db)
+    if github_enabled():
+        persist_keys_to_github(message)
+
+
+def render_admin(keys_db: dict) -> None:
+    st.subheader("Admin Morphology Photos")
+    st.caption("Attach photos to each key, couplet, and A/B morphology choice.")
+
+    if github_enabled():
+        config = github_config()
+        st.success(f"GitHub persistence is enabled for {config['repo']} on branch {config['branch']}.")
+    else:
+        st.warning(
+            "GitHub persistence is not configured. Uploads work locally, but Streamlit Cloud can lose them after sleep or restart."
+        )
+
+    if not admin_is_allowed():
+        return
+
+    key_names = key_ids(keys_db)
+    selected_key = st.selectbox(
+        "Step 1: select key",
+        key_names,
+        format_func=lambda key_name: format_key_name(key_name, keys_db),
+    )
+    couplets = key_couplets(keys_db, selected_key)
+    if not couplets:
+        st.warning("This key has no couplet nodes.")
+        return
+
+    node_ids = sorted(
+        couplets.keys(),
+        key=lambda value: (0, int(value)) if str(value).isdigit() else (1, str(value)),
+    )
+    selected_node = st.selectbox("Step 2: select couplet", node_ids)
+    selected_option = st.radio(
+        "Step 3: select morphology option",
+        ["option_a", "option_b"],
+        format_func=lambda value: "A" if value == "option_a" else "B",
+        horizontal=True,
+    )
+
+    option = couplets[selected_node].setdefault(selected_option, {})
+    st.markdown(f"**Morphology shown to users**  \n{option.get('morphology', '')}")
+    st.caption(f"Advances to: {option.get('advances_to', '')}")
+
+    st.markdown("#### Step 4: attach photo")
+    caption = st.text_input("Photo caption", placeholder="Example: Pedipalp thumb-claw process")
+    uploaded_files = st.file_uploader(
+        "Upload image from computer",
+        type=IMAGE_TYPES,
+        accept_multiple_files=True,
+    )
+    external_url = st.text_input("Or paste an external image URL")
+
+    if st.button("Save photo reference", type="primary"):
+        images = option.setdefault("images", [])
+        saved_count = 0
+        for uploaded_file in uploaded_files or []:
+            images.append(save_uploaded_image(uploaded_file, selected_key, selected_node, selected_option, caption))
+            saved_count += 1
+
+        if external_url.strip():
+            images.append(
+                {
+                    "url": external_url.strip(),
+                    "caption": caption.strip(),
+                    "uploaded_at": datetime.now().isoformat(timespec="seconds"),
+                }
+            )
+            saved_count += 1
+
+        if saved_count:
+            save_admin_changes(
+                keys_db,
+                f"Update morphology photos for {format_key_name(selected_key, keys_db)} node {selected_node} {selected_option}",
+            )
+            st.success("Photo reference saved.")
+            st.rerun()
+        else:
+            st.error("Upload a photo or paste an image URL first.")
+
+    images = option_images(option)
+    st.markdown("#### Existing photos")
+    if not images:
+        st.info("No photos attached to this morphology option yet.")
+        return
+
+    for index, image in enumerate(images):
+        with st.container(border=True):
+            render_option_images({"images": [image]})
+            new_caption = st.text_input(
+                "Caption",
+                value=image.get("caption", ""),
+                key=f"caption-{selected_key}-{selected_node}-{selected_option}-{index}",
+            )
+            col_save, col_remove = st.columns(2)
+            if col_save.button("Update caption", key=f"caption-save-{index}", width="stretch"):
+                image["caption"] = new_caption
+                save_admin_changes(keys_db, "Update morphology image caption")
+                st.success("Caption updated.")
+                st.rerun()
+            if col_remove.button("Remove from key", key=f"image-remove-{index}", width="stretch"):
+                images.pop(index)
+                save_admin_changes(keys_db, "Remove morphology image reference")
+                st.warning("Photo reference removed from keys.json.")
+                st.rerun()
+
+
+def render_home(keys_db: dict, metadata: list[dict], warnings: list[str]) -> None:
+    taxa_by_rank = collect_taxa_by_rank(keys_db)
+    key_counts = key_counts_by_rank(metadata)
+
+    st.header("Key Coverage")
+    focus_ranks = ["Order", "Family", "Genus", "Species"]
+    metric_cols = st.columns(len(focus_ranks))
+    for col, rank in zip(metric_cols, focus_ranks):
+        col.metric(f"{rank} keys", key_counts.get(rank, 0))
+        col.caption(f"{len(taxa_by_rank.get(rank, []))} {rank.lower()} names")
+
+    st.subheader("Available levels")
+    rows = []
+    for rank in PATH_LEVELS:
+        keys_at_rank = [item["label"] for item in metadata if rank in metadata_display_ranks(item)]
+        taxa_count = len(taxa_by_rank.get(rank, []))
+        if not keys_at_rank and not taxa_count:
+            continue
+        rows.append(
+            {
+                "Level": rank,
+                "Keys available": len(keys_at_rank),
+                "Taxa reachable": taxa_count,
+                "Example key": keys_at_rank[0] if keys_at_rank else "",
+            }
+        )
+    st.dataframe(rows, width="stretch", hide_index=True)
+
+    st.subheader("Start points")
+    start_rows = build_home_start_rows(metadata)
+    st.dataframe(start_rows, width="stretch", hide_index=True)
+
+    if warnings:
+        with st.expander("Data checks"):
+            for warning in warnings:
+                st.warning(warning)
+
+
+def main() -> None:
+    st.set_page_config(
+        page_title="Acarology Taxonomy Key",
+        page_icon=":microscope:",
+        layout="wide",
+    )
+
+    keys_mtime_ns = KEYS_PATH.stat().st_mtime_ns if KEYS_PATH.exists() else 0
+    keys_db = load_keys(keys_mtime_ns)
+    if not keys_db:
+        return
+
+    initialize_state(keys_db)
+    warnings = validate_keys(keys_db)
+    metadata = collect_key_metadata(keys_db)
+
+    st.title("Acarology Taxonomy Key")
+    st.caption("Interactive dichotomous key for mite identification from morphology.")
+
+    tab_home, tab_identify, tab_mind_map, tab_admin = st.tabs([
+        "Home",
+        "Identify",
+        "Mind Map",
+        "Admin",
+    ])
+    with st.sidebar:
+        st.header("Specimen")
+        st.text_input("Specimen code", key="specimen_code", placeholder="Slide, vial, or field number")
+        st.text_area(
+            "Morphology notes",
+            key="observer_notes",
+            placeholder="Record visible characters, host plant, mount quality, and uncertainty.",
+            height=140,
+        )
+
+        st.header("Key")
+        level_options = [ALL_LEVELS_OPTION] + [
+            rank
+            for rank in PATH_LEVELS
+            if any(rank in metadata_display_ranks(item) for item in metadata)
+        ]
+        if st.session_state.get("key_level_filter") not in level_options:
+            st.session_state.key_level_filter = ALL_LEVELS_OPTION
+
+        level_filter = st.selectbox(
+            "Key level",
+            options=level_options,
+            key="key_level_filter",
+            format_func=lambda value: value if value == ALL_LEVELS_OPTION else key_level_label(value),
+        )
+
+        filtered_by_level = [
+            item for item in metadata
+            if level_filter == ALL_LEVELS_OPTION or level_filter in metadata_display_ranks(item)
+        ]
+        parent_options = [ALL_GROUPS_OPTION] + sorted(
+            {
+                item["parent_label"]
+                for item in filtered_by_level
+                if item.get("parent_label")
+            }
+        )
+        if st.session_state.get("key_parent_filter") not in parent_options:
+            st.session_state.key_parent_filter = ALL_GROUPS_OPTION
+
+        parent_filter = st.selectbox(
+            "Taxon covered",
+            options=parent_options,
+            key="key_parent_filter",
+        )
+
+        filtered_metadata = [
+            item for item in filtered_by_level
+            if parent_filter == ALL_GROUPS_OPTION or item.get("parent_label") == parent_filter
+        ]
+        if not filtered_metadata:
+            st.warning("No key is available for this level and taxon.")
+        else:
+            key_options = [item["key"] for item in filtered_metadata]
+            label_by_key = {item["key"]: item["label"] for item in filtered_metadata}
+            selected_key = st.selectbox(
+                "Start or jump to key",
+                options=key_options,
+                format_func=lambda key_name: label_by_key.get(key_name, format_key_name(key_name, keys_db)),
+                index=key_options.index(st.session_state.current_key)
+                if st.session_state.current_key in key_options
+                else 0,
+            )
+
+            if selected_key != st.session_state.current_key:
+                restart(selected_key)
+                st.rerun()
+
+        col_restart, col_undo = st.columns(2)
+        if col_restart.button("Restart", width="stretch"):
+            restart(st.session_state.current_key)
+            st.rerun()
+        if col_undo.button("Undo", width="stretch", disabled=not st.session_state.history):
+            undo()
+            st.rerun()
+
+        if warnings:
+            with st.expander("Data checks"):
+                for warning in warnings:
+                    st.warning(warning)
+
+    with tab_home:
+        render_home(keys_db, metadata, warnings)
+
+    with tab_identify:
+        left, right = st.columns([1.7, 1])
+
+        with right:
+            render_path(keys_db)
+
+        with left:
+            st.subheader(format_key_name(st.session_state.current_key, keys_db))
+
+            if st.session_state.diagnosis_complete:
+                next_key_names = get_next_key_candidates(st.session_state.final_result, keys_db)
+                if next_key_names:
+                    st.success("Classification checkpoint reached - lower key is loaded")
+                    st.markdown(f"## {st.session_state.final_result}")
+                    st.caption("This is not a dead end. Continue below with the next loaded key for this taxon.")
+                    for index, next_key_name in enumerate(next_key_names):
+                        if st.button(
+                            f"Continue below: {format_key_name(next_key_name, keys_db)}",
+                            type="primary" if index == 0 else "secondary",
+                            key=f"continue-{next_key_name}",
+                        ):
+                            restart(next_key_name, reset_taxonomy=False)
+                            st.rerun()
+                elif parse_result(st.session_state.final_result)[0] in NEXT_TIER_MAP:
+                    st.warning("No lower key is loaded yet for this exact taxon.")
+                    st.markdown(f"## {st.session_state.final_result}")
+                else:
+                    st.success("Identification endpoint reached")
+                    st.markdown(f"## {st.session_state.final_result}")
+
+                record = observation_record()
+                record_json = json.dumps(record, indent=2)
+                col_save, col_download = st.columns(2)
+                if col_save.button("Save record", width="stretch"):
+                    saved_path = save_record(record)
+                    st.toast(f"Saved {saved_path.name}")
+                col_download.download_button(
+                    "Download record",
+                    data=record_json,
+                    file_name="mite-identification-record.json",
+                    mime="application/json",
+                    width="stretch",
+                )
+
+            else:
+                current_key = key_couplets(keys_db, st.session_state.current_key)
+                couplet = current_key.get(st.session_state.current_node)
+                if not couplet:
+                    st.error("This key is missing the current couplet node. Use Undo or check keys.json.")
+                else:
+                    st.markdown(
+                        f"**Couplet {st.session_state.current_node}:** Examine the specimen and choose the matching character state."
+                    )
+
+                    option_a = couplet.get("option_a", {})
+                    option_b = couplet.get("option_b", {})
+                    col_a, col_b = st.columns(2)
+
+                    with col_a:
+                        st.markdown("#### A")
+                        st.info(option_a.get("morphology", "Missing morphology text."))
+                        render_option_images(option_a)
+                        if st.button("Select A", key=f"a-{st.session_state.current_key}-{st.session_state.current_node}", width="stretch"):
+                            advance(
+                                "A",
+                                option_a.get("morphology", ""),
+                                option_a.get("advances_to", ""),
+                                option_images(option_a),
+                            )
+                            st.rerun()
+
+                    with col_b:
+                        st.markdown("#### B")
+                        st.info(option_b.get("morphology", "Missing morphology text."))
+                        render_option_images(option_b)
+                        if st.button("Select B", key=f"b-{st.session_state.current_key}-{st.session_state.current_node}", width="stretch"):
+                            advance(
+                                "B",
+                                option_b.get("morphology", ""),
+                                option_b.get("advances_to", ""),
+                                option_images(option_b),
+                            )
+                            st.rerun()
+
+    with tab_mind_map:
+        st.header("Taxonomic Mind Map")
+        st.caption(
+            "Choose values for any ranks you want to highlight, then click **Generate Mind Map**. "
+            "Leave a rank blank to show it as an empty node."
+        )
+
+        taxa_by_rank = collect_taxa_by_rank(keys_db)
+        relationships = build_taxonomy_relationships(keys_db)
+
+        st.subheader("Select parameters")
+        selector_cols = st.columns(3)
+        selected_taxonomy: dict[str, str] = {}
+        for index, rank in enumerate(TAXONOMIC_LEVELS):
+            key = f"mm_{rank}"
+            options = [BLANK_OPTION] + mind_map_options_for_rank(
+                rank,
+                selected_taxonomy,
+                taxa_by_rank,
+                relationships,
+            )
+            if st.session_state.get(key, BLANK_OPTION) not in options:
+                st.session_state[key] = BLANK_OPTION
+
+            selected_value = selector_cols[index % 3].selectbox(rank, options, key=key)
+            if selected_value != BLANK_OPTION:
+                selected_taxonomy[rank] = selected_value
+
+        st.divider()
+
+        col_gen, col_clr = st.columns([1, 1])
+        generate = col_gen.button("Generate Mind Map", type="primary", width="stretch")
+        col_clr.button("Clear all", width="stretch", on_click=clear_mind_map_state)
+
+        if generate:
+            st.session_state["mm_show_map"] = True
+
+        if st.session_state.get("mm_show_map"):
+            custom_taxonomy = selected_taxonomy.copy()
+
+            st.subheader("Mind Map")
+
+            lcol1, lcol2, lcol3 = st.columns(3)
+            lcol1.success("Selected - key exists")
+            lcol2.warning("Selected - no key loaded")
+            lcol3.info("Not selected")
+
+            graph = create_mind_map(custom_taxonomy, keys_db)
+            st.graphviz_chart(graph, width="stretch")
+
+            st.subheader("Hierarchy table")
+            rows = []
+            for rank in TAXONOMIC_LEVELS:
+                value = custom_taxonomy.get(rank, "")
+                if value:
+                    has_key = taxon_has_deeper_key(rank, value, keys_db)
+                    status = "Key available" if has_key else "No deeper key"
+                else:
+                    status = "Not selected"
+                rows.append({"Rank": rank, "Taxon": value or BLANK_OPTION, "Status": status})
+            st.dataframe(rows, width="stretch", hide_index=True)
+
+    with tab_admin:
+        render_admin(keys_db)
+
+
+if __name__ == "__main__":
+    main()
