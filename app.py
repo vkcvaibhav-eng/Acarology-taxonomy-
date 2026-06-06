@@ -109,7 +109,7 @@ TAXONOMIC_LEVELS = [
 PATH_LEVELS = [rank for rank in TAXONOMIC_LEVELS if rank != "Kingdom"]
 BLANK_OPTION = "— (leave blank)"
 ALL_LEVELS_OPTION = "All available levels"
-ALL_GROUPS_OPTION = "All parent groups"
+ALL_GROUPS_OPTION = "All taxa"
 KEY_NAME_RE = re.compile(r"^Key_to_(?P<target>.+?)_of_(?P<parent>.+)$")
 RANK_ORDER = {rank: index for index, rank in enumerate(TAXONOMIC_LEVELS)}
 PLURAL_TO_RANK = {
@@ -608,9 +608,9 @@ def build_home_start_rows(metadata: list[dict]) -> list[dict]:
 
         rows.append(
             {
-                "Key group": key_group,
+                "Classification step": key_group,
                 "Identifies": ", ".join(ranks) or "Unknown",
-                "Parent group": parent_label,
+                "Taxon covered": parent_label,
                 "Scope": scope_text,
                 "Keys included": included_keys,
             }
@@ -620,15 +620,15 @@ def build_home_start_rows(metadata: list[dict]) -> list[dict]:
             for item in display_items[1:]:
                 rows.append(
                     {
-                        "Key group": item["label"],
+                        "Classification step": item["label"],
                         "Identifies": ", ".join(metadata_display_ranks(item)) or "Unknown",
-                        "Parent group": item.get("parent_label", ""),
+                        "Taxon covered": item.get("parent_label", ""),
                         "Scope": key_scope_label(item),
                         "Keys included": item["label"],
                     }
                 )
 
-    return sorted(rows, key=lambda row: (row["Parent group"], row["Key group"]))
+    return sorted(rows, key=lambda row: (row["Taxon covered"], row["Classification step"]))
 
 
 def build_taxonomy_relationships(keys_db: dict) -> dict[tuple[str, str], dict[str, set[str]]]:
@@ -805,6 +805,16 @@ def append_candidate(candidates: list[str], key_name: str, keys_db: dict) -> Non
         candidates.append(key_name)
 
 
+def append_taxon_join_candidates(candidates: list[str], rank: str, name: str, keys_db: dict) -> None:
+    target_name = normalize_taxon_name(name)
+    for item in collect_key_metadata(keys_db):
+        if item.get("parent_rank") != rank:
+            continue
+        if normalize_taxon_name(item.get("parent_taxon", "")) != target_name:
+            continue
+        append_candidate(candidates, item["key"], keys_db)
+
+
 def get_next_key_candidates(result: str, keys_db: dict) -> list[str]:
     rank, name = parse_result(result)
     if not rank or not name:
@@ -813,6 +823,8 @@ def get_next_key_candidates(result: str, keys_db: dict) -> list[str]:
     candidates = []
     for key_name in NEXT_KEY_ALIASES.get(result, []):
         append_candidate(candidates, key_name, keys_db)
+
+    append_taxon_join_candidates(candidates, rank, name, keys_db)
 
     taxon = key_fragment(name)
     for tier in TIER_FALLBACKS.get(rank, []):
@@ -1375,7 +1387,7 @@ def main() -> None:
             st.session_state.key_parent_filter = ALL_GROUPS_OPTION
 
         parent_filter = st.selectbox(
-            "Parent group",
+            "Taxon covered",
             options=parent_options,
             key="key_parent_filter",
         )
@@ -1385,7 +1397,7 @@ def main() -> None:
             if parent_filter == ALL_GROUPS_OPTION or item.get("parent_label") == parent_filter
         ]
         if not filtered_metadata:
-            st.warning("No key is available for this level and parent group.")
+            st.warning("No key is available for this level and taxon.")
         else:
             key_options = [item["key"] for item in filtered_metadata]
             label_by_key = {item["key"]: item["label"] for item in filtered_metadata}
@@ -1428,21 +1440,25 @@ def main() -> None:
             st.subheader(format_key_name(st.session_state.current_key))
 
             if st.session_state.diagnosis_complete:
-                st.success("Diagnostic checkpoint reached")
-                st.markdown(f"## {st.session_state.final_result}")
-
                 next_key_names = get_next_key_candidates(st.session_state.final_result, keys_db)
                 if next_key_names:
+                    st.success("Classification checkpoint reached - lower key is loaded")
+                    st.markdown(f"## {st.session_state.final_result}")
+                    st.caption("This is not a dead end. Continue below with the next loaded key for this taxon.")
                     for index, next_key_name in enumerate(next_key_names):
                         if st.button(
-                            f"Continue to {format_key_name(next_key_name)}",
+                            f"Continue below: {format_key_name(next_key_name)}",
                             type="primary" if index == 0 else "secondary",
                             key=f"continue-{next_key_name}",
                         ):
                             restart(next_key_name, reset_taxonomy=False)
                             st.rerun()
                 elif parse_result(st.session_state.final_result)[0] in NEXT_TIER_MAP:
-                    st.info("A deeper key for this taxon is not loaded yet.")
+                    st.warning("No lower key is loaded yet for this exact taxon.")
+                    st.markdown(f"## {st.session_state.final_result}")
+                else:
+                    st.success("Identification endpoint reached")
+                    st.markdown(f"## {st.session_state.final_result}")
 
                 record = observation_record()
                 record_json = json.dumps(record, indent=2)
