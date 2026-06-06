@@ -263,6 +263,29 @@ def build_full_key_tree(keys_db: dict) -> Digraph:
 
     return dot
 
+def collect_taxa_by_rank(keys_db: dict) -> dict[str, list[str]]:
+    """
+    Scan every advances_to value in keys_db and group unique taxon names
+    by their rank.  Returns e.g. {"Class": ["Arachnida", ...], ...}
+    """
+    by_rank: dict[str, set[str]] = {rank: set() for rank in TAXONOMIC_LEVELS}
+    for couplets in keys_db.values():
+        if not isinstance(couplets, dict):
+            continue
+        for couplet in couplets.values():
+            for opt in ("option_a", "option_b"):
+                target = couplet.get(opt, {}).get("advances_to", "")
+                if not target or target.startswith("Node "):
+                    continue
+                rank, name = parse_taxonomic_result(target)
+                if rank and name and rank in by_rank:
+                    # strip parenthetical qualifiers for cleaner dropdown labels
+                    clean = name.split("(")[0].strip()
+                    if clean:
+                        by_rank[rank].add(clean)
+    return {rank: sorted(names) for rank, names in by_rank.items()}
+
+
 def parse_result(result: str) -> tuple[str | None, str | None]:
     if ": " not in result:
         return None, None
@@ -466,6 +489,7 @@ def initialize_state(keys_db: dict) -> None:
     st.session_state.setdefault("final_result", "")
     st.session_state.setdefault("specimen_code", "")
     st.session_state.setdefault("observer_notes", "")
+    st.session_state.setdefault("mm_show_map", False)
 
     if st.session_state.current_key not in keys_db:
         restart(default_key)
@@ -812,51 +836,77 @@ def main() -> None:
 
     with tab3:
         st.header("Taxonomic Mind Map")
+        st.caption(
+            "Choose values for any ranks you want to highlight, then click **Generate Mind Map**. "
+            "Leave a rank blank to show it as an empty node."
+        )
 
-        # ── Sub-tabs: full key tree  vs  current session path ──────────────
-        mt1, mt2 = st.tabs(["All Keys Tree", "Current Session Path"])
+        # Gather all known taxa from keys.json for dropdown options
+        taxa_by_rank = collect_taxa_by_rank(keys_db)
 
-        with mt1:
-            st.markdown(
-                "Each node is a **key loaded in keys.json**. "
-                "Arrows show how identification flows between keys."
-            )
+        # ── Parameter selectors ───────────────────────────────────────────
+        st.subheader("Select parameters")
+
+        col1, col2, col3 = st.columns(3)
+        col4, col5, col6 = st.columns(3)
+        col7, col8, col9 = st.columns(3)
+        col10, col11, col12 = st.columns(3)
+
+        def rank_selector(col, rank: str, key: str):
+            options = ["— (leave blank)"] + taxa_by_rank.get(rank, [])
+            col.selectbox(rank, options, key=key)
+
+        rank_selector(col1,  "Kingdom",    "mm_Kingdom")
+        rank_selector(col2,  "Phylum",     "mm_Phylum")
+        rank_selector(col3,  "Class",      "mm_Class")
+        rank_selector(col4,  "Subclass",   "mm_Subclass")
+        rank_selector(col5,  "Superorder", "mm_Superorder")
+        rank_selector(col6,  "Order",      "mm_Order")
+        rank_selector(col7,  "Suborder",   "mm_Suborder")
+        rank_selector(col8,  "Family",     "mm_Family")
+        rank_selector(col9,  "Subfamily",  "mm_Subfamily")
+        rank_selector(col10, "Tribe",      "mm_Tribe")
+        rank_selector(col11, "Genus",      "mm_Genus")
+        rank_selector(col12, "Species",    "mm_Species")
+
+        st.divider()
+
+        col_gen, col_clr = st.columns([1, 1])
+        generate = col_gen.button("🗺️ Generate Mind Map", type="primary", use_container_width=True)
+        clear    = col_clr.button("🔄 Clear all",         use_container_width=True)
+
+        if clear:
+            for rank in TAXONOMIC_LEVELS:
+                st.session_state[f"mm_{rank}"] = "— (leave blank)"
+            st.rerun()
+
+        if generate:
+            st.session_state["mm_show_map"] = True
+
+        if st.session_state.get("mm_show_map"):
+            # Build taxonomy dict from user selections
+            custom_taxonomy: dict[str, str] = {}
+            for rank in TAXONOMIC_LEVELS:
+                val = st.session_state.get(f"mm_{rank}", "— (leave blank)")
+                if val and val != "— (leave blank)":
+                    custom_taxonomy[rank] = val
+
+            st.subheader("Mind Map")
+
             # Colour legend
-            col_leg1, col_leg2, col_leg3 = st.columns(3)
-            col_leg1.success("🟢  Key loaded")
-            col_leg2.warning("🟡  Referenced but missing")
-            col_leg3.info("ℹ️  Arrows = identification path")
+            lcol1, lcol2, lcol3 = st.columns(3)
+            lcol1.success("🟢  Selected — key exists")
+            lcol2.warning("🟡  Selected — no key loaded")
+            lcol3.info("⬜  Not selected (blank)")
 
-            full_tree = build_full_key_tree(keys_db)
-            st.graphviz_chart(full_tree, use_container_width=True)
-
-            # Table of all loaded keys
-            with st.expander("All loaded keys"):
-                for k in sorted(keys_db.keys()):
-                    st.markdown(f"- **{format_key_name(k)}**  `{k}`")
-
-        with mt2:
-            st.markdown(
-                "Taxonomy resolved so far in this identification session. "
-                "🟢 = identified + deeper key exists · 🟡 = identified, no deeper key · ⬜ = not yet reached"
-            )
-
-            # Always build the full rank chain, even if history is empty
-            taxonomy = {}
-            if st.session_state.history:
-                taxonomy = build_taxonomic_path(
-                    st.session_state.history,
-                    st.session_state.final_result,
-                )
-
-            graph = create_mind_map(taxonomy, keys_db)
+            graph = create_mind_map(custom_taxonomy, keys_db)
             st.graphviz_chart(graph, use_container_width=True)
 
             # Hierarchy table
             st.subheader("Hierarchy table")
             rows = []
             for rank in TAXONOMIC_LEVELS:
-                value = taxonomy.get(rank, "")
+                value = custom_taxonomy.get(rank, "")
                 if value:
                     taxon_frag = key_fragment(value)
                     has_key = any(
@@ -865,9 +915,8 @@ def main() -> None:
                     )
                     status = "✅ Key available" if has_key else "🟡 No deeper key"
                 else:
-                    status = "⬜ Not reached"
+                    status = "⬜ Not selected"
                 rows.append({"Rank": rank, "Taxon": value or "—", "Status": status})
-
             st.dataframe(rows, use_container_width=True)
 
 
