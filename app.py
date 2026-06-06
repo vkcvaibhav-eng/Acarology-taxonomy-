@@ -32,7 +32,8 @@ NEXT_TIER_MAP = {
     "Superfamily": "Families",
     "Family": "Subfamilies",
     "Subfamily": "Tribes",
-    "Tribe": "Genera",
+    "Tribe": "Subtribes",
+    "Subtribe": "Genera",
     "Genus": "Species",
 }
 TIER_FALLBACKS = {
@@ -47,7 +48,8 @@ TIER_FALLBACKS = {
     "Superfamily": ["Families"],
     "Family": ["Subfamilies", "Genera"],
     "Subfamily": ["Tribes", "Genera"],
-    "Tribe": ["Genera"],
+    "Tribe": ["Subtribes", "Genera"],
+    "Subtribe": ["Genera"],
     "Genus": ["Species"],
 }
 NEXT_KEY_ALIASES = {
@@ -100,6 +102,7 @@ TAXONOMIC_LEVELS = [
     "Family",
     "Subfamily",
     "Tribe",
+    "Subtribe",
     "Genus",
     "Species",
 ]
@@ -121,9 +124,18 @@ PLURAL_TO_RANK = {
     "Families": "Family",
     "Subfamilies": "Subfamily",
     "Tribes": "Tribe",
+    "Subtribes": "Subtribe",
     "Genera": "Genus",
     "Species": "Species",
 }
+FAMILY_GROUP_SUFFIXES = [
+    ("Superfamily", ("oidea",)),
+    ("Family", ("idae",)),
+    ("Subfamily", ("inae",)),
+    ("Tribe", ("ini",)),
+    ("Subtribe", ("ina",)),
+]
+FAMILY_GROUP_RANKS = {rank for rank, _ in FAMILY_GROUP_SUFFIXES}
 
 
 def parse_taxonomic_result(text):
@@ -320,6 +332,20 @@ def normalize_taxon_name(name: str) -> str:
     return clean_taxon_name(name).casefold()
 
 
+def infer_family_group_rank_from_suffix(name: str) -> str | None:
+    clean = clean_taxon_name(name)
+    if not clean:
+        return None
+
+    # Suffix rules are applied only as inference/fallback. Explicit ranks in
+    # keys.json still win, which protects non-family-group names like
+    # Cohort: Parasitengonina.
+    for rank, suffixes in FAMILY_GROUP_SUFFIXES:
+        if any(clean.endswith(suffix) for suffix in suffixes):
+            return rank
+    return None
+
+
 def key_fragment_label(fragment: str, strip_context: bool = False) -> tuple[str, str | None]:
     label = fragment.replace("_", " ").strip()
     explicit_rank = None
@@ -442,7 +468,8 @@ def collect_known_taxon_ranks(keys_db: dict) -> dict[str, set[str]]:
             add(parts["explicit_parent_rank"], parent_taxon)
         elif parent_key not in lookup:
             add(
-                implied_parent_rank_from_target_part(parts["target_part"])
+                infer_family_group_rank_from_suffix(parent_taxon)
+                or implied_parent_rank_from_target_part(parts["target_part"])
                 or fallback_parent_rank_from_child_ranks(child_ranks),
                 parent_taxon,
             )
@@ -461,15 +488,21 @@ def infer_parent_rank(
         return explicit_rank
 
     known_ranks = rank_lookup.get(normalize_taxon_name(parent_name), set())
+    suffix_rank = infer_family_group_rank_from_suffix(parent_name)
     if known_ranks:
         if len(known_ranks) == 1:
             return next(iter(known_ranks))
+        if suffix_rank in known_ranks:
+            return suffix_rank
         fallback_rank = fallback_parent_rank_from_child_ranks(child_ranks)
         if fallback_rank in known_ranks:
             return fallback_rank
         if implied_rank in known_ranks:
             return implied_rank
         return max(known_ranks, key=rank_sort_key)
+
+    if suffix_rank:
+        return suffix_rank
 
     if implied_rank:
         return implied_rank
@@ -642,6 +675,62 @@ def collect_descendants_for_rank(
     return sorted(descendants)
 
 
+def collect_all_descendants(
+    relationships: dict[tuple[str, str], dict[str, set[str]]],
+    start_rank: str,
+    start_name: str,
+) -> dict[str, set[str]]:
+    queue = [(start_rank, start_name)]
+    seen: set[tuple[str, str]] = set()
+    descendants: dict[str, set[str]] = {}
+
+    while queue:
+        current_rank, current_name = queue.pop(0)
+        current = (current_rank, current_name)
+        if current in seen:
+            continue
+        seen.add(current)
+
+        for child_rank, names in relationships.get(current, {}).items():
+            for name in names:
+                if not name:
+                    continue
+                descendants.setdefault(child_rank, set()).add(name)
+                if rank_sort_key(child_rank) > rank_sort_key(current_rank):
+                    queue.append((child_rank, name))
+
+    return descendants
+
+
+def collect_intermediate_family_group_options(
+    relationships: dict[tuple[str, str], dict[str, set[str]]],
+    start_rank: str,
+    start_name: str,
+    target_rank: str,
+) -> list[str]:
+    if target_rank not in FAMILY_GROUP_RANKS:
+        return []
+
+    start_descendants = collect_all_descendants(relationships, start_rank, start_name)
+    if not start_descendants:
+        return []
+
+    options: set[str] = set()
+    for candidate_rank, candidate_name in relationships:
+        if candidate_rank != target_rank:
+            continue
+
+        candidate_descendants = collect_all_descendants(relationships, candidate_rank, candidate_name)
+        for descendant_rank, descendant_names in candidate_descendants.items():
+            if rank_sort_key(descendant_rank) <= rank_sort_key(target_rank):
+                continue
+            if descendant_names & start_descendants.get(descendant_rank, set()):
+                options.add(candidate_name)
+                break
+
+    return sorted(options)
+
+
 def infer_species_for_genus(genus: str, all_species: list[str]) -> list[str]:
     genus = clean_taxon_name(genus)
     if not genus:
@@ -668,6 +757,13 @@ def mind_map_options_for_rank(
 
     for prior_rank, prior_name in reversed(prior_selected):
         options = collect_descendants_for_rank(relationships, prior_rank, prior_name, rank)
+        if not options:
+            options = collect_intermediate_family_group_options(
+                relationships,
+                prior_rank,
+                prior_name,
+                rank,
+            )
         if options:
             return options
 
@@ -687,6 +783,12 @@ def key_counts_by_rank(metadata: list[dict]) -> dict[str, int]:
             if rank in counts:
                 counts[rank] += 1
     return counts
+
+
+def clear_mind_map_state() -> None:
+    for rank in TAXONOMIC_LEVELS:
+        st.session_state[f"mm_{rank}"] = BLANK_OPTION
+    st.session_state["mm_show_map"] = False
 
 
 def parse_result(result: str) -> tuple[str | None, str | None]:
@@ -1428,12 +1530,7 @@ def main() -> None:
 
         col_gen, col_clr = st.columns([1, 1])
         generate = col_gen.button("Generate Mind Map", type="primary", width="stretch")
-        clear = col_clr.button("Clear all", width="stretch")
-
-        if clear:
-            for rank in TAXONOMIC_LEVELS:
-                st.session_state[f"mm_{rank}"] = BLANK_OPTION
-            st.rerun()
+        col_clr.button("Clear all", width="stretch", on_click=clear_mind_map_state)
 
         if generate:
             st.session_state["mm_show_map"] = True
