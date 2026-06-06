@@ -1,4 +1,16 @@
 {
+  "Key_to_Kingdoms_of_Life": {
+    "1": {
+      "option_a": {
+        "morphology": "Multicellular eukaryotic organisms that ingest food, lack cell walls, and develop from a blastula stage.",
+        "advances_to": "Kingdom: Animalia"
+      },
+      "option_b": {
+        "morphology": "Organisms not matching Animalia (for example plants, fungi, protists, bacteria, or archaea).",
+        "advances_to": "Other Kingdoms"
+      }
+    }
+  },
   "Key_to_Phyla_of_Animalia": {
     "1": {
       "option_a": {
@@ -20,6 +32,18 @@
       "option_b": {
         "morphology": "Body segmentation varies (e.g., distinct head, thorax, and abdomen); bearing mandibles and at least one pair of antennae; three or more pairs of walking legs.",
         "advances_to": "Other Classes"
+      }
+    }
+  },
+  "Key_to_Subclasses_of_Arachnida": {
+    "1": {
+      "option_a": {
+        "morphology": "Without conspicuous primary somatic segmentation or segmentally arranged tergites; body often compact, with the gnathosoma/capitulum forming the anterior feeding region.",
+        "advances_to": "Subclass: Acari"
+      },
+      "option_b": {
+        "morphology": "With arachnid characters not matching Acari, such as conspicuous spinnerets, a terminal spine or flagellum, chelate palpi, or other clearly segmented arachnid body forms.",
+        "advances_to": "Other Arachnid Subclasses"
       }
     }
   },
