@@ -11,17 +11,49 @@ from uuid import uuid4
 import streamlit as st
 
 
-KEYS_PATH = Path("keys.json")
-OBSERVATION_DIR = Path("outputs/observations")
-IMAGE_DIR = Path("static/morphology_images")
-DEFAULT_KEY = "Key_to_Superfamilies_of_Phytophagous_Mites"
+APP_DIR = Path(__file__).resolve().parent
+KEYS_PATH = APP_DIR / "keys.json"
+OBSERVATION_DIR = APP_DIR / "outputs" / "observations"
+IMAGE_DIR = APP_DIR / "static" / "morphology_images"
+DEFAULT_KEY = "Key_to_Phyla_of_Animalia"
 IMAGE_TYPES = ["png", "jpg", "jpeg", "webp"]
 NEXT_TIER_MAP = {
+    "Phylum": "Classes",
+    "Class": "Orders",
+    "Subclass": "Superorders",
+    "Superorder": "Orders",
+    "Order": "Suborders",
+    "Suborder": "Families",
+    "Cohort": "Families",
     "Superfamily": "Families",
     "Family": "Subfamilies",
     "Subfamily": "Tribes",
     "Tribe": "Genera",
     "Genus": "Species",
+}
+TIER_FALLBACKS = {
+    "Phylum": ["Classes"],
+    "Class": ["Orders"],
+    "Subclass": ["Superorders", "Orders"],
+    "Superorder": ["Orders"],
+    "Order": ["Suborders", "Families"],
+    "Suborder": ["Families"],
+    "Cohort": ["Families"],
+    "Superfamily": ["Families"],
+    "Family": ["Subfamilies", "Genera"],
+    "Subfamily": ["Tribes", "Genera"],
+    "Tribe": ["Genera"],
+    "Genus": ["Species"],
+}
+NEXT_KEY_ALIASES = {
+    "Suborder: Oribatida (Cohort Astigmatina)": ["Key_to_Families_of_Astigmatina"],
+    "Suborder: Oribatida (excluding Astigmatina)": [
+        "Key_to_Families_of_Oribatida_excluding_Astigmatina"
+    ],
+    "Cohort: Parasitengonina": [
+        "Key_to_Families_of_Parasitengonina_Adults",
+        "Key_to_Families_of_Parasitengonina_Larvae",
+    ],
 }
 
 
@@ -55,11 +87,35 @@ def parse_result(result: str) -> tuple[str | None, str | None]:
     return rank.strip(), name.strip()
 
 
-def get_next_key_name(result: str) -> str | None:
+def key_fragment(value: str) -> str:
+    cleaned = "".join(char if char.isalnum() else "_" for char in value)
+    return "_".join(part for part in cleaned.split("_") if part)
+
+
+def append_candidate(candidates: list[str], key_name: str, keys_db: dict) -> None:
+    if key_name in keys_db and key_name not in candidates:
+        candidates.append(key_name)
+
+
+def get_next_key_candidates(result: str, keys_db: dict) -> list[str]:
     rank, name = parse_result(result)
-    if not rank or rank not in NEXT_TIER_MAP:
-        return None
-    return f"Key_to_{NEXT_TIER_MAP[rank]}_of_{name}"
+    if not rank or not name:
+        return []
+
+    candidates = []
+    for key_name in NEXT_KEY_ALIASES.get(result, []):
+        append_candidate(candidates, key_name, keys_db)
+
+    taxon = key_fragment(name)
+    for tier in TIER_FALLBACKS.get(rank, []):
+        append_candidate(candidates, f"Key_to_{tier}_of_{taxon}", keys_db)
+
+    suffix = f"_of_{taxon}"
+    for key_name in keys_db:
+        if key_name.endswith(suffix):
+            append_candidate(candidates, key_name, keys_db)
+
+    return candidates
 
 
 def secret_value(name: str, default: str = "") -> str:
@@ -509,12 +565,17 @@ def main() -> None:
             st.success("Diagnostic checkpoint reached")
             st.markdown(f"## {st.session_state.final_result}")
 
-            next_key_name = get_next_key_name(st.session_state.final_result)
-            if next_key_name and next_key_name in keys_db:
-                if st.button(f"Continue to {format_key_name(next_key_name)}", type="primary"):
-                    restart(next_key_name)
-                    st.rerun()
-            elif next_key_name:
+            next_key_names = get_next_key_candidates(st.session_state.final_result, keys_db)
+            if next_key_names:
+                for index, next_key_name in enumerate(next_key_names):
+                    if st.button(
+                        f"Continue to {format_key_name(next_key_name)}",
+                        type="primary" if index == 0 else "secondary",
+                        key=f"continue-{next_key_name}",
+                    ):
+                        restart(next_key_name)
+                        st.rerun()
+            elif parse_result(st.session_state.final_result)[0] in NEXT_TIER_MAP:
                 st.info("A deeper key for this taxon is not loaded yet.")
 
             record = observation_record()
