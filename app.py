@@ -369,6 +369,16 @@ def implied_child_ranks_from_target_part(target_part: str) -> list[str]:
     return [rank for _, rank in sorted(matches)]
 
 
+def merge_rank_lists(*rank_lists: list[str]) -> list[str]:
+    merged = {
+        rank
+        for ranks in rank_lists
+        for rank in ranks
+        if rank in TAXONOMIC_LEVELS
+    }
+    return sorted(merged, key=rank_sort_key)
+
+
 def implied_parent_rank_from_target_part(target_part: str) -> str | None:
     implied_child_ranks = implied_child_ranks_from_target_part(target_part)
     if not implied_child_ranks:
@@ -463,6 +473,8 @@ def collect_key_metadata(keys_db: dict) -> list[dict]:
         if not child_ranks and parts["target_part"] in PLURAL_TO_RANK:
             child_ranks = [PLURAL_TO_RANK[parts["target_part"]]]
 
+        title_ranks = implied_child_ranks_from_target_part(parts["target_part"])
+        display_ranks = merge_rank_lists(title_ranks, child_ranks)
         parent_rank = infer_parent_rank(
             parts["parent_taxon"],
             parts["explicit_parent_rank"],
@@ -477,6 +489,7 @@ def collect_key_metadata(keys_db: dict) -> list[dict]:
                 "label": format_key_name(key_name),
                 "target_part": parts["target_part"],
                 "output_ranks": child_ranks,
+                "display_ranks": display_ranks,
                 "primary_rank": primary_rank,
                 "parent_rank": parent_rank,
                 "parent_label": parts["parent_label"],
@@ -497,6 +510,78 @@ def metadata_for_key(metadata: list[dict], key_name: str) -> dict | None:
         if item["key"] == key_name:
             return item
     return None
+
+
+def metadata_display_ranks(item: dict) -> list[str]:
+    return item.get("display_ranks") or item.get("output_ranks", [])
+
+
+def key_scope_label(item: dict) -> str:
+    target_part = item.get("target_part", "")
+    if re.search(r"(^|_)from_Kerala($|_)", target_part):
+        return "Kerala regional paper"
+    return "General"
+
+
+def home_group_key(item: dict) -> tuple[str, str, str]:
+    display_ranks = metadata_display_ranks(item)
+    first_rank = display_ranks[0] if display_ranks else item.get("primary_rank", "")
+    return (
+        item.get("parent_rank") or "",
+        item.get("parent_taxon") or item.get("parent_label") or "",
+        first_rank,
+    )
+
+
+def build_home_start_rows(metadata: list[dict]) -> list[dict]:
+    grouped: dict[tuple[str, str, str], list[dict]] = {}
+    for item in metadata:
+        grouped.setdefault(home_group_key(item), []).append(item)
+
+    rows = []
+    for items in grouped.values():
+        has_regional = any(key_scope_label(item) != "General" for item in items)
+        display_items = items if has_regional else []
+        if not display_items:
+            display_items = items
+
+        if has_regional:
+            row_items = display_items
+            parent_label = row_items[0].get("parent_label", "")
+            key_group = f"{parent_label} keys" if parent_label else row_items[0]["label"]
+        else:
+            row_items = [display_items[0]]
+            parent_label = row_items[0].get("parent_label", "")
+            key_group = row_items[0]["label"]
+
+        ranks = merge_rank_lists(*[metadata_display_ranks(item) for item in row_items])
+        scopes = sorted({key_scope_label(item) for item in row_items})
+        scope_text = "; ".join(scopes)
+        included_keys = "; ".join(item["label"] for item in row_items)
+
+        rows.append(
+            {
+                "Key group": key_group,
+                "Identifies": ", ".join(ranks) or "Unknown",
+                "Parent group": parent_label,
+                "Scope": scope_text,
+                "Keys included": included_keys,
+            }
+        )
+
+        if not has_regional and len(display_items) > 1:
+            for item in display_items[1:]:
+                rows.append(
+                    {
+                        "Key group": item["label"],
+                        "Identifies": ", ".join(metadata_display_ranks(item)) or "Unknown",
+                        "Parent group": item.get("parent_label", ""),
+                        "Scope": key_scope_label(item),
+                        "Keys included": item["label"],
+                    }
+                )
+
+    return sorted(rows, key=lambda row: (row["Parent group"], row["Key group"]))
 
 
 def build_taxonomy_relationships(keys_db: dict) -> dict[tuple[str, str], dict[str, set[str]]]:
@@ -584,7 +669,7 @@ def mind_map_options_for_rank(
 def key_counts_by_rank(metadata: list[dict]) -> dict[str, int]:
     counts = {rank: 0 for rank in TAXONOMIC_LEVELS}
     for item in metadata:
-        for rank in item["output_ranks"]:
+        for rank in metadata_display_ranks(item):
             if rank in counts:
                 counts[rank] += 1
     return counts
@@ -1084,7 +1169,7 @@ def render_home(keys_db: dict, metadata: list[dict], warnings: list[str]) -> Non
     st.subheader("Available levels")
     rows = []
     for rank in PATH_LEVELS:
-        keys_at_rank = [item["label"] for item in metadata if rank in item["output_ranks"]]
+        keys_at_rank = [item["label"] for item in metadata if rank in metadata_display_ranks(item)]
         taxa_count = len(taxa_by_rank.get(rank, []))
         if not keys_at_rank and not taxa_count:
             continue
@@ -1099,16 +1184,7 @@ def render_home(keys_db: dict, metadata: list[dict], warnings: list[str]) -> Non
     st.dataframe(rows, width="stretch", hide_index=True)
 
     st.subheader("Start points")
-    start_rows = []
-    for item in metadata:
-        ranks = ", ".join(item["output_ranks"]) or "Unknown"
-        start_rows.append(
-            {
-                "Key": item["label"],
-                "Identifies": ranks,
-                "Parent group": item["parent_label"],
-            }
-        )
+    start_rows = build_home_start_rows(metadata)
     st.dataframe(start_rows, width="stretch", hide_index=True)
 
     if warnings:
@@ -1156,7 +1232,7 @@ def main() -> None:
         level_options = [ALL_LEVELS_OPTION] + [
             rank
             for rank in PATH_LEVELS
-            if any(rank in item["output_ranks"] for item in metadata)
+            if any(rank in metadata_display_ranks(item) for item in metadata)
         ]
         if st.session_state.get("key_level_filter") not in level_options:
             st.session_state.key_level_filter = ALL_LEVELS_OPTION
@@ -1170,7 +1246,7 @@ def main() -> None:
 
         filtered_by_level = [
             item for item in metadata
-            if level_filter == ALL_LEVELS_OPTION or level_filter in item["output_ranks"]
+            if level_filter == ALL_LEVELS_OPTION or level_filter in metadata_display_ranks(item)
         ]
         parent_options = [ALL_GROUPS_OPTION] + sorted(
             {
