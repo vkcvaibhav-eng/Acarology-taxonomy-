@@ -143,15 +143,26 @@ def build_taxonomic_path(history, final_result):
 
 def create_mind_map(taxonomy, keys_db=None):
     """
-    Create Graphviz hierarchy.
-    Green  = identified in session AND a deeper key exists.
-    Yellow = identified in session but no deeper key loaded.
-    Grey   = not yet reached / blank.
+    Create Graphviz hierarchy — compact horizontal layout.
+    Green  = identified AND a deeper key exists.
+    Yellow = identified but no deeper key loaded.
+    Grey   = not selected / blank.
     """
     dot = Digraph()
-    dot.attr(rankdir="TB")
-    dot.attr("graph", bgcolor="white", pad="0.4", ranksep="0.5")
-    dot.attr("node", fontname="Helvetica", fontsize="11")
+    dot.attr(rankdir="LR")   # left-to-right = much more compact vertically
+    dot.attr("graph", bgcolor="white", pad="0.15", ranksep="0.3", nodesep="0.2")
+    dot.attr(
+        "node",
+        fontname="Helvetica",
+        fontsize="8",
+        shape="box",
+        style="filled,rounded",
+        width="0.9",
+        height="0.35",
+        fixedsize="false",
+        margin="0.06,0.04",
+    )
+    dot.attr("edge", arrowsize="0.5", color="#aaaaaa")
 
     previous_node = None
     keys_db = keys_db or {}
@@ -161,39 +172,24 @@ def create_mind_map(taxonomy, keys_db=None):
         node_id = rank
 
         if value:
-            # Check whether a deeper key exists for this taxon
             taxon_frag = key_fragment(value)
             has_key = any(
                 k.endswith(f"_{taxon_frag}") or k.endswith(f"of_{taxon_frag}")
                 for k in keys_db
             )
-            if has_key:
-                fillcolor, color, fontcolor = "#74c476", "#238b45", "black"   # green
-            else:
-                fillcolor, color, fontcolor = "#fdd835", "#f57f17", "black"   # yellow
-
-            dot.node(
-                node_id,
-                f"{rank}\n{value}",
-                style="filled,rounded",
-                fillcolor=fillcolor,
-                color=color,
-                fontcolor=fontcolor,
-                shape="box",
+            fillcolor, color, fontcolor = (
+                ("#74c476", "#238b45", "black") if has_key
+                else ("#fdd835", "#f57f17", "black")
             )
+            label = f"{rank}: {value}"
+            dot.node(node_id, label,
+                     fillcolor=fillcolor, color=color, fontcolor=fontcolor)
         else:
-            dot.node(
-                node_id,
-                f"{rank}\n—",
-                style="filled,rounded",
-                fillcolor="#eeeeee",
-                color="#bdbdbd",
-                fontcolor="#9e9e9e",
-                shape="box",
-            )
+            dot.node(node_id, rank,
+                     fillcolor="#eeeeee", color="#bdbdbd", fontcolor="#9e9e9e")
 
         if previous_node:
-            dot.edge(previous_node, node_id, color="#aaaaaa")
+            dot.edge(previous_node, node_id)
 
         previous_node = node_id
 
