@@ -5275,6 +5275,58 @@
       }
     }
   },
+  "Key_to_Tribes_and_Genera_from_Kerala_of_Tetranychinae": {
+    "1": {
+      "option_a": {
+        "morphology": "Tarsus I dorsally with 0-1 set of duplex setae; empodium rudimentary. Eurytetranychini; aedeagus hook-like, dorsal margin of shaft slightly concave, aedeagal knob bluntly pointed without projections.",
+        "advances_to": "Species: Eutetranychus orientalis"
+      },
+      "option_b": {
+        "morphology": "Tarsus I dorsally with 2 sets of duplex setae; empodium distinct.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Para-anal setae 2 pairs (h2 and h3).",
+        "advances_to": "Node 3"
+      },
+      "option_b": {
+        "morphology": "Para-anal setae 1 pair (h2).",
+        "advances_to": "Node 5"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Empodium split bilaterally into 2 claw-like structures, usually with appendent hairs.",
+        "advances_to": "Genus: Schizotetranychus"
+      },
+      "option_b": {
+        "morphology": "Empodium split distally into hairs.",
+        "advances_to": "Node 4"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "Dorsal body setae twice as long as the distance between bases of consecutive setae and set on tubercles. Aedeagal knob axis at an acute angle with the shaft, knob with an acute anterior angulation, width of knob about twice the width of aedeagal neck.",
+        "advances_to": "Species: Neotetranychus lek"
+      },
+      "option_b": {
+        "morphology": "Dorsal body setae at least as long as the distance between bases of consecutive setae, not borne on tubercles. Distal bent portion of aedeagus longer than the width of neck, knob pointed distally without projections.",
+        "advances_to": "Species: Eotetranychus sp. 1"
+      }
+    },
+    "5": {
+      "option_a": {
+        "morphology": "Tarsus I with two sets of duplex setae distal and adjacent; empodium of legs claw-like with proximoventral hairs.",
+        "advances_to": "Genus: Oligonychus"
+      },
+      "option_b": {
+        "morphology": "Tarsus I with two sets of duplex setae well separated, dividing segment into three more or less equal parts; empodium of legs claw-like, split distally into 3 pairs of hairs.",
+        "advances_to": "Genus: Tetranychus"
+      }
+    }
+  },
   "Key_to_Families_of_Eriophyoidea": {
     "1": {
       "option_a": {
@@ -7131,6 +7183,240 @@
       }
     }
   },
+  "Key_to_Species_of_Schizotetranychus": {
+    "1": {
+      "option_a": {
+        "morphology": "Dorsal setae shorter, length not exceeding the consecutive setal bases.",
+        "advances_to": "Node 2"
+      },
+      "option_b": {
+        "morphology": "Dorsal setae long, length exceeding the consecutive setal bases.",
+        "advances_to": "Node 9"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Setae on hysterosoma minute, less than half the length of consecutive setal bases.",
+        "advances_to": "Node 3"
+      },
+      "option_b": {
+        "morphology": "Hysterosomal setae longer than half the length of bases of consecutive setae.",
+        "advances_to": "Node 6"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Body setae very short and inconspicuous; legs short, not exceeding the anterior margin of gnathosoma; palp unusually long.",
+        "advances_to": "Species: Schizotetranychus fluvialis"
+      },
+      "option_b": {
+        "morphology": "Setae conspicuous, legs exceeding cephalothorax, palp normal.",
+        "advances_to": "Node 4"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "Terminal sensillum of palp absent; dorsal setae c3 and f2 longer than other dorsal hysterosomal setae; distance between f1-f1 about twice the width of d1-d1.",
+        "advances_to": "Node 5"
+      },
+      "option_b": {
+        "morphology": "Terminal sensillum of palp present; hysterosomal setae all similar in length, clunal setae (h1) more closely spaced than dorsocentrals; first, second, and fourth pairs of dorsocentrals equally apart, but third pair closely approximated.",
+        "advances_to": "Species: Schizotetranychus asparagi"
+      }
+    },
+    "5": {
+      "option_a": {
+        "morphology": "Idiosomal setae awl-shaped, widely placed at the base, less than half the length of consecutive setal bases.",
+        "advances_to": "Species: Schizotetranychus baltazari"
+      },
+      "option_b": {
+        "morphology": "Idiosomal setae simple, highly pubescent, set on triangular sockets, about two-thirds the length of consecutive setal bases.",
+        "advances_to": "Species: Schizotetranychus hindustanicus"
+      }
+    },
+    "6": {
+      "option_a": {
+        "morphology": "Duplex setae of tarsi I closely approximated; dorsal hysterosomal setae minutely pubescent, slender, tapering but basally wide with acute tip and slightly shorter than the longitudinal bases of consecutive setae.",
+        "advances_to": "Species: Schizotetranychus spireafolia"
+      },
+      "option_b": {
+        "morphology": "Duplex setae of tarsi I not approximated; dorsal setae not with the preceding combination of characters.",
+        "advances_to": "Node 7"
+      }
+    },
+    "7": {
+      "option_a": {
+        "morphology": "Dorsal propodosomal integument of female with reticulation; dorsal idiosomal setae awl-shaped and finely serrate; second dorsocentral (d2) longest; dorsocentral setae as long as the longitudinal bases; inner sacrals (f1-f1) almost twice the width of other dorsocentrals.",
+        "advances_to": "Species: Schizotetranychus reticulatus"
+      },
+      "option_b": {
+        "morphology": "Dorsal propodosomal integument of female without reticulation; dorsals not awl-shaped and distance between them varies.",
+        "advances_to": "Node 8"
+      }
+    },
+    "8": {
+      "option_a": {
+        "morphology": "Dorsal setae lanceolate, dorsocentral hysterosomal setae approximately as long as distance between their longitudinal bases; terminal sensillum of palp twice as long as wide.",
+        "advances_to": "Species: Schizotetranychus lespedezae"
+      },
+      "option_b": {
+        "morphology": "Hysterosomals and inner sacrals (f1) awl-shaped, dorsal hysterosomal setae much shorter than distance to their consecutive bases; outer sacrals (f2) much more widely spaced than second dorsals; terminal sensillum of palp about 1.5 times as long as wide.",
+        "advances_to": "Species: Schizotetranychus spiculus"
+      }
+    },
+    "9": {
+      "option_a": {
+        "morphology": "Length of dorsocentral and dorsolateral setae not equal.",
+        "advances_to": "Node 10"
+      },
+      "option_b": {
+        "morphology": "Length of dorsocentral and dorsolateral setae equal.",
+        "advances_to": "Node 12"
+      }
+    },
+    "10": {
+      "option_a": {
+        "morphology": "Dorsolateral setae longer than dorsocentral setae; outer sacrals (f2) longer; genital flap and pregenital area with transverse striations.",
+        "advances_to": "Species: Schizotetranychus mansoni"
+      },
+      "option_b": {
+        "morphology": "Dorsolateral setae shorter than dorsocentral setae.",
+        "advances_to": "Node 11"
+      }
+    },
+    "11": {
+      "option_a": {
+        "morphology": "Dorsocentral seta c1 about half as long as the distance between c1 and c2; tarsi I with 2 tactile setae proximal to the proximal pair of duplex setae.",
+        "advances_to": "Species: Schizotetranychus approximatus"
+      },
+      "option_b": {
+        "morphology": "Seta c1 approximately as long as the distance between c1 and c2; tarsi I with 1 tactile seta proximal to proximal pair of duplex setae.",
+        "advances_to": "Species: Schizotetranychus laevidorsatus"
+      }
+    },
+    "12": {
+      "option_a": {
+        "morphology": "Dorsocentral setae little longer than or as long as, just approximating the bases of consecutive setae.",
+        "advances_to": "Node 13"
+      },
+      "option_b": {
+        "morphology": "Dorsocentral setae about 1.5 times to double the length of bases of consecutive setae.",
+        "advances_to": "Node 17"
+      }
+    },
+    "13": {
+      "option_a": {
+        "morphology": "Dorsocentral setae as long as or just reaching the longitudinal bases of consecutive setae; peritreme distally chambered and dorsal sensillum rounded; dorsal striation transverse except longitudinal at sacrals.",
+        "advances_to": "Species: Schizotetranychus undulatus"
+      },
+      "option_b": {
+        "morphology": "Dorsocentral setae little longer than or just passing the longitudinal bases of consecutive setae; peritreme, dorsal sensillum, and striations not with the preceding combination of characters.",
+        "advances_to": "Node 14"
+      }
+    },
+    "14": {
+      "option_a": {
+        "morphology": "Peritreme hooked or chambered; genital flap with transverse striations.",
+        "advances_to": "Node 15"
+      },
+      "option_b": {
+        "morphology": "Peritreme simple, ending in a bulb; genital flap with transverse irregular or longitudinal striations.",
+        "advances_to": "Node 16"
+      }
+    },
+    "15": {
+      "option_a": {
+        "morphology": "Peritreme with swollen tip and chambered bent portion; dorsal sensillum spindle-shaped; dorsal setae not basally wide; tarsus I with 2 sensory and 1 tactile seta proximal to the proximal pair of duplex setae.",
+        "advances_to": "Species: Schizotetranychus schizopus"
+      },
+      "option_b": {
+        "morphology": "Peritreme hooked distally but not chambered; dorsal setae not basally wide; dorsal sensillum thin and slender; tarsus I with 2 sensory and 3 tactile setae proximal to the proximal pair of duplex setae; outer and inner sacrals (f1 and f2) of same length, clunals long and tapering.",
+        "advances_to": "Species: Schizotetranychus indicus"
+      }
+    },
+    "16": {
+      "option_a": {
+        "morphology": "Genital flap with transverse striations; terminal palp sensillum slightly longer than wide; dorsal sensillum fusiform; dorsal idiosomal setae of same length except longer humeral setae (c3); inner sacral (f1) as wide as the second dorsocentral (d1).",
+        "advances_to": "Species: Schizotetranychus andropogoni"
+      },
+      "option_b": {
+        "morphology": "Striations on genital flap anteriorly transverse and posteriorly longitudinal; terminal palp sensillum twice as long as broad; dorsal sensillum spindle-shaped; humeral not long; second dorsocentral (d1) little wider than inner sacral; tibia IV distally with long setae; empodium with Y-shaped splitting.",
+        "advances_to": "Species: Schizotetranychus recki"
+      }
+    },
+    "17": {
+      "option_a": {
+        "morphology": "Dorsal setae 1.5 times longer than the longitudinal bases of consecutive setae; tibia II with 5 tactile setae.",
+        "advances_to": "Node 18"
+      },
+      "option_b": {
+        "morphology": "Dorsal setae less than 1.5 times longer than the longitudinal bases of consecutive setae; tibia II with either 7 or 8 tactile setae.",
+        "advances_to": "Node 19"
+      }
+    },
+    "18": {
+      "option_a": {
+        "morphology": "Dorsal setae slightly serrate and broader at base; setae c1 about 1.5 times as long as the distance between c1 and c2; dorsal striation transverse except irregular between c1-c1 and longitudinal at propodosomal region; tibia I with 7 tactile setae.",
+        "advances_to": "Species: Schizotetranychus cajani"
+      },
+      "option_b": {
+        "morphology": "Dorsal setae not serrate, but pubescent; setae c1 about 3 times as long as the distance between c1 and c2; dorsum with transverse striation; tibia I with 7 or 8 tactile setae.",
+        "advances_to": "Species: Schizotetranychus kochummeni"
+      }
+    },
+    "19": {
+      "option_a": {
+        "morphology": "Striations on the hysterosoma transverse, propodosoma longitudinal and V-shaped between third dorsocentral setae (e1-e1); propodosoma ventrally without striations.",
+        "advances_to": "Species: Schizotetranychus malodhensis"
+      },
+      "option_b": {
+        "morphology": "Striations not as above.",
+        "advances_to": "Node 20"
+      }
+    },
+    "20": {
+      "option_a": {
+        "morphology": "Dorsal setae not serrate, rather pubescent; terminal palp sensillum twice as long as broad; dorsal sensillum fusiform; peritreme dilated distally; tarsi I with 5 tactile and 1 sensory seta proximal to proximal pair of duplexes; tibia II with 8 tactile setae.",
+        "advances_to": "Species: Schizotetranychus chiangmaiensis"
+      },
+      "option_b": {
+        "morphology": "Dorsal setae linear-lanceolate and serrate; terminal palp sensillum about one-third as long as broad and as long as dorsal sensillum; peritreme simple, hook-shaped, or with lobes; tarsi I with 4 tactile and 1 sensory seta proximal to proximal pair of duplexes; tibia II with 7 tactile setae.",
+        "advances_to": "Species: Schizotetranychus tephrosiae"
+      }
+    }
+  },
+  "Key_to_Species_from_Kerala_of_Schizotetranychus": {
+    "1": {
+      "option_a": {
+        "morphology": "Dorsohysterosomal setae longer than longitudinal distance between bases of consecutive pair of setae; distal portion of aedeagus turns dorsal to form a sigmoid distal end, tip slightly hooked.",
+        "advances_to": "Species: Schizotetranychus hindustanicus"
+      },
+      "option_b": {
+        "morphology": "Dorsohysterosomal setae shorter than or approximately as long as the longitudinal distance between bases of consecutive pair of setae; aedeagus not as above.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Tibia I with 8 tactile and 2 sensory setae; distal end of peritreme bulb-like; aedeagus dorsally directed but not sigmoid.",
+        "advances_to": "Species: Schizotetranychus mansoni"
+      },
+      "option_b": {
+        "morphology": "Tibia I with 7 tactile and 1 sensory seta; distal end of peritreme hooked.",
+        "advances_to": "Node 3"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Dorsal striae between third pair of dorsocentral hysterosomal setae longitudinal; aedeagus bent dorsad and dorsal margin of the tip pointed posteriorly at an angle.",
+        "advances_to": "Species: Schizotetranychus baltazari"
+      },
+      "option_b": {
+        "morphology": "Dorsal striae between third pair of dorsocentral hysterosomal setae transverse; aedeagus bent dorsad at right angle with shaft dorsal margin, with slender distal part slightly curved caudad.",
+        "advances_to": "Species: Schizotetranychus krungthepensis"
+      }
+    }
+  },
   "Key_to_Species_of_Tetranychus": {
     "1": {
       "option_a": {
@@ -7353,6 +7639,128 @@
       }
     }
   },
+  "Key_to_Species_from_Kerala_of_Tetranychus": {
+    "1": {
+      "option_a": {
+        "morphology": "Spur on empodium I of female stout, two-thirds the length of proximoventral hairs; aedeagal knob forming an acute angle with the shaft, posterior angulation acute.",
+        "advances_to": "Species: T. bambusae"
+      },
+      "option_b": {
+        "morphology": "Spur on empodium I when present short, never exceeding one-third the length of proximoventral hairs; aedeagus not as above.",
+        "advances_to": "Node 2"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Aedeagus long, slender, tapering, without a distinct terminal knob.",
+        "advances_to": "Species: T. fijiensis"
+      },
+      "option_b": {
+        "morphology": "Aedeagus not long, slender, and tapering; with a terminal knob.",
+        "advances_to": "Node 3"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Female with proximal set of duplex setae more or less in line with the proximal tactile setae.",
+        "advances_to": "Node 4"
+      },
+      "option_b": {
+        "morphology": "Female with proximal set of duplex setae well beyond the proximal four tactile setae.",
+        "advances_to": "Node 5"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "Aedeagal knob with very small anterior and posterior projections; empodium II of male with proximoventral tridigitate spurs.",
+        "advances_to": "Species: T. macfarlanei"
+      },
+      "option_b": {
+        "morphology": "Aedeagal knob with acute anterior projection and without posterior projections; empodium II of male with 3 pairs of proximoventral hairs and with a small distinct mediodorsal spur.",
+        "advances_to": "Species: T. ludeni"
+      }
+    },
+    "5": {
+      "option_a": {
+        "morphology": "Aedeagus with a tiny knob; knob with slight anterior and posterior angulations.",
+        "advances_to": "Species: T. udaipurensis"
+      },
+      "option_b": {
+        "morphology": "Aedeagus with a well-developed knob; knob not as above.",
+        "advances_to": "Node 6"
+      }
+    },
+    "6": {
+      "option_a": {
+        "morphology": "Dorsum of aedeagal knob with median indentation, berry-like.",
+        "advances_to": "Node 7"
+      },
+      "option_b": {
+        "morphology": "Dorsum of aedeagal knob slightly rounded without median indentation, not berry-like.",
+        "advances_to": "Node 8"
+      }
+    },
+    "7": {
+      "option_a": {
+        "morphology": "Aedeagal neck not conspicuous; shaft shorter; anterior projection of the knob rounded and much bigger than the posterior projection.",
+        "advances_to": "Species: T. puschelii"
+      },
+      "option_b": {
+        "morphology": "Aedeagal neck conspicuous; shaft longer; anterior and posterior projections of the knob subequal.",
+        "advances_to": "Species: T. neocaledonicus"
+      }
+    },
+    "8": {
+      "option_a": {
+        "morphology": "Female empodium with strong mediodorsal spur; female terminal sensillum slightly longer than wide; aedeagal knob looks like a bird's head with posterior projection beak-like.",
+        "advances_to": "Species: T. gloveri"
+      },
+      "option_b": {
+        "morphology": "Female empodium with mediodorsal spur inconspicuous or absent; female terminal sensillum approximately twice as long as wide; aedeagal knob not as above.",
+        "advances_to": "Node 9"
+      }
+    },
+    "9": {
+      "option_a": {
+        "morphology": "Dorsal surface of aedeagal knob at an angle to the axis of the shaft.",
+        "advances_to": "Node 10"
+      },
+      "option_b": {
+        "morphology": "Dorsal surface of knob parallel to the axis of the shaft.",
+        "advances_to": "Node 11"
+      }
+    },
+    "10": {
+      "option_a": {
+        "morphology": "Posterior angulation of knob elongated; width of the knob more than twice the width of the aedeagal neck.",
+        "advances_to": "Species: T. marianae"
+      },
+      "option_b": {
+        "morphology": "Posterior angulation of knob shorter; width of the knob one and a half times the width of the aedeagal neck.",
+        "advances_to": "Species: T. lombardinii"
+      }
+    },
+    "11": {
+      "option_a": {
+        "morphology": "Dorsal surface of the aedeagal knob not convex completely; at least posterior half of the knob with a median indentation.",
+        "advances_to": "Species: T. truncatus"
+      },
+      "option_b": {
+        "morphology": "Dorsal surface of the aedeagal knob convex or most of it convex.",
+        "advances_to": "Node 12"
+      }
+    },
+    "12": {
+      "option_a": {
+        "morphology": "Terminal sensillum of male palpus about 3-4 times as long as broad; aedeagal knob about one-fifth to one-fourth the length of the dorsal margin of the shaft.",
+        "advances_to": "Species: T. urticae"
+      },
+      "option_b": {
+        "morphology": "Terminal sensillum of male palpus about 3 times as long as broad; aedeagal knob about one-third the length of the dorsal margin of the shaft.",
+        "advances_to": "Species: T. kanzawai"
+      }
+    }
+  },
   "Key_to_Species_of_Oligonychus": {
     "1": {
       "option_a": {
@@ -7402,6 +7810,48 @@
       "option_b": {
         "morphology": "Aedeagus with slightly projected posterior end; neck width more broadly developed.",
         "advances_to": "Species: O. neotylus"
+      }
+    }
+  },
+  "Key_to_Species_from_Kerala_of_Oligonychus": {
+    "1": {
+      "option_a": {
+        "morphology": "Male aedeagus with distinct knob.",
+        "advances_to": "Node 2"
+      },
+      "option_b": {
+        "morphology": "Male aedeagus without distinct knob.",
+        "advances_to": "Node 3"
+      }
+    },
+    "2": {
+      "option_a": {
+        "morphology": "Aedeagus with knob very prominent, curved downwards with long slender tapered posterior projection and flat dorsal margin.",
+        "advances_to": "Species: O. biharensis"
+      },
+      "option_b": {
+        "morphology": "Aedeagus with knob small, spear-like with broad base; dorsal margin of shaft forming almost a right angle to anterior margin of upturned part.",
+        "advances_to": "Species: O. tylus"
+      }
+    },
+    "3": {
+      "option_a": {
+        "morphology": "Dorsally directed aedeagal part longer, strongly angulate medially, with long and slender posterior projection.",
+        "advances_to": "Species: O. grypus"
+      },
+      "option_b": {
+        "morphology": "Dorsally directed aedeagal part comparatively short, weakly angulate medially, with small posterior projection forming slender, blunt, or finger-like tip.",
+        "advances_to": "Node 4"
+      }
+    },
+    "4": {
+      "option_a": {
+        "morphology": "Palp with terminal sensillum about three times as long as wide and dorsal sensillum slender; dorsal idiosomal setae slightly longer than the interval between their longitudinal bases; dorsal projection of aedeagus narrow, finger-like, projecting posteriorly.",
+        "advances_to": "Species: O. oryzae"
+      },
+      "option_b": {
+        "morphology": "Palpus with terminal sensillum two times as long as wide and slender, dorsal sensillum slender; dorsal idiosomal setae twice longer than the interval between their longitudinal bases; aedeagus with distal part strongly sigmoid; upturned part recurved distally, forming strong and comparatively thick downturned tip.",
+        "advances_to": "Species: O. sacchari"
       }
     }
   },
